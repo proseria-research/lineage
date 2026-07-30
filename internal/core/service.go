@@ -17,6 +17,7 @@ type Service struct {
 	defBack   string
 	cache     domain.ResolutionCache
 	events    domain.EventBus
+	meter     domain.Meter
 	signTTL   time.Duration
 	uploadTTL time.Duration
 
@@ -24,10 +25,26 @@ type Service struct {
 	pending map[string]*pendingUpload // in-flight uploads keyed by uploadId (§05.6)
 }
 
-func New(store domain.MetadataStore, backends map[string]domain.StorageBackend, defBack string, cache domain.ResolutionCache, events domain.EventBus) *Service {
+// Option configures a Service at construction (non-breaking additive knobs).
+type Option func(*Service)
+
+// WithMeter attaches a telemetry Meter (§09.2); nil leaves the no-op in place.
+func WithMeter(m domain.Meter) Option {
+	return func(s *Service) {
+		if m != nil {
+			s.meter = m
+		}
+	}
+}
+
+func New(store domain.MetadataStore, backends map[string]domain.StorageBackend, defBack string, cache domain.ResolutionCache, events domain.EventBus, opts ...Option) *Service {
 	s := &Service{
 		store: store, backends: backends, defBack: defBack, cache: cache, events: events,
-		signTTL: 15 * time.Minute, uploadTTL: time.Hour, pending: map[string]*pendingUpload{},
+		meter: domain.NopMeter{}, signTTL: 15 * time.Minute, uploadTTL: time.Hour,
+		pending: map[string]*pendingUpload{},
+	}
+	for _, o := range opts {
+		o(s)
 	}
 	// Event-driven resolve-cache invalidation (§04.4): every mutation that can change a
 	// resolution publishes an event carrying its model; we drop that model's cached entries.
@@ -105,6 +122,44 @@ func (s *Service) ListModels(ctx context.Context, o domain.ListOptions) ([]*doma
 	return s.store.ListModels(ctx, o)
 }
 
+// Stats is a registry-wide snapshot for the dashboard and domain gauges (§06.2, §09.2).
+// Computed by listing — fine at the single-tenant scale of a self-hosted registry.
+type Stats struct {
+	Models      int
+	Versions    int
+	Artifacts   int
+	Deployments int
+	Stages      map[domain.Stage]int
+}
+
+func (s *Service) Stats(ctx context.Context) (Stats, error) {
+	st := Stats{Stages: map[domain.Stage]int{
+		domain.StageDraft: 0, domain.StageStaging: 0, domain.StageProduction: 0, domain.StageArchived: 0,
+	}}
+	models, _, err := s.store.ListModels(ctx, domain.ListOptions{PageSize: 500})
+	if err != nil {
+		return st, err
+	}
+	st.Models = len(models)
+	for _, m := range models {
+		vs, _, err := s.store.ListVersions(ctx, m.Name, domain.ListOptions{PageSize: 500})
+		if err != nil {
+			return st, err
+		}
+		st.Versions += len(vs)
+		for _, v := range vs {
+			st.Stages[v.Stage]++
+			if arts, err := s.store.ListArtifacts(ctx, v.ID); err == nil {
+				st.Artifacts += len(arts)
+			}
+			if deps, err := s.store.ListDeployments(ctx, v.ID); err == nil {
+				st.Deployments += len(deps)
+			}
+		}
+	}
+	return st, nil
+}
+
 // ---- Versions ----
 
 func (s *Service) PublishVersion(ctx context.Context, actor, model string, in PublishVersionInput) (*domain.ModelVersion, []*domain.Artifact, error) {
@@ -134,6 +189,7 @@ func (s *Service) PublishVersion(ctx context.Context, actor, model string, in Pu
 	}
 	s.audit(ctx, actor, "version.create", "model_version", v.ID, "published "+m.Name+"@"+v.Name, nil)
 	s.events.Publish(domain.Event{Type: "version.created", Model: m.Name, Version: v.Name})
+	s.meter.VersionPublished()
 	return v, arts, nil
 }
 
@@ -194,12 +250,20 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 			"illegal stage transition "+string(v.Stage)+"→"+string(to),
 			map[string]any{"allowedTargets": domain.AllowedTargets(v.Stage)})
 	}
+	// A singleton target with another version already there means this promotion demotes it.
+	demoted := false
+	if domain.IsSingleton(to) {
+		if n, err := s.store.CountVersionsInStage(ctx, v.ModelID, to); err == nil && n > 0 {
+			demoted = true
+		}
+	}
 	if err := s.store.SetStage(ctx, v.ID, to, domain.IsSingleton(to)); err != nil {
 		return nil, err
 	}
 	data, _ := json.Marshal(map[string]string{"from": string(v.Stage), "to": string(to), "reason": reason})
 	s.audit(ctx, actor, "version.stage_changed", "model_version", v.ID, model+"@"+version+" → "+string(to), data)
 	s.events.Publish(domain.Event{Type: "version.stage_changed", Model: model, Version: version, Data: map[string]any{"to": to}})
+	s.meter.StageTransitioned(to, demoted)
 	v.Stage = to
 	return v, nil
 }
