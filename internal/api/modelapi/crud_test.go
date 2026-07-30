@@ -148,6 +148,22 @@ func TestLineageAndDeployments(t *testing.T) {
 	if _, l := do(t, srv, "GET", "/v1/models/m/versions/2.0.0/lineage", "", nil); len(l["items"].([]any)) != 1 {
 		t.Fatalf("list lineage: %+v", l)
 	}
+	// Graph traversal: upstream from 2.0.0 reaches 1.0.0 via the edge (§07.3).
+	if st, g := do(t, srv, "GET", "/v1/models/m/versions/2.0.0/lineage?direction=upstream", "", nil); st != 200 {
+		t.Fatalf("lineage graph = %d", st)
+	} else {
+		labels := map[string]bool{}
+		for _, n := range g["nodes"].([]any) {
+			labels[n.(map[string]any)["label"].(string)] = true
+		}
+		if !labels["m@2.0.0"] || !labels["m@1.0.0"] {
+			t.Fatalf("upstream graph missing nodes: %v", labels)
+		}
+		if len(g["edges"].([]any)) != 1 {
+			t.Fatalf("upstream graph edges = %v", g["edges"])
+		}
+	}
+
 	if st, _ := do(t, srv, "DELETE", "/v1/models/m/versions/2.0.0/lineage/"+edgeID, "", nil); st != 204 {
 		t.Fatalf("delete lineage = %d", st)
 	}

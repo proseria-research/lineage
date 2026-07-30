@@ -124,6 +124,13 @@ func (s *Store) CreateVersion(_ context.Context, v *domain.ModelVersion) error {
 			return domain.Exists("version '" + v.Name + "' already exists")
 		}
 	}
+	// Model is a derived (denormalized) name; sqlstore fills it via JOIN, we fill it here so
+	// reads are consistent across adapters.
+	if v.Model == "" {
+		if m, ok := s.models[v.ModelID]; ok {
+			v.Model = m.Name
+		}
+	}
 	s.versions[v.ID] = v
 	return nil
 }
@@ -141,6 +148,15 @@ func (s *Store) GetVersion(_ context.Context, model, version string) (*domain.Mo
 		}
 	}
 	return nil, domain.NotFound("version '" + version + "' not found")
+}
+
+func (s *Store) GetVersionByID(_ context.Context, id string) (*domain.ModelVersion, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if v, ok := s.versions[id]; ok {
+		return v, nil
+	}
+	return nil, domain.NotFound("version '" + id + "' not found")
 }
 
 func (s *Store) ListVersions(_ context.Context, model string, o domain.ListOptions) ([]*domain.ModelVersion, string, error) {

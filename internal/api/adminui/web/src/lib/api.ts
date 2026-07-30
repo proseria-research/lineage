@@ -66,6 +66,24 @@ export interface LineageEdge {
   createdAt: number;
 }
 
+export interface LineageNode {
+  type: "model_version" | "external";
+  id?: string;
+  ref?: string;
+  model?: string;
+  version?: string;
+  stage?: Stage;
+  label: string;
+  depth: number;
+}
+
+export interface LineageGraph {
+  root: string;
+  direction: string;
+  nodes: LineageNode[];
+  edges: LineageEdge[];
+}
+
 export interface Deployment {
   id: string;
   environment: string;
@@ -122,6 +140,10 @@ export const api = {
     postJSON<VersionSummary>(
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/transition`,
       { to, reason },
+    ),
+  graph: (m: string, v: string, direction: "upstream" | "downstream") =>
+    getJSON<LineageGraph>(
+      `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/graph?direction=${direction}`,
     ),
   activity: (token = "") =>
     getJSON<{ items: AuditEvent[]; nextPageToken: string }>(`/api/activity${token ? `?pageToken=${encodeURIComponent(token)}` : ""}`),

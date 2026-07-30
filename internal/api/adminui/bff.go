@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/proseria-research/lineage/internal/api"
+	"github.com/proseria-research/lineage/internal/core"
 	"github.com/proseria-research/lineage/internal/domain"
 )
 
@@ -197,6 +199,26 @@ func (r *Router) transition(w http.ResponseWriter, req *http.Request) {
 		ID: v.ID, Name: v.Name, Stage: v.Stage, Author: v.Author,
 		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 	})
+}
+
+// lineageGraph traverses provenance (upstream) or impact (downstream) for the console's
+// version-detail graph view (§06.2, §07.3).
+func (r *Router) lineageGraph(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+	dir := domain.LineageDirection(q.Get("direction"))
+	if dir == "" {
+		dir = domain.BothDirections
+	}
+	query := core.LineageQuery{Direction: dir}
+	if d, err := strconv.Atoi(q.Get("depth")); err == nil {
+		query.Depth = d
+	}
+	g, err := r.svc.TraverseLineage(req.Context(), req.PathValue("model"), req.PathValue("version"), query)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, g)
 }
 
 func (r *Router) activity(w http.ResponseWriter, req *http.Request) {

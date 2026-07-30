@@ -21,6 +21,7 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /api/models/{model}", r.modelDetail)
 	mux.HandleFunc("GET /api/models/{model}/versions/{version}", r.versionDetail)
 	mux.HandleFunc("POST /api/models/{model}/versions/{version}/transition", r.transition)
+	mux.HandleFunc("GET /api/models/{model}/versions/{version}/graph", r.lineageGraph)
 	mux.HandleFunc("GET /api/activity", r.activity)
 	// Everything else is the embedded console (assets + client-side-routing fallback).
 	mux.Handle("GET /", spaHandler())

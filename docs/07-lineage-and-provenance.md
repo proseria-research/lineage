@@ -62,7 +62,21 @@ GET /v1/models/{m}/versions/{v}/lineage?direction=upstream|downstream&depth=N&re
 - `deployed_as` edges are typically created from `deployment` records (`03.8`), tying the
   registry to real serving state.
 
-## 5. See Also
+## 5. Implementation
+
+- **Traversal** (`core.TraverseLineage`): a bounded, cycle-safe **BFS** over `lineage_edge`
+  using the store's indexed edge lookup (`ListLineage`) + `GetVersionByID` for node labels.
+  One implementation, dialect-agnostic, tested once. `depth` default 3 / capped 25; each
+  version node is expanded once (cycle-safe); `relations` filters which edge types are walked;
+  upstream external `dst_ref` datasets appear as leaf nodes.
+- **Scale path:** the neighbor-walk sits behind the `MetadataStore` port, so a per-dialect
+  `WITH RECURSIVE` (Postgres/SQLite both support it, §02.7) can replace it later without
+  touching callers — the shape (`{nodes, edges}`) is fixed.
+- **API:** `GET …/lineage?direction=upstream|downstream|both[&depth=N&relations=a,b]` returns a
+  `LineageGraph`; without `direction` it stays the flat edge list. The console renders the two
+  directions as Provenance / Impact panels (§06).
+
+## 6. See Also
 
 | For | Doc |
 |---|---|

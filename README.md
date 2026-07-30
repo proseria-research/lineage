@@ -111,6 +111,6 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- **M7:** lineage graph traversal (ancestry / impact, §07)
 - **M8:** observability (metrics, traces, SLOs, §09)
-- Helm chart (§08), SDK/CLI generated from the OpenAPI spec (§10)
+- **M9:** Helm chart + deploy profiles (§08)
+- SDK/CLI generated from the OpenAPI spec (§10)

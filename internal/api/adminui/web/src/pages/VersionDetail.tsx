@@ -1,21 +1,26 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StageBadge } from "@/components/StageBadge";
 import { StageActions } from "@/components/StageActions";
+import { LineageGraphView } from "@/components/LineageGraphView";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
 export default function VersionDetail() {
   const { model = "", version = "" } = useParams();
   const { data, error, loading, reload } = useAsync(() => api.version(model, version), [model, version]);
+  const graphs = useAsync(
+    () => Promise.all([api.graph(model, version, "upstream"), api.graph(model, version, "downstream")]),
+    [model, version],
+  );
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
   const v = data.version;
+  const [upstream, downstream] = graphs.data ?? [undefined, undefined];
 
   return (
     <div>
@@ -78,54 +83,47 @@ export default function VersionDetail() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Lineage */}
+      {/* Lineage graph: provenance (upstream) + impact (downstream), §07.3 */}
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Lineage</CardTitle>
+            <CardTitle>Provenance · upstream</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.lineage.length === 0 ? (
-              <Empty>No lineage edges.</Empty>
-            ) : (
-              <ul className="space-y-2">
-                {data.lineage.map((e) => (
-                  <li key={e.id} className="flex items-center gap-2 border px-2.5 py-1.5 text-sm">
-                    <span className="font-mono text-muted-foreground">{e.srcId === v.id ? v.name : e.srcId.slice(0, 8)}</span>
-                    <span className="label-caps flex items-center gap-1">
-                      <ArrowRight className="h-3 w-3" strokeWidth={1.5} />
-                      {e.relation}
-                    </span>
-                    <span className="truncate font-mono">{e.dstRef || e.dstId?.slice(0, 8) || "—"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <LineageGraphView graph={upstream} empty="No recorded provenance." />
           </CardContent>
         </Card>
-
-        {/* Deployments */}
         <Card>
           <CardHeader>
-            <CardTitle>Deployments</CardTitle>
+            <CardTitle>Impact · downstream</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.deployments.length === 0 ? (
-              <Empty>Not deployed.</Empty>
-            ) : (
-              <ul className="space-y-2">
-                {data.deployments.map((d) => (
-                  <li key={d.id} className="flex items-center justify-between gap-2 border px-2.5 py-1.5 text-sm">
-                    <span className="font-medium">{d.environment}</span>
-                    <span className="truncate font-mono text-xs text-muted-foreground">{d.endpointUri || d.externalRef || "—"}</span>
-                    <span className="label-caps shrink-0">{d.status}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <LineageGraphView graph={downstream} empty="Nothing derives from this version." />
           </CardContent>
         </Card>
       </div>
+
+      {/* Deployments */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Deployments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.deployments.length === 0 ? (
+            <Empty>Not deployed.</Empty>
+          ) : (
+            <ul className="space-y-2">
+              {data.deployments.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-2 border px-2.5 py-1.5 text-sm">
+                  <span className="font-medium">{d.environment}</span>
+                  <span className="truncate font-mono text-xs text-muted-foreground">{d.endpointUri || d.externalRef || "—"}</span>
+                  <span className="label-caps shrink-0">{d.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Audit timeline */}
       <div className="label-caps mb-2 mt-6">Audit timeline</div>
