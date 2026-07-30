@@ -56,25 +56,37 @@ flowchart TB
 
 ## 4. Configuration
 
-Backends are **config, not rows** (v1). Each has a `name` referenced by
-`artifact.storageBackend` (`02.3.3`):
+The backend is **config, not rows** (v1: one active backend, env-driven). Selected by
+`LINEAGE_STORAGE_DRIVER` (`fs` | `s3`); its `name` (`default`) is referenced by
+`artifact.storageBackend` (`02.3.3`).
 
-```yaml
-storage:
-  backends:
-    - name: default-s3
-      type: s3
-      bucket: models
-      endpoint: https://s3.amazonaws.com     # or MinIO/R2 endpoint
-      region: us-east-1
-      credentials: { source: irsa }          # env | secret | irsa | workloadIdentity
-  default: default-s3
+```bash
+LINEAGE_STORAGE_DRIVER=s3
+LINEAGE_S3_BUCKET=models
+LINEAGE_S3_REGION=us-east-1
+LINEAGE_S3_ENDPOINT=https://s3.amazonaws.com   # override for MinIO / R2 / Ceph
+LINEAGE_S3_PATH_STYLE=true                     # required for MinIO / Ceph
+# credentials: omit the two below to use the auto chain (recommended in-cluster)
+LINEAGE_S3_ACCESS_KEY=…  LINEAGE_S3_SECRET_KEY=…   # pins static keys
 ```
 
-- **Credentials never live in Lineage responses.** Least-privilege backend creds are
-  resolved from the environment (IRSA / workload identity / mounted Secret).
-- The in-cluster `serviceAccount` hint on a `MODEL` artifact (`02.3.3`) is *for the
-  serving system's* pull, not for Lineage.
+### 4.1 Credential resolution
+
+**Credentials never live in Lineage responses.** They are resolved from the environment
+with least privilege. Setting the two static keys pins them; otherwise a provider **chain**
+is tried, first non-empty wins, and **temporary credentials are cached and refreshed 5 min
+before expiry** so signing never races an expiring token:
+
+| Order | Source | Trigger |
+|---|---|---|
+| 1 | static keys | `LINEAGE_S3_ACCESS_KEY` + `_SECRET_KEY` set |
+| 2 | env | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` [/ `AWS_SESSION_TOKEN`] |
+| 3 | **IRSA / EKS Pod Identity** | `AWS_ROLE_ARN` + `AWS_WEB_IDENTITY_TOKEN_FILE` → STS `AssumeRoleWithWebIdentity` |
+| 4 | ECS task role | `AWS_CONTAINER_CREDENTIALS_{RELATIVE,FULL}_URI` |
+| 5 | EC2 instance role | IMDSv2 |
+
+The in-cluster `serviceAccount` hint on a `MODEL` artifact (`02.3.3`) is *for the serving
+system's* pull, not for Lineage.
 
 ## 5. Addressing & Integrity
 
@@ -131,9 +143,10 @@ is a correctness fallback, not the default.
 
 - **Default = retain.** `DELETE` on an artifact removes the **metadata row**, not the
   bytes — safe, and bytes may be shared/referenced.
-- **Optional GC** (`storage.gc: retain | sweep`): a periodic job deletes backend objects
-  with **no** referencing artifact row (reference-counted by `uri`), honoring a grace
-  period. Never deletes objects Lineage didn't write (path-scoped to configured roots).
+- **Optional GC** (`LINEAGE_STORAGE_GC=retain|sweep`): a periodic sweeper (`ListObjects` +
+  `ArtifactRefsURI`) deletes backend objects with **no** referencing artifact row
+  (reference-counted by `uri`), honoring `LINEAGE_GC_GRACE`. Path-scoped to
+  `LINEAGE_GC_PREFIX` so Lineage never deletes objects it didn't write.
 
 ## 9. See Also
 

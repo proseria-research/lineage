@@ -257,6 +257,18 @@ func (s *Store) CreateArtifact(ctx context.Context, a *domain.Artifact) error {
 	return err
 }
 
+func (s *Store) ArtifactRefsURI(ctx context.Context, uri string) (bool, error) {
+	var one int
+	err := s.db.QueryRowContext(ctx, s.rb(`SELECT 1 FROM artifact WHERE uri=? LIMIT 1`), uri).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *Store) ListArtifacts(ctx context.Context, versionID string) ([]*domain.Artifact, error) {
 	rows, err := s.db.QueryContext(ctx, s.rb(
 		`SELECT `+artCols+` FROM artifact WHERE version_id=? ORDER BY name`), versionID)

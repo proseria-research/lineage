@@ -16,6 +16,7 @@ import (
 	"github.com/proseria-research/lineage/internal/adapters/cache/memory"
 	"github.com/proseria-research/lineage/internal/adapters/events"
 	"github.com/proseria-research/lineage/internal/adapters/storage/fs"
+	"github.com/proseria-research/lineage/internal/adapters/storage/s3"
 	memstore "github.com/proseria-research/lineage/internal/adapters/store/memory"
 	pgstore "github.com/proseria-research/lineage/internal/adapters/store/postgres"
 	sqlitestore "github.com/proseria-research/lineage/internal/adapters/store/sqlite"
@@ -39,12 +40,29 @@ func main() {
 		log.Fatalf("open store (%s): %v", cfg.DBEngine, err)
 	}
 	log.Printf("metadata store: %s", cfg.DBEngine)
-	backend := fs.New("default", cfg.StorageRoot)
+	backend, err := openStorage(cfg)
+	if err != nil {
+		log.Fatalf("open storage (%s): %v", cfg.StorageDriver, err)
+	}
+	log.Printf("storage backend: %s (signing=%v)", cfg.StorageDriver, backend.Capabilities().Signing)
 	backends := map[string]domain.StorageBackend{backend.Name(): backend}
 	cache := memcache.New()
 	bus := events.New()
 
 	svc := core.New(store, backends, backend.Name(), cache, bus)
+
+	// Optional artifact GC sweeper (§05.8); no-op unless LINEAGE_STORAGE_GC=sweep.
+	rootCtx, cancelRoot := context.WithCancel(context.Background())
+	defer cancelRoot()
+	svc.RunGC(rootCtx, core.GCConfig{
+		Enabled:  cfg.GC.Mode == "sweep",
+		Prefix:   cfg.GC.Prefix,
+		Grace:    cfg.GC.Grace,
+		Interval: cfg.GC.Interval,
+	})
+	if cfg.GC.Mode == "sweep" {
+		log.Printf("gc: sweep enabled (grace=%s interval=%s prefix=%q)", cfg.GC.Grace, cfg.GC.Interval, cfg.GC.Prefix)
+	}
 
 	servers := []*http.Server{
 		{Addr: cfg.ModelAPIAddr, Handler: logging("model-api", modelapi.New(svc, cfg.ActorHeader).Handler())},
@@ -67,6 +85,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	log.Print("shutting down")
+	cancelRoot() // stop the GC sweeper
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for _, s := range servers {
@@ -88,9 +107,26 @@ func openStore(cfg config.Config) (domain.MetadataStore, error) {
 	}
 }
 
+// openStorage selects the StorageBackend adapter from config (§05.3). fs is the
+// zero-config dev/air-gapped default; s3 covers any S3-compatible object store.
+func openStorage(cfg config.Config) (domain.StorageBackend, error) {
+	switch cfg.StorageDriver {
+	case "s3":
+		return s3.New("default", s3.Config{
+			Bucket: cfg.S3.Bucket, Region: cfg.S3.Region, Endpoint: cfg.S3.Endpoint,
+			AccessKey: cfg.S3.AccessKey, SecretKey: cfg.S3.SecretKey,
+			SessionToken: cfg.S3.SessionToken, PathStyle: cfg.S3.PathStyle,
+		})
+	case "fs", "":
+		return fs.New("default", cfg.StorageRoot), nil
+	default:
+		return nil, errUnknownEngine(cfg.StorageDriver)
+	}
+}
+
 type errUnknownEngine string
 
-func (e errUnknownEngine) Error() string { return "unknown db engine: " + string(e) }
+func (e errUnknownEngine) Error() string { return "unknown driver/engine: " + string(e) }
 
 // logging is a minimal structured-ish request log middleware (real one: §09.4).
 func logging(surface string, next http.Handler) http.Handler {

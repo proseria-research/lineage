@@ -27,8 +27,7 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2 done;
-    class M3 active;
+    class M0,M1,M2,M3 done;
     class M4,M5,M6,M7,M8,M9,M10,M11 todo;
 ```
 
@@ -39,7 +38,7 @@ flowchart LR
 | M0 | Architecture & design docs | `00`–`11` | ✅ |
 | M1 | Go scaffold (single binary, ports & adapters) | `01` | ✅ |
 | M2 | Persistence: per-dialect MetadataStore + migrations | `02` | ✅ |
-| M3 | Storage: S3 backend, signed URLs, upload flow | `05` | 🚧 |
+| M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ✅ |
 | M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ⬜ |
 | M5 | Model API completeness + OpenAPI | `03` | ⬜ |
 | M6 | Admin UI: BFF + web console | `06` | ⬜ |
@@ -86,17 +85,34 @@ memory + SQLite; persistence verified across a restart.
 - [ ] Cursor pagination (real `nextPageToken`) — carried to **M5** (belongs with the API)
 - [ ] JSONB/label-table filtering, Postgres-native features — carried to **M5/M7**
 
-## M3 — Storage 🚧
+## M3 — Storage ✅
 
 **Goal:** production artifact delivery (§05).
 **Acceptance:** register-by-reference fills digest/size via `Stat`; signed upload
 (initiate→PUT→finalize) verifies digest; signed download works on S3.
+**Done:** hand-rolled SigV4 (validated vs AWS's published vector **and** against a live
+MinIO server) so any S3-compatible endpoint works; full upload flow (all three modes) driven
+end-to-end over HTTP — including the real binary uploading to MinIO via a presigned PUT and a
+consumer downloading via the resolve `signedUrl`; integrity + immutability enforced.
 
-- [ ] S3 driver (SignGet/SignPut/Stat/Get/Delete, S3-compatible endpoints)
-- [ ] Upload initiate/finalize API + multipart for large files (§05.6)
-- [ ] Integrity: digest verification on finalize; immutability enforcement
-- [ ] GC policy (retain | sweep)
-- [ ] (later) OCI/ORAS driver
+- [x] S3 driver: `SignGet`/`SignPut`/`Stat`/`Get`/`Put`/`Delete`, path- & virtual-host style
+      (AWS · MinIO · R2 · Ceph via endpoint override); SigV4 hand-rolled, stdlib-only
+- [x] **Credential chain**: static → env → **IRSA / EKS Pod Identity** (STS
+      `AssumeRoleWithWebIdentity`) → ECS task role → EC2 IMDSv2; temporary creds cached +
+      auto-refreshed before expiry (§05.4.1)
+- [x] Upload initiate/finalize flow (§05.6): signed direct PUT (s3), **multipart** for large
+      files (presigned part URLs → complete), **and** stream-through (`fs`/non-signing);
+      `Put`/`URIFor`/multipart/`ListObjects` added to the `StorageBackend` port
+- [x] Integrity: sha256 verification on finalize (stream-through hashes inline; signed path
+      Stats `x-amz-meta-sha256`, or verifies-by-stream under a size cap; large/multipart trust
+      declared digest + `Stat` size); immutability via write-once `UNIQUE(version_id,name)`
+- [x] **GC** (§05.8): default `retain` (`DELETE` drops the row, not bytes); optional `sweep`
+      reference-counts objects by uri (`ArtifactRefsURI`) and deletes unreferenced ones past a
+      grace period, path-scoped; background sweeper wired via `LINEAGE_STORAGE_GC=sweep`
+- [x] Tests: SigV4 vector, `fs` round-trip, IRSA web-identity + cache/refresh, core upload
+      (stream-through/multipart/mismatch/immutability), GC sweep; **live MinIO** integration
+      (round-trip + multipart, gated by `LINEAGE_TEST_S3_*`)
+- [ ] (later) OCI/ORAS driver — a locked v1-out decision (§00.11.4), not a punt
 
 ## M4 — Delivery Hardening ⬜
 
