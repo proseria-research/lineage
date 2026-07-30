@@ -27,8 +27,8 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6 done;
-    class M7,M8,M9,M10,M11 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7 done;
+    class M8,M9,M10,M11 todo;
 ```
 
 ## Status Summary
@@ -42,7 +42,7 @@ flowchart LR
 | M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ✅ |
 | M5 | Model API completeness + OpenAPI | `03` | ✅ |
 | M6 | Admin UI: BFF + web console | `06` | ✅ |
-| M7 | Lineage & provenance graph | `07` | ⬜ |
+| M7 | Lineage & provenance graph | `07` | ✅ |
 | M8 | Observability: metrics, traces, SLOs | `09` | ⬜ |
 | M9 | Deployment: Helm chart + profiles | `08` | ⬜ |
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ⬜ |
@@ -171,13 +171,23 @@ SQLite binary smoke run): CRUD, guards, immutability, idempotency, pagination, a
 - [x] `go:embed all:web/dist` + `make web` (pnpm build); dist committed so `go build` needs no Node
 - [x] Tests: SPA served at `/` + fallback for client routes; BFF aggregates/rollup/detail
 
-## M7 — Lineage & Provenance ⬜
+## M7 — Lineage & Provenance ✅
 
 **Goal:** the differentiator (§07). Typed edges + graph traversal.
+**Done:** bounded, cycle-safe traversal (ancestry upstream, impact downstream) exposed on the
+Model API and rendered in the console; verified end-to-end + unit-tested.
 
-- [ ] Edge create/list/delete; relation validation + CHECK
-- [ ] Ancestry + impact-analysis queries (recursive CTE, per-dialect, cycle-safe)
-- [ ] SDK auto-capture (`produced_by`, `derived_from`)
+- [x] Edge create/list/delete; relation + target validation — delivered in **M5**
+- [x] Ancestry (upstream) + impact-analysis (downstream) traversal: bounded `depth`, cycle-safe
+      (each version expanded once), relation filter, reaches external dataset refs;
+      `core.TraverseLineage` walks the store's indexed edge lookup (dialect-agnostic; a
+      per-dialect `WITH RECURSIVE` can replace the neighbor-walk behind the port for scale)
+- [x] `GET /v1/models/{m}/versions/{v}/lineage?direction=&depth=&relations=` → `{nodes, edges}`
+      (flat edge list without `direction`); `GetVersionByID` added for node labeling; OpenAPI updated
+- [x] Console: version detail renders **Provenance (upstream)** + **Impact (downstream)** graphs
+      (BFF `/api/…/graph`), version nodes linked
+- [x] Tests: ancestry, depth bound, impact, relation filter, cycle safety (core); graph over HTTP
+- [ ] SDK auto-capture (`produced_by`, `derived_from`) — an SDK feature, lands with **M10**
 
 ## M8 — Observability ⬜
 

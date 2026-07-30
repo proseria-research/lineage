@@ -2,6 +2,7 @@ package modelapi
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/proseria-research/lineage/internal/api"
@@ -123,12 +124,36 @@ func (r *Router) addLineage(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listLineage(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+	// With ?direction=, traverse the graph (ancestry / impact, §07.3); else the flat edge list.
+	if dir := q.Get("direction"); dir != "" {
+		query := core.LineageQuery{Direction: domain.LineageDirection(dir), Relations: parseRelations(q.Get("relations"))}
+		if d, err := strconv.Atoi(q.Get("depth")); err == nil {
+			query.Depth = d
+		}
+		g, err := r.svc.TraverseLineage(req.Context(), req.PathValue("model"), req.PathValue("version"), query)
+		writeOr(w, http.StatusOK, g, err)
+		return
+	}
 	edges, err := r.svc.ListLineage(req.Context(), req.PathValue("model"), req.PathValue("version"))
 	if err != nil {
 		api.WriteError(w, err)
 		return
 	}
 	api.WriteJSON(w, http.StatusOK, map[string]any{"items": edges})
+}
+
+func parseRelations(csv string) map[domain.LineageRelation]bool {
+	if csv == "" {
+		return nil
+	}
+	out := map[domain.LineageRelation]bool{}
+	for rel := range strings.SplitSeq(csv, ",") {
+		if rel = strings.TrimSpace(rel); rel != "" {
+			out[domain.LineageRelation(rel)] = true
+		}
+	}
+	return out
 }
 
 func (r *Router) deleteLineage(w http.ResponseWriter, req *http.Request) {

@@ -44,6 +44,8 @@ type MetadataStore interface {
 	// Versions
 	CreateVersion(ctx context.Context, v *ModelVersion) error
 	GetVersion(ctx context.Context, model, version string) (*ModelVersion, error)
+	// GetVersionByID fetches a version by its id, for labeling lineage-graph nodes (§07.3).
+	GetVersionByID(ctx context.Context, id string) (*ModelVersion, error)
 	ListVersions(ctx context.Context, model string, o ListOptions) ([]*ModelVersion, string, error)
 	UpdateVersion(ctx context.Context, v *ModelVersion) error
 	DeleteVersion(ctx context.Context, id string) error

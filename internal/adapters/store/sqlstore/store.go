@@ -142,6 +142,15 @@ func (s *Store) GetVersion(ctx context.Context, model, version string) (*domain.
 	return v, err
 }
 
+func (s *Store) GetVersionByID(ctx context.Context, id string) (*domain.ModelVersion, error) {
+	row := s.db.QueryRowContext(ctx, s.rb(vSel+` WHERE v.id=?`), id)
+	v, err := scanVersion(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, domain.NotFound("version '" + id + "' not found")
+	}
+	return v, err
+}
+
 func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOptions) ([]*domain.ModelVersion, string, error) {
 	m, err := s.GetModel(ctx, model)
 	if err != nil {

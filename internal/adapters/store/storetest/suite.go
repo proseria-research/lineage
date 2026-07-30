@@ -52,6 +52,11 @@ func Run(t *testing.T, store domain.MetadataStore) {
 		t.Fatalf("ListArtifacts round-trip: %v %+v", err, arts)
 	}
 
+	// Fetch a version by id (lineage-graph node labeling).
+	if got, err := store.GetVersionByID(ctx, v14.ID); err != nil || got.Name != "1.4.0" || got.Model != "fraud-detector" {
+		t.Fatalf("GetVersionByID: %v %+v", err, got)
+	}
+
 	// Illegal transition rejected (draft -> production directly not allowed by core, but the
 	// store performs the move it is told; the state machine lives in the domain/core). Here we
 	// exercise the store-level promote + singleton demotion the core relies on.
