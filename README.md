@@ -15,6 +15,9 @@ Registry for **capability parity, not wire compatibility**.
 **in-memory** store. The production adapters (SQLite/Postgres, S3, Redis) are stubs
 behind their ports — see the TODOs.
 
+Progress is tracked in [`MILESTONES.md`](MILESTONES.md) (M0/M1 done, M2 persistence in
+progress).
+
 ## Run
 
 ```bash
