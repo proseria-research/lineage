@@ -244,10 +244,13 @@ Resolved (✅) become ADRs. Open (◻) resolve before the dependent doc.
    publish + resolve + fetch, `:8081`, `/v1`). The port is the surface selector, so no
    `/admin` route prefix is needed. Publishing is a Model API operation, **not** Admin.
    Splitting into separate deployables is a future option, not v1.
-3. ✅ **Metadata store → SQLite and Postgres, both supported.** SQLite for
-   zero-dependency dev/demo/small installs (fits single-binary); Postgres for HA/prod.
-   Same schema via a portable data-access layer (no engine-specific SQL); pick via
-   config. Detail + migration strategy in `02`.
+3. ✅ **Metadata store → SQLite and Postgres via per-dialect adapters behind the
+   `MetadataStore` port.** SQLite = zero-dependency dev/demo/small/edge tier; Postgres =
+   full-power HA/prod tier. **Shared logical schema, not shared SQL** — each engine keeps
+   its own queries/migrations, so Postgres uses native features (JSONB filtering,
+   `FOR UPDATE`, pgvector, read replicas) instead of being capped at SQLite's floor. Core
+   registry behavior is identical on both; some advanced queries are Postgres-only.
+   Selected via config. Detail in `02.7`.
 4. ✅ **Artifacts → pluggable blob first, signed-URL (stream-through fallback); OCI/ORAS
    driver later.** v1: S3/GCS/Azure/FS. OCI-native is a later additional driver, not
    the v1 primary path. Detail in `05`.

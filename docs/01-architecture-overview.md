@@ -230,9 +230,11 @@ flowchart TB
 
 ## 7. Key Constraints Carried From `00`
 
-- **Portable persistence:** the `MetadataStore` port must work identically on SQLite and
-  Postgres — no engine-specific SQL in the core (§00.11.3). SQLite = single-writer, so
-  that profile is single-replica.
+- **Per-dialect persistence:** SQLite and Postgres each get their own adapter behind the
+  `MetadataStore` port — shared logical schema, dialect-specific SQL and migrations; the
+  core stays engine-agnostic (§00.11.3, §02.7). Core registry behavior is identical on
+  both; some advanced queries are Postgres-only. SQLite = single-writer → dev profile is
+  single-replica.
 - **Bytes never transit the core on read:** resolve/fetch returns refs/signed URLs;
   stream-through is a fallback only where signing is impossible (§00.11.4).
 - **Native consumption:** resolution output carries native `storageUri` + `signedUrl` +
