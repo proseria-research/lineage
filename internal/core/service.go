@@ -25,10 +25,19 @@ type Service struct {
 }
 
 func New(store domain.MetadataStore, backends map[string]domain.StorageBackend, defBack string, cache domain.ResolutionCache, events domain.EventBus) *Service {
-	return &Service{
+	s := &Service{
 		store: store, backends: backends, defBack: defBack, cache: cache, events: events,
 		signTTL: 15 * time.Minute, uploadTTL: time.Hour, pending: map[string]*pendingUpload{},
 	}
+	// Event-driven resolve-cache invalidation (§04.4): every mutation that can change a
+	// resolution publishes an event carrying its model; we drop that model's cached entries.
+	// A short TTL backstops any missed event.
+	events.Subscribe(func(e domain.Event) {
+		if e.Model != "" {
+			s.cache.InvalidateModel(e.Model)
+		}
+	})
+	return s
 }
 
 func (s *Service) backend(name string) domain.StorageBackend {
@@ -124,7 +133,6 @@ func (s *Service) PublishVersion(ctx context.Context, actor, model string, in Pu
 		arts = append(arts, a)
 	}
 	s.audit(ctx, actor, "version.create", "model_version", v.ID, "published "+m.Name+"@"+v.Name, nil)
-	s.cache.InvalidateModel(m.Name)
 	s.events.Publish(domain.Event{Type: "version.created", Model: m.Name, Version: v.Name})
 	return v, arts, nil
 }
@@ -191,7 +199,6 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 	}
 	data, _ := json.Marshal(map[string]string{"from": string(v.Stage), "to": string(to), "reason": reason})
 	s.audit(ctx, actor, "version.stage_changed", "model_version", v.ID, model+"@"+version+" → "+string(to), data)
-	s.cache.InvalidateModel(model)
 	s.events.Publish(domain.Event{Type: "version.stage_changed", Model: model, Version: version, Data: map[string]any{"to": to}})
 	v.Stage = to
 	return v, nil

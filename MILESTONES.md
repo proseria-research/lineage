@@ -27,8 +27,8 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3 done;
-    class M4,M5,M6,M7,M8,M9,M10,M11 todo;
+    class M0,M1,M2,M3,M4 done;
+    class M5,M6,M7,M8,M9,M10,M11 todo;
 ```
 
 ## Status Summary
@@ -39,7 +39,7 @@ flowchart LR
 | M1 | Go scaffold (single binary, ports & adapters) | `01` | ✅ |
 | M2 | Persistence: per-dialect MetadataStore + migrations | `02` | ✅ |
 | M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ✅ |
-| M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ⬜ |
+| M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ✅ |
 | M5 | Model API completeness + OpenAPI | `03` | ⬜ |
 | M6 | Admin UI: BFF + web console | `06` | ⬜ |
 | M7 | Lineage & provenance graph | `07` | ⬜ |
@@ -114,16 +114,24 @@ consumer downloading via the resolve `signedUrl`; integrity + immutability enfor
       (round-trip + multipart, gated by `LINEAGE_TEST_S3_*`)
 - [ ] (later) OCI/ORAS driver — a locked v1-out decision (§00.11.4), not a punt
 
-## M4 — Delivery Hardening ⬜
+## M4 — Delivery Hardening ✅
 
 **Goal:** the resolve/fetch path is fast, correct, and integration-ready (§04).
 **Acceptance:** cache invalidates on events; `ETag`/`304` on resolve; stream-through
 fetch for fs; `lineage://` initializer resolves in a KServe pod.
+**Done:** verified end-to-end against the running binary — conditional resolve returns 304,
+`/content` streams fs bytes, and `lineage-init` pulls `lineage://fraud-detector/production`
+into a model dir with matching bytes.
 
-- [ ] Resolve cache subscribed to `version.created`/`stage_changed` via the bus
-- [ ] `ETag`/`If-None-Match` on resolve; `/content` fetch (redirect + stream-through)
-- [ ] `lineage://` grammar parser + KServe `ClusterStorageContainer` image
-- [ ] Consumer smoke tests (KServe manifest, signed-URL download)
+- [x] Resolve cache subscribed to `version.created`/`stage_changed`/`artifact.created` via the
+      bus in `core.New`; direct invalidation calls removed (purely event-driven, §04.4)
+- [x] `ETag` (= digest) + `If-None-Match` → `304` + `Cache-Control: private,no-cache` on resolve
+- [x] `/content` fetch: `302` to a fresh signed URL, or stream-through with `Range` +
+      conditional (`http.ServeContent`) where the backend can't sign (`FetchArtifact`)
+- [x] `lineage://` grammar parser (`domain.ParseLineageURI`) + `cmd/lineage-init` KServe
+      storage-initializer; `ClusterStorageContainer` manifest in §04.5
+- [x] Tests: parser cases, resolve ETag/304, content stream/Range/304, event-driven
+      invalidation (promotion reflected immediately); live initializer round-trip
 
 ## M5 — Model API Completeness ⬜
 

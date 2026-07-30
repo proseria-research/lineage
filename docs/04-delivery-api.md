@@ -105,10 +105,27 @@ lineage://<model>[/<stage>][@<version>][#<artifact>]
 ```
 
 **KServe** — ship an optional **`ClusterStorageContainer`** whose init container
-understands `lineage://`. It calls `resolve`, picks the `MODEL` artifact, and pulls it
-into the model dir via `storageUri` (or `signedUrl`):
+understands `lineage://`. It calls `resolve`, picks the `MODEL` artifact, and pulls it into
+the model dir via `signedUrl` (or the broker `/content` endpoint). The init entrypoint is
+`lineage-init <lineage-uri> <dest-dir>` (`cmd/lineage-init`; env `LINEAGE_ENDPOINT`,
+`LINEAGE_ACTOR`).
 
 ```yaml
+# Registers the lineage:// scheme cluster-wide (install once).
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterStorageContainer
+metadata: { name: lineage }
+spec:
+  container:
+    name: storage-initializer
+    image: ghcr.io/proseria-research/lineage-init:<tag>
+    env:
+      - { name: LINEAGE_ENDPOINT, value: "http://lineage-model-api:8081" }
+    resources:
+      requests: { cpu: 100m, memory: 100Mi }
+  supportedUriFormats:
+    - prefix: lineage://
+---
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 spec:
