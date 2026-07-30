@@ -24,9 +24,14 @@ Resolution is one call (`storageUri` + fresh `signedUrl` + digest), HTTP-cacheab
 to a signed URL or streams through (Range-capable) for `fs`; and `lineage://model/stage`
 resolves at pull time via the `lineage-init` KServe storage-initializer.
 
+The full `/v1` contract is implemented (§03): model/version/artifact/lineage/deployment CRUD
+with PATCH, `:archive`, guarded `DELETE`, artifact-content immutability, `Idempotency-Key`
+replay, cursor pagination, an audit feed, and a hand-authored **OpenAPI 3.1** spec served at
+`/v1/openapi.json`.
+
 Set the metadata engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory` and the storage
 driver with `LINEAGE_STORAGE_DRIVER=fs|s3`. Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md) (M0–M4 done).
+[`MILESTONES.md`](MILESTONES.md) (M0–M5 done).
 
 ## Run
 
@@ -102,6 +107,6 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- **M5:** full `/v1` (artifacts/lineage/deployments CRUD, cursor pagination), OpenAPI (§03)
 - **M6:** Admin UI (BFF + web console, §06)
-- Helm chart (§08), SDK/CLI (§10)
+- **M7:** lineage graph traversal (ancestry / impact, §07)
+- Helm chart (§08), SDK/CLI generated from the OpenAPI spec (§10)

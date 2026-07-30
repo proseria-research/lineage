@@ -13,22 +13,24 @@ import (
 )
 
 type Store struct {
-	mu        sync.RWMutex
-	models    map[string]*domain.Model        // id -> model
-	modelByNm map[string]string               // name -> id
-	versions  map[string]*domain.ModelVersion // id -> version
-	artifacts map[string]*domain.Artifact     // id -> artifact
-	lineage   map[string]*domain.LineageEdge  // id -> edge
-	audit     []*domain.AuditEvent
+	mu          sync.RWMutex
+	models      map[string]*domain.Model        // id -> model
+	modelByNm   map[string]string               // name -> id
+	versions    map[string]*domain.ModelVersion // id -> version
+	artifacts   map[string]*domain.Artifact     // id -> artifact
+	lineage     map[string]*domain.LineageEdge  // id -> edge
+	deployments map[string]*domain.Deployment   // id -> deployment
+	audit       []*domain.AuditEvent
 }
 
 func New() *Store {
 	return &Store{
-		models:    map[string]*domain.Model{},
-		modelByNm: map[string]string{},
-		versions:  map[string]*domain.ModelVersion{},
-		artifacts: map[string]*domain.Artifact{},
-		lineage:   map[string]*domain.LineageEdge{},
+		models:      map[string]*domain.Model{},
+		modelByNm:   map[string]string{},
+		versions:    map[string]*domain.ModelVersion{},
+		artifacts:   map[string]*domain.Artifact{},
+		lineage:     map[string]*domain.LineageEdge{},
+		deployments: map[string]*domain.Deployment{},
 	}
 }
 
@@ -79,8 +81,9 @@ func (s *Store) ListModels(_ context.Context, o domain.ListOptions) ([]*domain.M
 		}
 		out = append(out, m)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
-	return page(out, o.PageSize)
+	sortByCreated(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID })
+	items, next := domain.Page(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID }, o.PageToken, o.PageSize)
+	return items, next, nil
 }
 
 func (s *Store) UpdateModel(_ context.Context, m *domain.Model) error {
@@ -90,6 +93,24 @@ func (s *Store) UpdateModel(_ context.Context, m *domain.Model) error {
 		return domain.NotFound("model not found")
 	}
 	s.models[m.ID] = m
+	return nil
+}
+
+func (s *Store) DeleteModel(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.models[id]
+	if !ok {
+		return domain.NotFound("model not found")
+	}
+	// Cascade to versions/artifacts/deployments/lineage (§02.5).
+	for vid, v := range s.versions {
+		if v.ModelID == id {
+			s.deleteVersionLocked(vid)
+		}
+	}
+	delete(s.models, id)
+	delete(s.modelByNm, m.Name)
 	return nil
 }
 
@@ -137,10 +158,14 @@ func (s *Store) ListVersions(_ context.Context, model string, o domain.ListOptio
 		if stg := o.Filters["stage"]; stg != "" && string(v.Stage) != stg {
 			continue
 		}
+		if !hasLabels(v.Labels, o.Labels) {
+			continue
+		}
 		out = append(out, v)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
-	return page(out, o.PageSize)
+	sortByCreated(out, func(v *domain.ModelVersion) (int64, string) { return v.CreatedAt, v.ID })
+	items, next := domain.Page(out, func(v *domain.ModelVersion) (int64, string) { return v.CreatedAt, v.ID }, o.PageToken, o.PageSize)
+	return items, next, nil
 }
 
 func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
@@ -151,6 +176,48 @@ func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
 	}
 	s.versions[v.ID] = v
 	return nil
+}
+
+func (s *Store) DeleteVersion(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.versions[id]; !ok {
+		return domain.NotFound("version not found")
+	}
+	s.deleteVersionLocked(id)
+	return nil
+}
+
+// deleteVersionLocked removes a version and its dependent rows. Caller holds s.mu.
+func (s *Store) deleteVersionLocked(id string) {
+	delete(s.versions, id)
+	for aid, a := range s.artifacts {
+		if a.VersionID == id {
+			delete(s.artifacts, aid)
+		}
+	}
+	for did, d := range s.deployments {
+		if d.VersionID == id {
+			delete(s.deployments, did)
+		}
+	}
+	for eid, e := range s.lineage {
+		if e.SrcID == id || e.DstID == id {
+			delete(s.lineage, eid)
+		}
+	}
+}
+
+func (s *Store) CountVersionsInStage(_ context.Context, modelID string, stage domain.Stage) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n := 0
+	for _, v := range s.versions {
+		if v.ModelID == modelID && v.Stage == stage {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (s *Store) SetStage(_ context.Context, versionID string, to domain.Stage, singleton bool) error {
@@ -236,6 +303,17 @@ func (s *Store) CreateArtifact(_ context.Context, a *domain.Artifact) error {
 	return nil
 }
 
+func (s *Store) GetArtifact(_ context.Context, versionID, name string) (*domain.Artifact, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, a := range s.artifacts {
+		if a.VersionID == versionID && a.Name == name {
+			return a, nil
+		}
+	}
+	return nil, domain.NotFound("artifact '" + name + "' not found")
+}
+
 func (s *Store) ListArtifacts(_ context.Context, versionID string) ([]*domain.Artifact, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -247,6 +325,26 @@ func (s *Store) ListArtifacts(_ context.Context, versionID string) ([]*domain.Ar
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+func (s *Store) UpdateArtifact(_ context.Context, a *domain.Artifact) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.artifacts[a.ID]; !ok {
+		return domain.NotFound("artifact not found")
+	}
+	s.artifacts[a.ID] = a
+	return nil
+}
+
+func (s *Store) DeleteArtifact(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.artifacts[id]; !ok {
+		return domain.NotFound("artifact not found")
+	}
+	delete(s.artifacts, id)
+	return nil
 }
 
 // ---- Lineage & audit ----
@@ -270,11 +368,91 @@ func (s *Store) ListLineage(_ context.Context, versionID string) ([]*domain.Line
 	return out, nil
 }
 
+func (s *Store) DeleteLineageEdge(_ context.Context, id, versionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.lineage[id]
+	if !ok || (e.SrcID != versionID && e.DstID != versionID) {
+		return domain.NotFound("lineage edge not found")
+	}
+	delete(s.lineage, id)
+	return nil
+}
+
+// ---- Deployments ----
+
+func (s *Store) CreateDeployment(_ context.Context, d *domain.Deployment) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deployments[d.ID] = d
+	return nil
+}
+
+func (s *Store) GetDeployment(_ context.Context, id string) (*domain.Deployment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if d, ok := s.deployments[id]; ok {
+		return d, nil
+	}
+	return nil, domain.NotFound("deployment '" + id + "' not found")
+}
+
+func (s *Store) ListDeployments(_ context.Context, versionID string) ([]*domain.Deployment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []*domain.Deployment
+	for _, d := range s.deployments {
+		if d.VersionID == versionID {
+			out = append(out, d)
+		}
+	}
+	sortByCreated(out, func(d *domain.Deployment) (int64, string) { return d.CreatedAt, d.ID })
+	return out, nil
+}
+
+func (s *Store) UpdateDeployment(_ context.Context, d *domain.Deployment) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.deployments[d.ID]; !ok {
+		return domain.NotFound("deployment not found")
+	}
+	s.deployments[d.ID] = d
+	return nil
+}
+
+func (s *Store) DeleteDeployment(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.deployments[id]; !ok {
+		return domain.NotFound("deployment not found")
+	}
+	delete(s.deployments, id)
+	return nil
+}
+
 func (s *Store) AppendAudit(_ context.Context, e *domain.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.audit = append(s.audit, e)
 	return nil
+}
+
+func (s *Store) ListAudit(_ context.Context, subjectType, subjectID string, o domain.ListOptions) ([]*domain.AuditEvent, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []*domain.AuditEvent
+	for _, e := range s.audit {
+		if subjectType != "" && e.SubjectType != subjectType {
+			continue
+		}
+		if subjectID != "" && e.SubjectID != subjectID {
+			continue
+		}
+		out = append(out, e)
+	}
+	sortByCreated(out, func(e *domain.AuditEvent) (int64, string) { return e.At, e.ID })
+	items, next := domain.Page(out, func(e *domain.AuditEvent) (int64, string) { return e.At, e.ID }, o.PageToken, o.PageSize)
+	return items, next, nil
 }
 
 // ---- helpers ----
@@ -288,14 +466,15 @@ func hasLabels(have, want map[string]string) bool {
 	return true
 }
 
-// page applies a naive single-page cutoff. Cursor tokens are a TODO for the real
-// per-dialect stores; the scaffold returns an empty nextToken.
-func page[T any](items []T, size int) ([]T, string, error) {
-	if size <= 0 || size > 500 {
-		size = 50
-	}
-	if len(items) > size {
-		items = items[:size]
-	}
-	return items, "", nil
+// sortByCreated orders items newest-first by (createdAt, id) — the stable order cursor
+// pagination expects (§03.3).
+func sortByCreated[T any](items []T, key func(T) (int64, string)) {
+	sort.Slice(items, func(i, j int) bool {
+		ai, aid := key(items[i])
+		bj, bid := key(items[j])
+		if ai != bj {
+			return ai > bj
+		}
+		return aid > bid
+	})
 }

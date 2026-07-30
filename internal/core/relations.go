@@ -1,0 +1,176 @@
+package core
+
+import (
+	"context"
+
+	"github.com/proseria-research/lineage/internal/domain"
+)
+
+// Lineage edges, deployment records, and the audit feed (§03.8, §07). Graph traversal
+// queries (ancestry / impact) are M7; this is the CRUD surface.
+
+// ---- Lineage ----
+
+// LineageInput records a typed edge from a version to another version or an external URI.
+type LineageInput struct {
+	Relation domain.LineageRelation `json:"relation"`
+	To       struct {
+		Version string `json:"version"` // another version of the same model
+		URI     string `json:"uri"`     // external artifact/dataset reference
+	} `json:"to"`
+}
+
+var validRelations = map[domain.LineageRelation]bool{
+	domain.RelDerivedFrom: true, domain.RelTrainedOn: true,
+	domain.RelProducedBy: true, domain.RelDeployedAs: true,
+}
+
+func (s *Service) AddLineage(ctx context.Context, actor, model, version string, in LineageInput) (*domain.LineageEdge, error) {
+	v, err := s.store.GetVersion(ctx, model, version)
+	if err != nil {
+		return nil, err
+	}
+	if !validRelations[in.Relation] {
+		return nil, domain.Invalid("unknown lineage relation '" + string(in.Relation) + "'")
+	}
+	if (in.To.Version == "") == (in.To.URI == "") {
+		return nil, domain.Invalid("lineage 'to' must set exactly one of version or uri")
+	}
+	e := &domain.LineageEdge{
+		ID: domain.NewID(), SrcType: "model_version", SrcID: v.ID,
+		Relation: in.Relation, CreatedAt: domain.NowMillis(),
+	}
+	if in.To.Version != "" {
+		target, err := s.store.GetVersion(ctx, model, in.To.Version)
+		if err != nil {
+			return nil, err
+		}
+		e.DstType, e.DstID = "model_version", target.ID
+	} else {
+		e.DstRef = in.To.URI
+	}
+	if err := s.store.AddLineageEdge(ctx, e); err != nil {
+		return nil, err
+	}
+	s.audit(ctx, actor, "lineage.add", "model_version", v.ID, model+"@"+version+" "+string(in.Relation), nil)
+	return e, nil
+}
+
+func (s *Service) ListLineage(ctx context.Context, model, version string) ([]*domain.LineageEdge, error) {
+	v, err := s.store.GetVersion(ctx, model, version)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.ListLineage(ctx, v.ID)
+}
+
+func (s *Service) DeleteLineage(ctx context.Context, actor, model, version, edgeID string) error {
+	v, err := s.store.GetVersion(ctx, model, version)
+	if err != nil {
+		return err
+	}
+	if err := s.store.DeleteLineageEdge(ctx, edgeID, v.ID); err != nil {
+		return err
+	}
+	s.audit(ctx, actor, "lineage.delete", "model_version", v.ID, "removed lineage edge "+edgeID, nil)
+	return nil
+}
+
+// ---- Deployments ----
+
+// DeploymentInput describes a serving record. Lineage does not orchestrate serving; these
+// are informational (§03.8).
+type DeploymentInput struct {
+	Environment string                  `json:"environment"`
+	EndpointURI string                  `json:"endpointUri"`
+	Status      domain.DeploymentStatus `json:"status"`
+	ExternalRef string                  `json:"externalRef"`
+}
+
+func (s *Service) CreateDeployment(ctx context.Context, actor, model, version string, in DeploymentInput) (*domain.Deployment, error) {
+	v, err := s.store.GetVersion(ctx, model, version)
+	if err != nil {
+		return nil, err
+	}
+	if in.Environment == "" {
+		return nil, domain.Invalid("deployment requires an environment")
+	}
+	if in.Status == "" {
+		in.Status = domain.DeployActive
+	}
+	now := domain.NowMillis()
+	d := &domain.Deployment{
+		ID: domain.NewID(), VersionID: v.ID, Environment: in.Environment,
+		EndpointURI: in.EndpointURI, Status: in.Status, ExternalRef: in.ExternalRef,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := s.store.CreateDeployment(ctx, d); err != nil {
+		return nil, err
+	}
+	s.audit(ctx, actor, "deployment.create", "deployment", d.ID, "deployed "+model+"@"+version+" to "+in.Environment, nil)
+	return d, nil
+}
+
+func (s *Service) ListDeployments(ctx context.Context, model, version string) ([]*domain.Deployment, error) {
+	v, err := s.store.GetVersion(ctx, model, version)
+	if err != nil {
+		return nil, err
+	}
+	return s.store.ListDeployments(ctx, v.ID)
+}
+
+func (s *Service) GetDeployment(ctx context.Context, id string) (*domain.Deployment, error) {
+	return s.store.GetDeployment(ctx, id)
+}
+
+// DeploymentPatch updates a deployment's mutable fields.
+type DeploymentPatch struct {
+	EndpointURI *string                  `json:"endpointUri"`
+	Status      *domain.DeploymentStatus `json:"status"`
+	ExternalRef *string                  `json:"externalRef"`
+}
+
+func (s *Service) PatchDeployment(ctx context.Context, actor, id string, in DeploymentPatch) (*domain.Deployment, error) {
+	d, err := s.store.GetDeployment(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if in.EndpointURI != nil {
+		d.EndpointURI = *in.EndpointURI
+	}
+	if in.Status != nil {
+		d.Status = *in.Status
+	}
+	if in.ExternalRef != nil {
+		d.ExternalRef = *in.ExternalRef
+	}
+	d.UpdatedAt = domain.NowMillis()
+	if err := s.store.UpdateDeployment(ctx, d); err != nil {
+		return nil, err
+	}
+	s.audit(ctx, actor, "deployment.update", "deployment", d.ID, "updated deployment "+d.ID, nil)
+	return d, nil
+}
+
+func (s *Service) DeleteDeployment(ctx context.Context, actor, id string) error {
+	if err := s.store.DeleteDeployment(ctx, id); err != nil {
+		return err
+	}
+	s.audit(ctx, actor, "deployment.delete", "deployment", id, "deleted deployment "+id, nil)
+	return nil
+}
+
+// ---- Audit feed ----
+
+// ListModelAudit returns the audit trail for a model (§03.2). ListAudit is the global feed.
+func (s *Service) ListModelAudit(ctx context.Context, model string, o domain.ListOptions) ([]*domain.AuditEvent, string, error) {
+	m, err := s.store.GetModel(ctx, model)
+	if err != nil {
+		return nil, "", err
+	}
+	return s.store.ListAudit(ctx, "model", m.ID, o)
+}
+
+func (s *Service) ListAudit(ctx context.Context, subjectType, subjectID string, o domain.ListOptions) ([]*domain.AuditEvent, string, error) {
+	return s.store.ListAudit(ctx, subjectType, subjectID, o)
+}

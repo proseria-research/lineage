@@ -72,6 +72,17 @@ var migrations = []string{
 		data TEXT
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_audit_subject ON audit_event (subject_type, subject_id, at)`,
+	`CREATE TABLE IF NOT EXISTS deployment (
+		id TEXT PRIMARY KEY,
+		version_id TEXT NOT NULL REFERENCES model_version(id) ON DELETE CASCADE,
+		environment TEXT NOT NULL,
+		endpoint_uri TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL,
+		external_ref TEXT NOT NULL DEFAULT '',
+		created_at BIGINT NOT NULL,
+		updated_at BIGINT NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_deployment_version ON deployment (version_id)`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.

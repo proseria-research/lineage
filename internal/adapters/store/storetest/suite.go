@@ -102,8 +102,80 @@ func Run(t *testing.T, store domain.MetadataStore) {
 	if es, err := store.ListLineage(ctx, v15.ID); err != nil || len(es) != 1 || es[0].Relation != domain.RelDerivedFrom {
 		t.Fatalf("ListLineage: %v %+v", err, es)
 	}
-	if err := store.AppendAudit(ctx, &domain.AuditEvent{ID: domain.NewID(), At: now, Action: "version.create", SubjectType: "model_version", SubjectID: v15.ID}); err != nil {
+	if err := store.AppendAudit(ctx, &domain.AuditEvent{ID: domain.NewID(), At: now, Actor: "ci", Action: "version.create", SubjectType: "model", SubjectID: m.ID}); err != nil {
 		t.Fatalf("AppendAudit: %v", err)
+	}
+
+	// Audit feed filter by subject.
+	if es, _, err := store.ListAudit(ctx, "model", m.ID, domain.ListOptions{}); err != nil || len(es) != 1 {
+		t.Fatalf("ListAudit by subject: %v len=%d", err, len(es))
+	}
+
+	// Artifact get / update (metadata) / uri reference / delete.
+	if got, err := store.GetArtifact(ctx, v14.ID, "model.onnx"); err != nil || got.Digest != "sha256:aaa" {
+		t.Fatalf("GetArtifact: %v %+v", err, got)
+	}
+	if ref, err := store.ArtifactRefsURI(ctx, "s3://m/1.4.0"); err != nil || !ref {
+		t.Fatalf("ArtifactRefsURI should be true: %v %v", ref, err)
+	}
+	art.MediaType = "application/octet-stream"
+	if err := store.UpdateArtifact(ctx, art); err != nil {
+		t.Fatalf("UpdateArtifact: %v", err)
+	}
+	if got, _ := store.GetArtifact(ctx, v14.ID, "model.onnx"); got.MediaType != "application/octet-stream" {
+		t.Fatalf("UpdateArtifact not persisted: %+v", got)
+	}
+
+	// Deployment CRUD.
+	dep := &domain.Deployment{ID: domain.NewID(), VersionID: v15.ID, Environment: "prod", Status: domain.DeployActive, CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateDeployment(ctx, dep); err != nil {
+		t.Fatalf("CreateDeployment: %v", err)
+	}
+	if ds, err := store.ListDeployments(ctx, v15.ID); err != nil || len(ds) != 1 {
+		t.Fatalf("ListDeployments: %v len=%d", err, len(ds))
+	}
+	dep.Status = domain.DeployInactive
+	if err := store.UpdateDeployment(ctx, dep); err != nil {
+		t.Fatalf("UpdateDeployment: %v", err)
+	}
+	if got, err := store.GetDeployment(ctx, dep.ID); err != nil || got.Status != domain.DeployInactive {
+		t.Fatalf("GetDeployment after update: %v %+v", err, got)
+	}
+	if err := store.DeleteDeployment(ctx, dep.ID); err != nil {
+		t.Fatalf("DeleteDeployment: %v", err)
+	}
+
+	// Delete lineage edge (scoped to the version).
+	if err := store.DeleteLineageEdge(ctx, edge.ID, v15.ID); err != nil {
+		t.Fatalf("DeleteLineageEdge: %v", err)
+	}
+	if es, _ := store.ListLineage(ctx, v15.ID); len(es) != 0 {
+		t.Fatalf("lineage edge not deleted: %+v", es)
+	}
+
+	// Production guard count.
+	if n, err := store.CountVersionsInStage(ctx, m.ID, domain.StageProduction); err != nil || n != 1 {
+		t.Fatalf("CountVersionsInStage production: %v n=%d", err, n)
+	}
+
+	// Delete a draft version, then the model (cascade).
+	v16 := mkVersion(m.ID, "1.6.0")
+	mustCreateVersion(t, store, v16)
+	if err := store.DeleteVersion(ctx, v16.ID); err != nil {
+		t.Fatalf("DeleteVersion: %v", err)
+	}
+	if _, err := store.GetVersion(ctx, "fraud-detector", "1.6.0"); err == nil {
+		t.Fatal("expected not_found after DeleteVersion")
+	}
+	if err := store.DeleteModel(ctx, m.ID); err != nil {
+		t.Fatalf("DeleteModel: %v", err)
+	}
+	if _, err := store.GetModel(ctx, "fraud-detector"); err == nil {
+		t.Fatal("expected not_found after DeleteModel")
+	}
+	// Cascade: the artifact of a deleted model's version must be gone.
+	if ref, _ := store.ArtifactRefsURI(ctx, "s3://m/1.4.0"); ref {
+		t.Fatal("artifact should be cascade-deleted with its model")
 	}
 }
 
