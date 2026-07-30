@@ -49,9 +49,11 @@ Start with `docs/00-preplanning.md` for the full framing, axioms, and decisions.
   delivery (stream-through fallback); **OCI/ORAS driver added later**, not v1.
 - **Tenancy:** single-tenant per install for v1. No Project/Namespace entity yet;
   reserve scope keys so multi-tenancy is an additive change later.
-- **Metadata store:** SQLite **and** Postgres, both supported. SQLite for
-  zero-dependency dev/demo/small installs; Postgres for HA/prod. One schema via a
-  portable data-access layer — no engine-specific SQL. Selected via config.
+- **Metadata store:** SQLite **and** Postgres via **per-dialect adapters behind the
+  `MetadataStore` port** — shared logical schema, but each engine keeps its own SQL and
+  migrations (NOT identical SQL). SQLite = zero-dependency dev/small/edge tier; Postgres
+  = full-power HA/prod (may use JSONB queries, `FOR UPDATE`, pgvector, read replicas).
+  Core registry behavior identical on both; some advanced queries are Postgres-only.
 
 ## Documentation conventions — MANDATORY
 
