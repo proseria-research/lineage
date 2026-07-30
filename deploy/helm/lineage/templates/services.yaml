@@ -1,0 +1,42 @@
+{{- $full := include "lineage.fullname" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-model-api
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: model-api
+spec:
+  type: {{ .Values.service.type }}
+  selector: {{- include "lineage.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: model-api
+      port: {{ .Values.service.modelApiPort }}
+      targetPort: model-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-admin-ui
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin-ui
+spec:
+  type: {{ .Values.service.type }}
+  selector: {{- include "lineage.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: admin-ui
+      port: {{ .Values.service.adminUiPort }}
+      targetPort: admin-ui
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-ops
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ops
+spec:
+  type: ClusterIP
+  selector: {{- include "lineage.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: ops
+      port: {{ .Values.service.opsPort }}
+      targetPort: ops

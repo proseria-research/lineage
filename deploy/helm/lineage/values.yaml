@@ -1,0 +1,136 @@
+# Default values for the Lineage chart. `dev` (SQLite + PVC, zero external deps) is the
+# baseline; layer values-prod.yaml for HA + Postgres. See docs/08-deployment-helm.md.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/proseria-research/lineage
+  tag: "" # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# SQLite is single-writer, so replicaCount MUST be 1 with engine=sqlite (the chart enforces
+# this). Postgres allows >1.
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  name: ""
+  # IRSA / workload-identity annotations for storage credentials (§05.4). Example:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::123:role/lineage
+  annotations: {}
+
+database:
+  engine: sqlite # sqlite | postgres
+  sqlite:
+    pvc:
+      size: 5Gi
+      storageClass: ""
+    path: /data/lineage.db
+  postgres:
+    # A Secret holding the full DSN (keeps the password out of the ConfigMap, §08.6).
+    dsnSecret:
+      name: ""
+      key: dsn
+
+cache:
+  engine: memory # memory | redis (redis adapter is a stub today; memory is the working path)
+
+storage:
+  driver: fs # fs | s3
+  fs:
+    root: /data/artifacts
+  s3:
+    bucket: ""
+    region: ""
+    endpoint: "" # override for MinIO / R2 / Ceph
+    pathStyle: false
+    # Static keys via a Secret; omit to use the IRSA/ECS/IMDS chain (§05.4.1).
+    credentialsSecret:
+      name: ""
+      accessKeyKey: accessKey
+      secretKeyKey: secretKey
+  gc:
+    mode: retain # retain | sweep
+    grace: 24h
+    interval: 1h
+    prefix: ""
+
+actorHeader: X-Lineage-Actor
+
+service:
+  type: ClusterIP
+  modelApiPort: 8081
+  adminUiPort: 8080
+  opsPort: 9090
+
+ingress:
+  modelApi:
+    enabled: false
+    className: ""
+    host: ""
+    annotations: {}
+    tls: [] # [{ secretName: model-api-tls, hosts: [api.example.com] }]
+  adminUi:
+    enabled: false
+    className: ""
+    host: ""
+    annotations: {}
+    tls: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Restrict :8080 (Admin UI) ingress to trusted sources; :8081 (Model API) is open to
+# in-cluster serving systems (§08.6). Auth itself is infra's job (§00 axiom 4).
+networkPolicy:
+  enabled: false
+  adminUiFrom: [] # []networkpolicy.io peers allowed to reach :8080
+
+observability:
+  metrics: true
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    interval: 30s
+  otlpEndpoint: "" # OTLP collector for traces (reserved; §09.8)
+
+migrations:
+  auto: true # run the migrate Job (pre-install/pre-upgrade) for postgres
+
+resources:
+  requests: { cpu: 50m, memory: 96Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+# Hardened by default (§08.6): non-root, read-only rootfs, no privilege escalation, dropped caps.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: ["ALL"] }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+extraEnv: []
+
+# Optional subcharts (see Chart.yaml). Disabled by default — external managed DB/cache is the
+# recommended path. Enable then `helm dependency build`.
+postgresql:
+  enabled: false
+redis:
+  enabled: false

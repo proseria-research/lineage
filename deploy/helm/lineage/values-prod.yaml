@@ -1,0 +1,61 @@
+# prod profile: HA on external Postgres + S3, both ingresses with TLS, autoscaling, PDB,
+# NetworkPolicy, and a ServiceMonitor. Fill in the DSN/credential Secrets and hosts, then:
+#   helm install lineage ./deploy/helm/lineage -f values-prod.yaml \
+#     --set database.postgres.dsnSecret.name=lineage-db \
+#     --set ingress.modelApi.host=api.example.com --set ingress.adminUi.host=console.example.com
+
+replicaCount: 2
+
+database:
+  engine: postgres
+  postgres:
+    dsnSecret:
+      name: lineage-db # Secret with key `dsn` = full Postgres DSN
+      key: dsn
+
+cache:
+  engine: memory # switch to redis once the redis adapter lands
+
+storage:
+  driver: s3
+  s3:
+    bucket: models
+    region: us-east-1
+    # Prefer IRSA: annotate the ServiceAccount below instead of setting a credentialsSecret.
+  gc:
+    mode: sweep
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/lineage
+
+ingress:
+  modelApi:
+    enabled: true
+    className: nginx
+    host: "" # api.example.com
+    tls: []
+  adminUi:
+    enabled: true
+    className: nginx
+    host: "" # console.example.com
+    tls: []
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  adminUiFrom: [] # e.g. [{ namespaceSelector: { matchLabels: { role: sso-gateway } } }]
+
+observability:
+  metrics: true
+  serviceMonitor:
+    enabled: true

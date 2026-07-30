@@ -1,0 +1,15 @@
+{{- if include "lineage.needsPVC" . }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "lineage.fullname" . }}-data
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.database.sqlite.pvc.size }}
+  {{- with .Values.database.sqlite.pvc.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
