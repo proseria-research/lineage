@@ -213,6 +213,17 @@ func (s *Store) Resolve(_ context.Context, model string, sel domain.Selector) (*
 
 // ---- Artifacts ----
 
+func (s *Store) ArtifactRefsURI(_ context.Context, uri string) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, a := range s.artifacts {
+		if a.URI == uri {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *Store) CreateArtifact(_ context.Context, a *domain.Artifact) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

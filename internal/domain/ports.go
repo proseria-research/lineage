@@ -55,6 +55,9 @@ type MetadataStore interface {
 	// Artifacts
 	CreateArtifact(ctx context.Context, a *Artifact) error
 	ListArtifacts(ctx context.Context, versionID string) ([]*Artifact, error)
+	// ArtifactRefsURI reports whether any artifact row still points at uri. GC uses it to
+	// reference-count backend objects before sweeping them (§05.8).
+	ArtifactRefsURI(ctx context.Context, uri string) (bool, error)
 
 	// Lineage & audit
 	AddLineageEdge(ctx context.Context, e *LineageEdge) error
@@ -85,6 +88,29 @@ type ObjectInfo struct {
 	Digest    string
 }
 
+// ObjectRef identifies one stored object when enumerating a backend for GC (§05.8).
+type ObjectRef struct {
+	URI        string
+	SizeBytes  int64
+	ModifiedAt int64 // epoch ms
+}
+
+// MultipartPart is one part of a multipart upload: a presigned PUT URL on the way out
+// (initiate) and the ETag the client observed on the way back (finalize) (§05.6).
+type MultipartPart struct {
+	PartNumber int    `json:"partNumber"`
+	URL        string `json:"url,omitempty"`
+	ETag       string `json:"etag,omitempty"`
+}
+
+// MultipartPlan is returned by InitiateMultipart: the backend's opaque upload id, the part
+// size, and a presigned PUT target per part (§05.6).
+type MultipartPlan struct {
+	UploadID string          `json:"-"`
+	PartSize int64           `json:"partSize"`
+	Parts    []MultipartPart `json:"parts"`
+}
+
 // StorageBackend is the artifact-bytes port. Bytes flow directly between backend and
 // consumer on the read path; the core only proxies when a backend can't sign (§05.1).
 type StorageBackend interface {
@@ -94,7 +120,25 @@ type StorageBackend interface {
 	SignGet(ctx context.Context, uri string, ttl time.Duration) (string, error)
 	SignPut(ctx context.Context, path string, ttl time.Duration) (SignedRequest, error)
 	Get(ctx context.Context, uri string) (io.ReadCloser, error)
+	Put(ctx context.Context, path string, r io.Reader, size int64, contentType string) (string, error)
+	// URIFor returns the canonical native uri for a stored path (e.g. file://…, s3://bucket/…).
+	URIFor(path string) string
 	Delete(ctx context.Context, uri string) error
+
+	// --- Multipart upload (large files, §05.6). Backends without Capabilities().Multipart
+	// return ErrStorageUnsupported and the core falls back to a single signed PUT. ---
+
+	// InitiateMultipart starts a multipart upload for path and returns the backend upload id
+	// plus a presigned PUT URL for each of `parts` parts (each `partSize` bytes, last shorter).
+	InitiateMultipart(ctx context.Context, path string, parts int, partSize int64, ttl time.Duration) (MultipartPlan, error)
+	// CompleteMultipart assembles the object from the client-observed per-part ETags (ordered)
+	// and returns the canonical native uri.
+	CompleteMultipart(ctx context.Context, path, uploadID string, parts []MultipartPart) (string, error)
+	// AbortMultipart discards an incomplete multipart upload (finalize failure / expiry).
+	AbortMultipart(ctx context.Context, path, uploadID string) error
+
+	// ListObjects enumerates stored objects under prefix, for reference-counted GC (§05.8).
+	ListObjects(ctx context.Context, prefix string) ([]ObjectRef, error)
 }
 
 // ResolutionCache caches (model, selector) → resolution, invalidated per-model on

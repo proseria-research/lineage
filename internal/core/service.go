@@ -5,22 +5,30 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/proseria-research/lineage/internal/domain"
 )
 
 type Service struct {
-	store    domain.MetadataStore
-	backends map[string]domain.StorageBackend
-	defBack  string
-	cache    domain.ResolutionCache
-	events   domain.EventBus
-	signTTL  time.Duration
+	store     domain.MetadataStore
+	backends  map[string]domain.StorageBackend
+	defBack   string
+	cache     domain.ResolutionCache
+	events    domain.EventBus
+	signTTL   time.Duration
+	uploadTTL time.Duration
+
+	mu      sync.Mutex                // guards pending
+	pending map[string]*pendingUpload // in-flight uploads keyed by uploadId (§05.6)
 }
 
 func New(store domain.MetadataStore, backends map[string]domain.StorageBackend, defBack string, cache domain.ResolutionCache, events domain.EventBus) *Service {
-	return &Service{store: store, backends: backends, defBack: defBack, cache: cache, events: events, signTTL: 15 * time.Minute}
+	return &Service{
+		store: store, backends: backends, defBack: defBack, cache: cache, events: events,
+		signTTL: 15 * time.Minute, uploadTTL: time.Hour, pending: map[string]*pendingUpload{},
+	}
 }
 
 func (s *Service) backend(name string) domain.StorageBackend {
@@ -45,6 +53,7 @@ type ArtifactInput struct {
 	Name           string              `json:"name"`
 	URI            string              `json:"uri"`
 	StorageBackend string              `json:"storageBackend"`
+	StoragePath    string              `json:"storagePath"`
 	Digest         string              `json:"digest"`
 	SizeBytes      int64               `json:"sizeBytes"`
 	MediaType      string              `json:"mediaType"`
@@ -144,9 +153,9 @@ func (s *Service) registerArtifact(ctx context.Context, versionID string, ai Art
 	now := domain.NowMillis()
 	a := &domain.Artifact{
 		ID: domain.NewID(), VersionID: versionID, Kind: ai.Kind, Name: ai.Name, URI: ai.URI,
-		StorageBackend: ai.StorageBackend, SizeBytes: ai.SizeBytes, Digest: ai.Digest,
-		MediaType: ai.MediaType, ModelFormat: ai.ModelFormat, ServiceAccount: ai.ServiceAccount,
-		CreatedAt: now, UpdatedAt: now,
+		StorageBackend: ai.StorageBackend, StoragePath: ai.StoragePath, SizeBytes: ai.SizeBytes,
+		Digest: ai.Digest, MediaType: ai.MediaType, ModelFormat: ai.ModelFormat,
+		ServiceAccount: ai.ServiceAccount, CreatedAt: now, UpdatedAt: now,
 	}
 	return a, s.store.CreateArtifact(ctx, a)
 }

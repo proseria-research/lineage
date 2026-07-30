@@ -33,6 +33,12 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{model}/versions/{version}", r.getVersion)
 	// Colon-action lives in the trailing segment (e.g. "1.4.0:transition"), parsed below.
 	mux.HandleFunc("POST /v1/models/{model}/versions/{action}", r.versionAction)
+	// Artifacts: register-by-reference + the signed upload flow (§05.6). ':' is a literal
+	// path char to ServeMux, so the colon-actions register as distinct routes.
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts", r.registerArtifact)
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts:initiateUpload", r.initiateUpload)
+	mux.HandleFunc("PUT /v1/models/{model}/versions/{version}/artifacts:uploadContent", r.uploadContent)
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts:finalizeUpload", r.finalizeUpload)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
 	return mux
 }
@@ -130,6 +136,70 @@ func (r *Router) versionAction(w http.ResponseWriter, req *http.Request) {
 	default:
 		api.WriteError(w, domain.Invalid("unknown action ':"+action+"'"))
 	}
+}
+
+// ---- Artifacts & upload (§05.6) ----
+
+func (r *Router) registerArtifact(w http.ResponseWriter, req *http.Request) {
+	var in core.ArtifactInput
+	if err := decode(req, &in); err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	a, err := r.svc.RegisterArtifact(req.Context(), r.actor(req), req.PathValue("model"), req.PathValue("version"), in)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusCreated, a)
+}
+
+func (r *Router) initiateUpload(w http.ResponseWriter, req *http.Request) {
+	var in core.InitiateUploadInput
+	if err := decode(req, &in); err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	t, err := r.svc.InitiateUpload(req.Context(), r.actor(req), req.PathValue("model"), req.PathValue("version"), in)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusAccepted, t)
+}
+
+// uploadContent is the stream-through sink for non-signing backends (§05.6). Bytes are the
+// raw request body; the uploadId comes from the query string returned by initiate.
+func (r *Router) uploadContent(w http.ResponseWriter, req *http.Request) {
+	id := req.URL.Query().Get("uploadId")
+	if id == "" {
+		api.WriteError(w, domain.Invalid("missing uploadId"))
+		return
+	}
+	defer req.Body.Close()
+	if err := r.svc.UploadContent(req.Context(), id, req.Body, req.ContentLength); err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (r *Router) finalizeUpload(w http.ResponseWriter, req *http.Request) {
+	var body struct {
+		UploadID string                 `json:"uploadId"`
+		Digest   string                 `json:"digest"`
+		Parts    []domain.MultipartPart `json:"parts"`
+	}
+	if err := decode(req, &body); err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	a, err := r.svc.FinalizeUpload(req.Context(), r.actor(req), req.PathValue("model"), req.PathValue("version"), body.UploadID, body.Digest, body.Parts)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusCreated, a)
 }
 
 func (r *Router) resolve(w http.ResponseWriter, req *http.Request) {

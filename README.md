@@ -11,13 +11,17 @@ Registry for **capability parity, not wire compatibility**.
 ## Status
 
 **Early, working.** The Go skeleton compiles, runs, and serves the core happy path
-(create model → publish version + artifacts → stage transitions → resolve). Metadata now
-persists in **SQLite or Postgres** (per-dialect adapters behind the `MetadataStore` port,
-§02.7); an in-memory store remains for tests/dev. Storage still uses the `fs` backend
-(S3 is a stub); Redis cache is a stub.
+(create model → publish/upload artifacts → stage transitions → resolve). Metadata persists
+in **SQLite or Postgres** (per-dialect adapters behind the `MetadataStore` port, §02.7); an
+in-memory store remains for tests/dev. Artifacts go to a real **`fs`** (dev/air-gapped,
+stream-through) or **`s3`** backend — any S3-compatible store (AWS · MinIO · R2 · Ceph) via
+signed GET/PUT + multipart, with a full upload flow (initiate → PUT → finalize, digest-verified),
+reference-counted GC, and an IRSA/ECS/IMDS credential chain (§05.4.1). The S3 driver + SigV4
+are verified against a live MinIO server. Redis cache is a stub.
 
-Set the engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory`. Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md) (M0–M2 done; M3 storage in progress).
+Set the metadata engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory` and the storage
+driver with `LINEAGE_STORAGE_DRIVER=fs|s3`. Progress is tracked in
+[`MILESTONES.md`](MILESTONES.md) (M0–M3 done).
 
 ## Run
 
@@ -60,14 +64,15 @@ internal/
     adminui/            :8080 human console BFF (§06)
   adapters/
     store/{memory,sqlite,postgres}   MetadataStore (all real; shared sqlstore + Dialect, §02.7)
-    storage/{fs,s3}                  StorageBackend (fs works; s3 stub, §05)
+    storage/{fs,s3}                  StorageBackend (both real; s3 = hand-rolled SigV4, §05)
     cache/memory                     ResolutionCache (§04.4)
     events                           EventBus
   observability/        health + metrics (§09)
   config/               env-driven config
 ```
 
-Zero external dependencies (stdlib only) at this stage.
+Dependencies: `modernc.org/sqlite` (cgo-free) and `jackc/pgx/v5` for the metadata stores;
+everything else (incl. the S3 driver and SigV4) is stdlib only.
 
 ## Config (env)
 
@@ -76,14 +81,21 @@ Zero external dependencies (stdlib only) at this stage.
 | `LINEAGE_MODEL_API_ADDR` | `:8081` | Model API listen addr |
 | `LINEAGE_ADMIN_ADDR` | `:8080` | Admin UI listen addr |
 | `LINEAGE_METRICS_ADDR` | `:9090` | ops listen addr |
+| `LINEAGE_DB_ENGINE` | `sqlite` | `sqlite` \| `postgres` \| `memory` |
+| `LINEAGE_DB_PATH` | `lineage.db` | SQLite file path / Postgres DSN |
+| `LINEAGE_STORAGE_DRIVER` | `fs` | `fs` \| `s3` |
 | `LINEAGE_STORAGE_ROOT` | `./data/artifacts` | fs backend root |
+| `LINEAGE_S3_BUCKET` / `_REGION` / `_ENDPOINT` | — | s3 target (endpoint overrides for MinIO/R2/Ceph) |
+| `LINEAGE_S3_ACCESS_KEY` / `_SECRET_KEY` | — | pin static keys; omit to use the IRSA/ECS/IMDS chain (§05.4.1) |
+| `LINEAGE_S3_PATH_STYLE` | `false` | `true` for MinIO/Ceph |
+| `LINEAGE_STORAGE_GC` | `retain` | `sweep` enables reference-counted GC (§05.8) |
+| `LINEAGE_GC_GRACE` / `_INTERVAL` / `_PREFIX` | `24h` / `1h` / `""` | GC eligibility age, sweep period, owned prefix |
 | `LINEAGE_ACTOR_HEADER` | `X-Lineage-Actor` | trusted identity header for audit |
 
 Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the actor header.
 
 ## Next
 
-- **M3:** S3 `StorageBackend` with signed URLs + the upload initiate/finalize flow (§05)
-- **M4:** resolve cache wired to the event bus; `lineage://` initializer (§04)
+- **M4:** resolve cache wired to the event bus; `ETag`/`304`; `lineage://` KServe initializer (§04)
 - **M5:** full `/v1` (artifacts/lineage/deployments CRUD, cursor pagination), OpenAPI (§03)
 - Helm chart (§08), SDK/CLI (§10)

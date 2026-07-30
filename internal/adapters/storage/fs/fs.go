@@ -69,6 +69,75 @@ func (b *Backend) Get(_ context.Context, uri string) (io.ReadCloser, error) {
 	return os.Open(b.path(uri))
 }
 
+// Put streams bytes to <root>/<path> (creating parent dirs) and returns a file:// uri.
+// size/contentType are ignored — fs writes whatever it is handed (§05.6).
+func (b *Backend) Put(_ context.Context, path string, r io.Reader, _ int64, _ string) (string, error) {
+	dst := b.path(path)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return "", err
+	}
+	f, err := os.Create(dst)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(f, r); err != nil {
+		f.Close()
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+	return "file://" + path, nil
+}
+
+// URIFor returns the file:// uri for a stored path (§05.5).
+func (b *Backend) URIFor(path string) string {
+	return "file://" + strings.TrimPrefix(path, "/")
+}
+
 func (b *Backend) Delete(_ context.Context, uri string) error {
 	return os.Remove(b.path(uri))
+}
+
+// fs cannot presign, so it cannot offer client-driven multipart uploads; large files use
+// the stream-through path instead (§05.6). These satisfy the port with ErrStorageUnsupported.
+func (b *Backend) InitiateMultipart(context.Context, string, int, int64, time.Duration) (domain.MultipartPlan, error) {
+	return domain.MultipartPlan{}, domain.ErrStorageUnsupported
+}
+func (b *Backend) CompleteMultipart(context.Context, string, string, []domain.MultipartPart) (string, error) {
+	return "", domain.ErrStorageUnsupported
+}
+func (b *Backend) AbortMultipart(context.Context, string, string) error {
+	return domain.ErrStorageUnsupported
+}
+
+// ListObjects walks root and returns every file as a file:// uri (§05.8, GC).
+func (b *Backend) ListObjects(_ context.Context, prefix string) ([]domain.ObjectRef, error) {
+	base := b.path(strings.TrimPrefix(prefix, "file://"))
+	var out []domain.ObjectRef
+	err := filepath.WalkDir(base, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) { // nothing stored yet
+				return nil
+			}
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(b.root, p)
+		if err != nil {
+			return err
+		}
+		out = append(out, domain.ObjectRef{
+			URI: "file://" + filepath.ToSlash(rel), SizeBytes: info.Size(),
+			ModifiedAt: info.ModTime().UnixMilli(),
+		})
+		return nil
+	})
+	return out, err
 }
