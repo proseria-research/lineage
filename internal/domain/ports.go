@@ -44,9 +44,11 @@ type MetadataStore interface {
 	GetVersion(ctx context.Context, model, version string) (*ModelVersion, error)
 	ListVersions(ctx context.Context, model string, o ListOptions) ([]*ModelVersion, string, error)
 	UpdateVersion(ctx context.Context, v *ModelVersion) error
-	// SetStage moves v to `to`; if demote is non-empty, that incumbent version id is
-	// simultaneously set to archived (singleton demotion) in the same operation (§02.4).
-	SetStage(ctx context.Context, versionID string, to Stage, demoteVersionID string) error
+	// SetStage moves versionID to `to`. If singleton is true and `to` is a singleton
+	// stage, any *other* version of the same model currently in `to` is demoted to
+	// archived within the same transaction (§02.4). Enforcing this inside the store keeps
+	// the invariant correct under concurrency (Postgres FOR UPDATE; SQLite single-writer).
+	SetStage(ctx context.Context, versionID string, to Stage, singleton bool) error
 	// Resolve returns the version matching sel within model (§04.2).
 	Resolve(ctx context.Context, model string, sel Selector) (*ModelVersion, error)
 

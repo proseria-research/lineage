@@ -153,17 +153,19 @@ func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
 	return nil
 }
 
-func (s *Store) SetStage(_ context.Context, versionID string, to domain.Stage, demoteVersionID string) error {
+func (s *Store) SetStage(_ context.Context, versionID string, to domain.Stage, singleton bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.versions[versionID]
 	if !ok {
 		return domain.NotFound("version not found")
 	}
-	if demoteVersionID != "" {
-		if d, ok := s.versions[demoteVersionID]; ok {
-			d.Stage = domain.StageArchived
-			d.UpdatedAt = domain.NowMillis()
+	if singleton {
+		for _, o := range s.versions {
+			if o.ModelID == v.ModelID && o.ID != v.ID && o.Stage == to {
+				o.Stage = domain.StageArchived
+				o.UpdatedAt = domain.NowMillis()
+			}
 		}
 	}
 	v.Stage = to

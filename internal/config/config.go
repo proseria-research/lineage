@@ -8,8 +8,8 @@ type Config struct {
 	AdminAddr    string // Admin UI surface (:8080)
 	ModelAPIAddr string // Model API surface (:8081)
 	MetricsAddr  string // health + metrics (ops)
-	DBEngine     string // sqlite | postgres (memory stands in for the scaffold)
-	DBPath       string // sqlite file / postgres dsn
+	DBEngine     string // sqlite | postgres | memory
+	DBPath       string // sqlite file path / postgres DSN (ignored for memory)
 	StorageRoot  string // fs backend root (dev default)
 	ActorHeader  string // trusted identity header for audit (§00 axiom 4)
 }

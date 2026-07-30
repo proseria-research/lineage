@@ -177,13 +177,7 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 			"illegal stage transition "+string(v.Stage)+"→"+string(to),
 			map[string]any{"allowedTargets": domain.AllowedTargets(v.Stage)})
 	}
-	var demoteID string
-	if domain.IsSingleton(to) {
-		if inc, err := s.store.Resolve(ctx, model, domain.Selector{Stage: to}); err == nil && inc.ID != v.ID {
-			demoteID = inc.ID
-		}
-	}
-	if err := s.store.SetStage(ctx, v.ID, to, demoteID); err != nil {
+	if err := s.store.SetStage(ctx, v.ID, to, domain.IsSingleton(to)); err != nil {
 		return nil, err
 	}
 	data, _ := json.Marshal(map[string]string{"from": string(v.Stage), "to": string(to), "reason": reason})

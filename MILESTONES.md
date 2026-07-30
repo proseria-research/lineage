@@ -27,9 +27,9 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1 done;
-    class M2 active;
-    class M3,M4,M5,M6,M7,M8,M9,M10,M11 todo;
+    class M0,M1,M2 done;
+    class M3 active;
+    class M4,M5,M6,M7,M8,M9,M10,M11 todo;
 ```
 
 ## Status Summary
@@ -38,8 +38,8 @@ flowchart LR
 |---|---|---|---|
 | M0 | Architecture & design docs | `00`–`11` | ✅ |
 | M1 | Go scaffold (single binary, ports & adapters) | `01` | ✅ |
-| M2 | Persistence: per-dialect MetadataStore + migrations | `02` | 🚧 |
-| M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ⬜ |
+| M2 | Persistence: per-dialect MetadataStore + migrations | `02` | ✅ |
+| M3 | Storage: S3 backend, signed URLs, upload flow | `05` | 🚧 |
 | M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ⬜ |
 | M5 | Model API completeness + OpenAPI | `03` | ⬜ |
 | M6 | Admin UI: BFF + web console | `06` | ⬜ |
@@ -68,20 +68,25 @@ Compiling, runnable, tested skeleton; ports & adapters; end-to-end happy path ve
 - [x] Two surfaces (:8081 Model API, :8080 Admin UI) + ops (:9090)
 - [x] Unit tests (stage machine, name validation); `go vet`/`gofmt` clean
 
-## M2 — Persistence 🚧
+## M2 — Persistence ✅
 
 **Goal:** replace the in-memory store with real per-dialect adapters (§02.7).
 **Acceptance:** the full happy path passes against **both** SQLite and Postgres; schema
 via migrations; singleton invariant enforced (Postgres `FOR UPDATE`, SQLite serialized).
+**Done:** shared `sqlstore` (`database/sql`) + `Dialect`; conformance suite green on
+memory + SQLite; persistence verified across a restart.
 
-- [ ] SQLite `MetadataStore` (cgo-free driver) + migrations
-- [ ] Postgres `MetadataStore` + migrations (JSONB, `FOR UPDATE`)
-- [ ] Shared repository test suite run against both engines
-- [ ] Config wiring (`LINEAGE_DB_ENGINE`) picks the adapter at startup
-- [ ] Cursor pagination (real `nextPageToken`)
-- [ ] Cascade + audit-retention semantics (§02.5)
+- [x] Shared `sqlstore` + `Dialect` (placeholders, unique-violation, model lock)
+- [x] SQLite `MetadataStore` (cgo-free modernc driver, WAL, single-writer) + migrations
+- [x] Postgres `MetadataStore` (pgx) + migrations; `FOR UPDATE` singleton lock
+- [x] Shared conformance suite (`storetest`) run vs memory + SQLite; Postgres via `LINEAGE_TEST_PG`
+- [x] Versioned forward-only migrator (`schema_version`)
+- [x] Config wiring (`LINEAGE_DB_ENGINE`) picks the adapter at startup; default SQLite
+- [x] FK `ON DELETE CASCADE` in schema (§02.5)
+- [ ] Cursor pagination (real `nextPageToken`) — carried to **M5** (belongs with the API)
+- [ ] JSONB/label-table filtering, Postgres-native features — carried to **M5/M7**
 
-## M3 — Storage ⬜
+## M3 — Storage 🚧
 
 **Goal:** production artifact delivery (§05).
 **Acceptance:** register-by-reference fills digest/size via `Stat`; signed upload
