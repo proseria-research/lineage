@@ -1,0 +1,24 @@
+# dev profile: zero external dependencies — SQLite on a PVC, in-memory cache, fs storage,
+# single replica, Model API ingress only. `helm install lineage ./deploy/helm/lineage -f values-dev.yaml`.
+
+replicaCount: 1
+
+database:
+  engine: sqlite
+
+cache:
+  engine: memory
+
+storage:
+  driver: fs
+
+ingress:
+  modelApi:
+    enabled: true
+  adminUi:
+    enabled: false
+
+autoscaling:
+  enabled: false
+podDisruptionBudget:
+  enabled: false

@@ -1,0 +1,18 @@
+{{- if and .Values.observability.metrics .Values.observability.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "lineage.fullname" . }}
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+    {{- with .Values.observability.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels: {{- include "lineage.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ops
+  endpoints:
+    - port: ops
+      path: /metrics
+      interval: {{ .Values.observability.serviceMonitor.interval }}
+{{- end }}

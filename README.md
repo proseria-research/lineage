@@ -38,9 +38,15 @@ The ops port (`:9090`) serves `/healthz`, real `/readyz` (store + storage reacha
 resolve cache hit/miss, lifecycle counters, and domain/DB gauges. Requests emit structured
 JSON logs with a `requestId` (+ W3C `traceparent` correlation).
 
+It ships as a first-class **Helm chart** ([`deploy/helm/lineage`](deploy/helm/lineage)) and a
+multi-stage **`Dockerfile`** (cgo-free static binary → distroless non-root): `helm install`
+with `values-dev.yaml` (SQLite + PVC, zero external deps) or `values-prod.yaml` (Postgres + S3,
+HPA/PDB/NetworkPolicy/ServiceMonitor, migrate pre-upgrade hook). SQLite installs are pinned to
+one replica (single-writer, enforced at template time).
+
 Set the metadata engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory` and the storage
 driver with `LINEAGE_STORAGE_DRIVER=fs|s3`. Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md) (M0–M8 done).
+[`MILESTONES.md`](MILESTONES.md) (M0–M9 done).
 
 ## Run
 
@@ -116,6 +122,5 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- **M9:** Helm chart + deploy profiles (§08)
 - **M10:** SDK & CLI generated from the OpenAPI spec (§10)
 - **M11:** managed service (separate repo, §11)

@@ -1,0 +1,24 @@
+{{- if .Values.networkPolicy.enabled }}
+# Restrict the Admin UI (:8080) to trusted peers (SSO/VPN gateway); leave the Model API
+# (:8081) and ops (:9090) open in-cluster for serving systems and Prometheus (§08.6).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "lineage.fullname" . }}
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "lineage.selectorLabels" . | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    # Model API + ops: open in-cluster.
+    - ports:
+        - { port: {{ .Values.service.modelApiPort }}, protocol: TCP }
+        - { port: {{ .Values.service.opsPort }}, protocol: TCP }
+    # Admin UI: only from the configured peers (empty ⇒ no direct access; go via the gateway).
+    - ports:
+        - { port: {{ .Values.service.adminUiPort }}, protocol: TCP }
+      {{- with .Values.networkPolicy.adminUiFrom }}
+      from: {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

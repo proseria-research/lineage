@@ -32,10 +32,26 @@ import (
 	"github.com/proseria-research/lineage/internal/observability/metrics"
 )
 
+// version is set at build time via -ldflags "-X main.version=…".
+var version = "dev"
+
 func main() {
 	cfg := config.Load()
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("lineage ")
+
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
+		log.Printf("lineage %s", version)
+		return
+	}
+
+	// `lineage migrate` opens the store (which runs the embedded migrator) and exits — the
+	// Helm pre-upgrade hook Job (§08.5). App pods start only after it succeeds.
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		runMigrate(cfg)
+		return
+	}
+
 	// Request access logs are structured JSON on stderr (§09.4).
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
@@ -111,6 +127,19 @@ func main() {
 	for _, s := range servers {
 		_ = s.Shutdown(ctx)
 	}
+}
+
+// runMigrate applies pending migrations and exits (§08.5). openStore runs the embedded
+// per-dialect migrator; SQLite also migrates at normal startup, so this is chiefly for Postgres.
+func runMigrate(cfg config.Config) {
+	store, err := openStore(cfg)
+	if err != nil {
+		log.Fatalf("migrate (%s): %v", cfg.DBEngine, err)
+	}
+	if c, ok := store.(interface{ Close() error }); ok {
+		_ = c.Close()
+	}
+	log.Printf("migrations applied (%s)", cfg.DBEngine)
 }
 
 // openStore selects the MetadataStore adapter from config (§02.7).

@@ -1,0 +1,27 @@
+Lineage {{ .Chart.AppVersion }} is installed as release "{{ .Release.Name }}".
+
+Surfaces (one binary, two ports):
+  • Model API  (machines: publish / resolve / fetch)  → Service {{ include "lineage.fullname" . }}-model-api:{{ .Values.service.modelApiPort }}
+  • Admin UI   (human web console)                     → Service {{ include "lineage.fullname" . }}-admin-ui:{{ .Values.service.adminUiPort }}
+  • Ops        (/healthz /readyz /metrics)             → Service {{ include "lineage.fullname" . }}-ops:{{ .Values.service.opsPort }}
+
+Config: database={{ .Values.database.engine }}, storage={{ .Values.storage.driver }}, replicas={{ if .Values.autoscaling.enabled }}auto ({{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }}){{ else }}{{ .Values.replicaCount }}{{ end }}.
+
+{{- if not .Values.ingress.modelApi.enabled }}
+
+No Model API ingress is enabled. Port-forward to try it:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "lineage.fullname" . }}-model-api {{ .Values.service.modelApiPort }}:{{ .Values.service.modelApiPort }}
+  curl localhost:{{ .Values.service.modelApiPort }}/v1/models
+{{- else if .Values.ingress.modelApi.host }}
+
+Model API: http{{ if .Values.ingress.modelApi.tls }}s{{ end }}://{{ .Values.ingress.modelApi.host }}/v1
+{{- end }}
+{{- if and .Values.ingress.adminUi.enabled .Values.ingress.adminUi.host }}
+Admin console: http{{ if .Values.ingress.adminUi.tls }}s{{ end }}://{{ .Values.ingress.adminUi.host }}
+{{- end }}
+
+{{- if eq .Values.database.engine "sqlite" }}
+
+NOTE: SQLite is single-writer — this release is pinned to 1 replica. For HA, set
+database.engine=postgres (see values-prod.yaml).
+{{- end }}

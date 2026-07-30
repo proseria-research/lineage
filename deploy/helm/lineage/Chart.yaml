@@ -1,0 +1,22 @@
+apiVersion: v2
+name: lineage
+description: Self-hostable AI model registry — one binary, two surfaces (Admin UI :8080, Model API :8081).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.23.0-0"
+home: https://github.com/proseria-research/lineage
+sources:
+  - https://github.com/proseria-research/lineage
+maintainers:
+  - name: proseria-research
+keywords:
+  - ml
+  - model-registry
+  - mlops
+  - lineage
+# The chart is standalone: it targets external managed Postgres/Redis (via
+# database.postgres.dsnSecret and cache.redis.*), the recommended production path (§08.6).
+# To bundle an all-in-one Postgres/Redis instead, add the bitnami subcharts here as
+# `dependencies` (condition: postgresql.enabled / redis.enabled) and run
+# `helm dependency update` — the values toggles are already reserved.

@@ -1,0 +1,72 @@
+{{- include "lineage.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lineage.fullname" . }}
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- if eq .Values.database.engine "sqlite" }}
+    type: Recreate {{/* single-writer PVC (RWO): never run two pods at once */}}
+    {{- else }}
+    type: RollingUpdate
+    {{- end }}
+  selector:
+    matchLabels: {{- include "lineage.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "lineage.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "lineage.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: lineage
+          image: {{ include "lineage.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - { name: model-api, containerPort: {{ .Values.service.modelApiPort }} }
+            - { name: admin-ui, containerPort: {{ .Values.service.adminUiPort }} }
+            - { name: ops, containerPort: {{ .Values.service.opsPort }} }
+          env:
+{{ include "lineage.env" . | indent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: ops }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /readyz, port: ops }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            {{- if include "lineage.needsPVC" . }}
+            - { name: data, mountPath: /data }
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if include "lineage.needsPVC" . }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "lineage.fullname" . }}-data
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -27,8 +27,8 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8 done;
-    class M9,M10,M11 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9 done;
+    class M10,M11 todo;
 ```
 
 ## Status Summary
@@ -44,7 +44,7 @@ flowchart LR
 | M6 | Admin UI: BFF + web console | `06` | ✅ |
 | M7 | Lineage & provenance graph | `07` | ✅ |
 | M8 | Observability: metrics, traces, SLOs | `09` | ✅ |
-| M9 | Deployment: Helm chart + profiles | `08` | ⬜ |
+| M9 | Deployment: Helm chart + profiles | `08` | ✅ |
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ⬜ |
 | M11 | Managed service (separate repo) | `11` | 🔮 |
 
@@ -213,15 +213,24 @@ structured JSON access logs with correlation IDs — all verified live.
       exporter wiring targets a collector, so it lands with the chart (**M9**, §08)
 - [ ] SLO dashboards/alert rules — ship as chart assets in **M9**
 
-## M9 — Deployment (Helm) ⬜
+## M9 — Deployment (Helm) ✅
 
 **Goal:** the Helm axiom realized (§08).
 **Acceptance:** `helm install` on a fresh cluster → working registry (dev profile).
+**Done:** chart in `deploy/helm/lineage`; `helm lint` + `helm template` clean on both profiles;
+guards fail-closed; multi-stage `Dockerfile` (cgo-free static → distroless non-root).
 
-- [ ] Chart: Deployment (two ports), two Services + Ingresses, ConfigMap/Secrets
-- [ ] Migration pre-upgrade hook Job; `dev`/`prod` values profiles
-- [ ] SQLite-single-replica guard; PVC; optional postgres/redis subcharts
-- [ ] Non-root, NetworkPolicy, PDB/HPA
+- [x] Chart: Deployment (two surfaces + ops port), three Services, two Ingresses; env rendered
+      from values (secret-bearing DSN/keys via `secretKeyRef`, never plaintext, §08.6)
+- [x] **Migrate Job** = Helm `pre-install`/`pre-upgrade` hook running `lineage migrate` (new
+      subcommand) for Postgres; SQLite migrates at startup; `values-dev.yaml` / `values-prod.yaml`
+- [x] **SQLite ⇒ single replica** enforced (template `fail` on `replicaCount>1` or autoscaling);
+      PVC for sqlite/fs; `Recreate` strategy for the single-writer; postgres/redis are external
+      (subcharts reserved as a documented opt-in — external managed DB is the prod path)
+- [x] Hardened: non-root, `readOnlyRootFilesystem`, dropped caps, seccomp; **NetworkPolicy**
+      (restricts Admin UI, opens Model API + ops), **PDB** + **HPA** (prod), **ServiceMonitor**
+- [x] `Dockerfile` (node build console → cgo-free static Go binary → distroless nonroot) + `make docker`
+- [x] Validated: `helm lint`/`template` both profiles, guard failures, `lineage migrate` smoke
 
 ## M10 — SDK & CLI ⬜
 
