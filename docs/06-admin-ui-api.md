@@ -65,7 +65,24 @@ the UI isn't coupled to the raw `/v1` shape.
 Because Admin is human-facing, this is where a human approver performs a promotion —
 but the *permission* to do so is enforced by infra, not Lineage (§00 axiom 4).
 
-## 5. See Also
+## 5. Console Implementation
+
+- **Stack:** Vite + React + TypeScript, Tailwind v4, shadcn-style components
+  (`cn`/`cva`/`tailwind-merge`, hand-authored `components/ui/*`). Source in
+  `internal/api/adminui/web/`.
+- **Design system:** **monochrome** (grayscale tokens only, no accent color), **1px hairline**
+  borders, **sharp** (`--radius: 0`) corners, mono type for ids/digests; auto light/dark via
+  `prefers-color-scheme`.
+- **Embedding:** `make web` (pnpm build) emits `web/dist`, embedded with `//go:embed all:web/dist`
+  and served by the BFF — one binary, no runtime Node. The committed `dist` lets `go build`
+  work without the frontend toolchain.
+- **Serving:** static assets by path; any other path returns `index.html` so client-side
+  routes resolve. BFF routes (`/api/*`) are matched first.
+- **Pages:** Overview (counts, stage distribution, recent activity), Models (searchable rollup
+  table), Model detail (version timeline), Version detail (artifacts, lineage, deployments,
+  audit timeline), Activity feed.
+
+## 6. See Also
 
 | For | Doc |
 |---|---|

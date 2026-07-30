@@ -3,3 +3,7 @@
 *.db
 *.db-*
 /lineage
+node_modules/
+# Vite caches; the built web/dist IS committed so the Go binary embeds it anywhere.
+.vite/
+*.tsbuildinfo

@@ -29,9 +29,13 @@ with PATCH, `:archive`, guarded `DELETE`, artifact-content immutability, `Idempo
 replay, cursor pagination, an audit feed, and a hand-authored **OpenAPI 3.1** spec served at
 `/v1/openapi.json`.
 
+The `:8080` **Admin console** is a Vite/React SPA (Tailwind v4, shadcn-style components;
+monochrome, hairline borders, sharp corners) embedded via `go:embed` and served by an
+in-process BFF — overview, models, model/version detail, lineage + audit timeline, activity.
+
 Set the metadata engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory` and the storage
 driver with `LINEAGE_STORAGE_DRIVER=fs|s3`. Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md) (M0–M5 done).
+[`MILESTONES.md`](MILESTONES.md) (M0–M6 done).
 
 ## Run
 
@@ -72,7 +76,7 @@ internal/
   core/                 business logic over the ports (publish, transition, resolve)
   api/
     modelapi/           /v1 machine API (§03/§04)
-    adminui/            :8080 human console BFF (§06)
+    adminui/            :8080 BFF + embedded web console (web/, go:embed, §06)
   adapters/
     store/{memory,sqlite,postgres}   MetadataStore (all real; shared sqlstore + Dialect, §02.7)
     storage/{fs,s3}                  StorageBackend (both real; s3 = hand-rolled SigV4, §05)
@@ -107,6 +111,6 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- **M6:** Admin UI (BFF + web console, §06)
 - **M7:** lineage graph traversal (ancestry / impact, §07)
+- **M8:** observability (metrics, traces, SLOs, §09)
 - Helm chart (§08), SDK/CLI generated from the OpenAPI spec (§10)

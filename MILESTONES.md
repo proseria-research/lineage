@@ -27,8 +27,8 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5 done;
-    class M6,M7,M8,M9,M10,M11 todo;
+    class M0,M1,M2,M3,M4,M5,M6 done;
+    class M7,M8,M9,M10,M11 todo;
 ```
 
 ## Status Summary
@@ -41,7 +41,7 @@ flowchart LR
 | M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ✅ |
 | M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ✅ |
 | M5 | Model API completeness + OpenAPI | `03` | ✅ |
-| M6 | Admin UI: BFF + web console | `06` | ⬜ |
+| M6 | Admin UI: BFF + web console | `06` | ✅ |
 | M7 | Lineage & provenance graph | `07` | ⬜ |
 | M8 | Observability: metrics, traces, SLOs | `09` | ⬜ |
 | M9 | Deployment: Helm chart + profiles | `08` | ⬜ |
@@ -153,13 +153,23 @@ SQLite binary smoke run): CRUD, guards, immutability, idempotency, pagination, a
       it covers the resources and every `$ref` resolves
 - [ ] Richer `filter` grammar + Postgres `custom_properties` filtering — deferred (§03.3, §02.7)
 
-## M6 — Admin UI ⬜
+## M6 — Admin UI ✅
 
 **Goal:** the human console (§06). BFF endpoints + SPA served on :8080.
+**Done:** a Vite/React/TypeScript + Tailwind v4 SPA with shadcn-style components, embedded via
+`go:embed` and served by the `:8080` BFF; verified end-to-end (Go tests + a live run).
+**Design system:** monochrome (grayscale only, no accent color), 1px hairline borders, sharp
+(zero-radius) corners, mono type for ids/digests; auto light/dark.
 
-- [ ] BFF: overview, models rollup, version detail, search, activity
-- [ ] Web console SPA (frontend-design pass)
-- [ ] Lineage graph + audit timeline views
+- [x] BFF (`adminui/bff.go`): `/api/overview`, `/api/models` (rollup: version count +
+      production pointer), `/api/models/{m}`, `/api/models/{m}/versions/{v}`, `/api/activity`;
+      calls the same core in-process, empty collections coalesced to `[]`
+- [x] Web console SPA (`adminui/web/`): Overview (counts, stage bars, recent activity), Models
+      (searchable table), Model detail (version timeline), Version detail, Activity feed
+- [x] Lineage edges + audit **timeline** views on the version detail page
+- [x] Search box (header → `/models?q=`); client-side routing with SPA index fallback
+- [x] `go:embed all:web/dist` + `make web` (pnpm build); dist committed so `go build` needs no Node
+- [x] Tests: SPA served at `/` + fallback for client routes; BFF aggregates/rollup/detail
 
 ## M7 — Lineage & Provenance ⬜
 
