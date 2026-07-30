@@ -27,8 +27,8 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7 done;
-    class M8,M9,M10,M11 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8 done;
+    class M9,M10,M11 todo;
 ```
 
 ## Status Summary
@@ -43,7 +43,7 @@ flowchart LR
 | M5 | Model API completeness + OpenAPI | `03` | ✅ |
 | M6 | Admin UI: BFF + web console | `06` | ✅ |
 | M7 | Lineage & provenance graph | `07` | ✅ |
-| M8 | Observability: metrics, traces, SLOs | `09` | ⬜ |
+| M8 | Observability: metrics, traces, SLOs | `09` | ✅ |
 | M9 | Deployment: Helm chart + profiles | `08` | ⬜ |
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ⬜ |
 | M11 | Managed service (separate repo) | `11` | 🔮 |
@@ -189,13 +189,29 @@ Model API and rendered in the console; verified end-to-end + unit-tested.
 - [x] Tests: ancestry, depth bound, impact, relation filter, cycle safety (core); graph over HTTP
 - [ ] SDK auto-capture (`produced_by`, `derived_from`) — an SDK feature, lands with **M10**
 
-## M8 — Observability ⬜
+## M8 — Observability ✅
 
 **Goal:** production ops (§09).
+**Done:** a hand-rolled, dependency-free Prometheus registry + `/metrics`, real readiness, and
+structured JSON access logs with correlation IDs — all verified live.
 
-- [ ] Prometheus registry (RED, resolve cache, storage, DB, domain gauges)
-- [ ] OTel traces (API→core→store/storage), structured request logs
-- [ ] Real `/readyz` (DB + cache + storage) ; SLO dashboards/alerts
+- [x] **Prometheus registry** (`observability/metrics`, hand-rolled counters/gauges/histograms
+      with labels + text exposition — no `client_golang` dep): RED (`surface`/**templated**
+      `route`/`method`/`status` + duration histogram), resolve cache hit/miss, versions
+      published, transitions by `to`-stage, singleton demotions, signed URLs, finalize latency,
+      digest-mismatch; domain gauges (totals + stage distribution) and DB pool stats refreshed
+      at scrape via `OnScrape`
+- [x] Core stays metrics-free: a `domain.Meter` port (no-op default) is injected with
+      `core.WithMeter` (non-breaking functional option); hooks in resolve/publish/transition/finalize
+- [x] **Structured JSON request logs** (`slog`): surface, route, method, status, latencyMs,
+      `requestId`, `actor`, `traceId`; `X-Request-Id` echoed; **W3C `traceparent`** trace-id
+      propagated for correlation — never logs secrets/signed URLs/bytes
+- [x] Real **`/readyz`**: composed store + default-storage `Stat` checks gate traffic; `/healthz` liveness
+- [x] Tests: registry (counter/gauge/histogram cumulative buckets, scrape hooks, label escaping),
+      ops handler (health/ready/metrics + failure gating), meter hooks fire from the core
+- [ ] **OTLP span export** (OTel SDK, API→core→store spans) — correlation IDs are in place;
+      exporter wiring targets a collector, so it lands with the chart (**M9**, §08)
+- [ ] SLO dashboards/alert rules — ship as chart assets in **M9**
 
 ## M9 — Deployment (Helm) ⬜
 

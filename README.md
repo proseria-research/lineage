@@ -33,9 +33,14 @@ The `:8080` **Admin console** is a Vite/React SPA (Tailwind v4, shadcn-style com
 monochrome, hairline borders, sharp corners) embedded via `go:embed` and served by an
 in-process BFF — overview, models, model/version detail, lineage + audit timeline, activity.
 
+The ops port (`:9090`) serves `/healthz`, real `/readyz` (store + storage reachability), and
+`/metrics` — a hand-rolled, dependency-free Prometheus registry: RED (templated route labels),
+resolve cache hit/miss, lifecycle counters, and domain/DB gauges. Requests emit structured
+JSON logs with a `requestId` (+ W3C `traceparent` correlation).
+
 Set the metadata engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory` and the storage
 driver with `LINEAGE_STORAGE_DRIVER=fs|s3`. Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md) (M0–M6 done).
+[`MILESTONES.md`](MILESTONES.md) (M0–M8 done).
 
 ## Run
 
@@ -111,6 +116,6 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- **M8:** observability (metrics, traces, SLOs, §09)
 - **M9:** Helm chart + deploy profiles (§08)
-- SDK/CLI generated from the OpenAPI spec (§10)
+- **M10:** SDK & CLI generated from the OpenAPI spec (§10)
+- **M11:** managed service (separate repo, §11)

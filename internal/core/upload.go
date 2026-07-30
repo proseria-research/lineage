@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"time"
 
 	"github.com/proseria-research/lineage/internal/domain"
 )
@@ -187,6 +188,7 @@ func (s *Service) UploadContent(ctx context.Context, uploadID string, r io.Reade
 // during a stream-through upload; the backend's Stat (x-amz-meta-sha256); else a one-time
 // verify-by-stream when the client declared a digest the backend can't attest cheaply.
 func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, uploadID, declaredDigest string, parts []domain.MultipartPart) (*domain.Artifact, error) {
+	start := time.Now()
 	pu, err := s.takePending(uploadID, true)
 	if err != nil {
 		return nil, err
@@ -243,6 +245,7 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	}
 
 	if declaredDigest != "" && digest != "" && declaredDigest != digest {
+		s.meter.UploadFinalized(time.Since(start).Seconds(), true)
 		return nil, domain.Unprocessable("digest mismatch: declared " + declaredDigest + " but object is " + digest)
 	}
 	if pu.in.SizeBytes > 0 && size > 0 && pu.in.SizeBytes != size {
@@ -262,6 +265,7 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	}
 	s.audit(ctx, actor, "artifact.upload", "artifact", a.ID, "uploaded "+model+"@"+version+"/"+a.Name, nil)
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
+	s.meter.UploadFinalized(time.Since(start).Seconds(), false)
 	return a, nil
 }
 

@@ -40,10 +40,12 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 	if cached, ok := s.cache.Get(key); ok {
 		var r Resolution
 		if json.Unmarshal(cached, &r) == nil {
+			s.meter.ResolveServed(true)
 			s.signRefs(ctx, &r) // signed URLs are minted per response, never cached (§04.4)
 			return &r, nil
 		}
 	}
+	s.meter.ResolveServed(false)
 	v, err := s.store.Resolve(ctx, model, sel)
 	if err != nil {
 		return nil, err
@@ -84,6 +86,7 @@ func (s *Service) signRefs(ctx context.Context, r *Resolution) {
 		if url, err := b.SignGet(ctx, r.Artifacts[i].StorageURI, s.signTTL); err == nil {
 			r.Artifacts[i].SignedURL = url
 			r.Artifacts[i].SignedURLExpires = domain.NowMillis() + s.signTTL.Milliseconds()
+			s.meter.SignedURLMinted()
 		}
 	}
 }

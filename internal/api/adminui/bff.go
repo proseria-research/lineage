@@ -93,32 +93,21 @@ func (r *Router) actor(req *http.Request) string {
 
 func (r *Router) overview(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	models, _, err := r.svc.ListModels(ctx, domain.ListOptions{PageSize: bigPage})
+	st, err := r.svc.Stats(ctx) // shared with the /metrics domain gauges (§09.2)
 	if err != nil {
 		api.WriteError(w, err)
 		return
 	}
-	stages := map[string]int{"draft": 0, "staging": 0, "production": 0, "archived": 0}
-	c := counts{Models: len(models)}
-	for _, m := range models {
-		vs, _, err := r.svc.ListVersions(ctx, m.Name, domain.ListOptions{PageSize: bigPage})
-		if err != nil {
-			api.WriteError(w, err)
-			return
-		}
-		c.Versions += len(vs)
-		for _, v := range vs {
-			stages[string(v.Stage)]++
-			if arts, err := r.svc.ListArtifacts(ctx, m.Name, v.Name); err == nil {
-				c.Artifacts += len(arts)
-			}
-			if deps, err := r.svc.ListDeployments(ctx, m.Name, v.Name); err == nil {
-				c.Deployments += len(deps)
-			}
-		}
+	stages := map[string]int{}
+	for k, v := range st.Stages {
+		stages[string(k)] = v
 	}
 	recent, _, _ := r.svc.ListAudit(ctx, "", "", domain.ListOptions{PageSize: 12})
-	api.WriteJSON(w, http.StatusOK, overviewDTO{Counts: c, Stages: stages, Recent: nz(recent)})
+	api.WriteJSON(w, http.StatusOK, overviewDTO{
+		Counts: counts{Models: st.Models, Versions: st.Versions, Artifacts: st.Artifacts, Deployments: st.Deployments},
+		Stages: stages,
+		Recent: nz(recent),
+	})
 }
 
 func (r *Router) models(w http.ResponseWriter, req *http.Request) {

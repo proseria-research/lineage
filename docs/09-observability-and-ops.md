@@ -81,4 +81,20 @@ the metadata store loses *registry state*, not the model bytes.
 | SQLite PVC full | disk usage | grow PVC; migrate to Postgres (`08`) |
 | Migration hook failed | Job logs | fix/rollback image; old pods still serving (`08.7`) |
 
-## 8. See Also: chart wiring `08`, resolve/cache `04`, storage `05`, audit views `06`.
+## 8. Implementation
+
+- **Registry:** hand-rolled, dependency-free (`internal/observability/metrics`) — counters,
+  gauges, histograms with labels + the 0.0.4 text format (same minimal-dependency spirit as the
+  SigV4 signer). Gauges that reflect live state (domain totals, DB pool) refresh via an
+  `OnScrape` hook, so there is no background polling.
+- **Core stays clean:** a `domain.Meter` port (no-op default) is injected with `core.WithMeter`;
+  the core never imports the metrics package (§01). The API RED middleware records via a small
+  `HTTPRecorder` interface — `route` is the matched ServeMux **pattern** (templated), so label
+  cardinality is bounded.
+- **Logs:** `slog` JSON on stderr; `requestId` (echoed as `X-Request-Id`) and the W3C
+  `traceparent` trace-id give correlation today. **OTLP span export** (OTel SDK) is additive and
+  ships with the chart (§08), since spans need a collector to receive them.
+- **Readiness:** `observability.Ready(StoreReady, StorageReady)` composes checks; a `Stat` on the
+  default backend proves reachability (and, for signing backends, credentials).
+
+## 9. See Also: chart wiring `08`, resolve/cache `04`, storage `05`, audit views `06`.

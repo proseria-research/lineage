@@ -5,8 +5,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,18 +22,22 @@ import (
 	memstore "github.com/proseria-research/lineage/internal/adapters/store/memory"
 	pgstore "github.com/proseria-research/lineage/internal/adapters/store/postgres"
 	sqlitestore "github.com/proseria-research/lineage/internal/adapters/store/sqlite"
+	"github.com/proseria-research/lineage/internal/api"
 	"github.com/proseria-research/lineage/internal/api/adminui"
 	"github.com/proseria-research/lineage/internal/api/modelapi"
 	"github.com/proseria-research/lineage/internal/config"
 	"github.com/proseria-research/lineage/internal/core"
 	"github.com/proseria-research/lineage/internal/domain"
 	"github.com/proseria-research/lineage/internal/observability"
+	"github.com/proseria-research/lineage/internal/observability/metrics"
 )
 
 func main() {
 	cfg := config.Load()
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("lineage ")
+	// Request access logs are structured JSON on stderr (§09.4).
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
 	// Wire adapters into the ports (§01 dependency rule). The store is chosen per-dialect
 	// at startup (§02.7); memory is a dependency-free fallback.
@@ -49,7 +55,20 @@ func main() {
 	cache := memcache.New()
 	bus := events.New()
 
-	svc := core.New(store, backends, backend.Name(), cache, bus)
+	// Telemetry (§09.2): the metric registry is a Meter for the core and a RED recorder for
+	// the API middleware; domain + DB gauges are refreshed at scrape time.
+	m := metrics.NewApp()
+	svc := core.New(store, backends, backend.Name(), cache, bus, core.WithMeter(m))
+	m.BindDomainGauges(func(ctx context.Context) metrics.DomainStats {
+		st, _ := svc.Stats(ctx)
+		return metrics.DomainStats{
+			Models: st.Models, Versions: st.Versions, Artifacts: st.Artifacts,
+			Deployments: st.Deployments, Stages: stageStrings(st.Stages),
+		}
+	})
+	if d, ok := store.(interface{ DB() *sql.DB }); ok {
+		m.BindDBGauges(d.DB())
+	}
 
 	// Optional artifact GC sweeper (§05.8); no-op unless LINEAGE_STORAGE_GC=sweep.
 	rootCtx, cancelRoot := context.WithCancel(context.Background())
@@ -64,10 +83,11 @@ func main() {
 		log.Printf("gc: sweep enabled (grace=%s interval=%s prefix=%q)", cfg.GC.Grace, cfg.GC.Interval, cfg.GC.Prefix)
 	}
 
+	ready := observability.Ready(observability.StoreReady(store), observability.StorageReady(backend))
 	servers := []*http.Server{
-		{Addr: cfg.ModelAPIAddr, Handler: logging("model-api", modelapi.New(svc, cfg.ActorHeader).Handler())},
-		{Addr: cfg.AdminAddr, Handler: logging("admin-ui", adminui.New(svc).Handler())},
-		{Addr: cfg.MetricsAddr, Handler: observability.Handler(observability.StoreReady(store))},
+		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
+		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, cfg.ActorHeader, adminui.New(svc).Handler())},
+		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready)},
 	}
 	names := []string{"model-api " + cfg.ModelAPIAddr, "admin-ui " + cfg.AdminAddr, "ops " + cfg.MetricsAddr}
 
@@ -128,23 +148,10 @@ type errUnknownEngine string
 
 func (e errUnknownEngine) Error() string { return "unknown driver/engine: " + string(e) }
 
-// logging is a minimal structured-ish request log middleware (real one: §09.4).
-func logging(surface string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		sw := &statusWriter{ResponseWriter: w, status: 200}
-		next.ServeHTTP(sw, r)
-		log.Printf("surface=%s method=%s path=%s status=%d latency=%s",
-			surface, r.Method, r.URL.Path, sw.status, time.Since(start))
-	})
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
+func stageStrings(m map[domain.Stage]int) map[string]int {
+	out := make(map[string]int, len(m))
+	for k, v := range m {
+		out[string(k)] = v
+	}
+	return out
 }
