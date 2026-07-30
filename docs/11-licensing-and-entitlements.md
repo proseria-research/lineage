@@ -65,11 +65,11 @@ verifiable:
 
 ```mermaid
 flowchart TB
-    start["startup / license reload"] --> load{license present?}
+    start["startup / license reload"] --> load{"license present?"}
     load -- no --> comm["Community entitlements"]
-    load -- yes --> verify{signature valid?<br/>(embedded pubkey)}
+    load -- yes --> verify{"signature valid?<br/>(embedded pubkey)"}
     verify -- no --> comm
-    verify -- yes --> exp{within notAfter<br/>+ grace?}
+    verify -- yes --> exp{"within notAfter<br/>+ grace?"}
     exp -- no --> comm
     exp -- yes --> ent["Entitlements service<br/>(cached flags + limits)"]
     ent --> gate["feature gates query it"]
