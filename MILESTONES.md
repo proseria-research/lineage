@@ -27,8 +27,8 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4 done;
-    class M5,M6,M7,M8,M9,M10,M11 todo;
+    class M0,M1,M2,M3,M4,M5 done;
+    class M6,M7,M8,M9,M10,M11 todo;
 ```
 
 ## Status Summary
@@ -40,7 +40,7 @@ flowchart LR
 | M2 | Persistence: per-dialect MetadataStore + migrations | `02` | ✅ |
 | M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ✅ |
 | M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ✅ |
-| M5 | Model API completeness + OpenAPI | `03` | ⬜ |
+| M5 | Model API completeness + OpenAPI | `03` | ✅ |
 | M6 | Admin UI: BFF + web console | `06` | ⬜ |
 | M7 | Lineage & provenance graph | `07` | ⬜ |
 | M8 | Observability: metrics, traces, SLOs | `09` | ⬜ |
@@ -82,7 +82,7 @@ memory + SQLite; persistence verified across a restart.
 - [x] Versioned forward-only migrator (`schema_version`)
 - [x] Config wiring (`LINEAGE_DB_ENGINE`) picks the adapter at startup; default SQLite
 - [x] FK `ON DELETE CASCADE` in schema (§02.5)
-- [ ] Cursor pagination (real `nextPageToken`) — carried to **M5** (belongs with the API)
+- [x] Cursor pagination (real `nextPageToken`) — delivered in **M5** (`domain.Page`)
 - [ ] JSONB/label-table filtering, Postgres-native features — carried to **M5/M7**
 
 ## M3 — Storage ✅
@@ -133,16 +133,25 @@ into a model dir with matching bytes.
 - [x] Tests: parser cases, resolve ETag/304, content stream/Range/304, event-driven
       invalidation (promotion reflected immediately); live initializer round-trip
 
-## M5 — Model API Completeness ⬜
+## M5 — Model API Completeness ✅
 
 **Goal:** the full `/v1` contract (§03).
 **Acceptance:** OpenAPI served at `/v1/openapi.json` matches handlers; all resources CRUD.
+**Done:** every resource in the §03 map is wired and verified end-to-end (HTTP tests + a live
+SQLite binary smoke run): CRUD, guards, immutability, idempotency, pagination, audit, OpenAPI.
 
-- [ ] Artifacts CRUD (metadata PATCH with immutability guard), Model/Version PATCH,
-      `:archive`, `DELETE` with guards
-- [ ] Lineage + Deployment endpoints
-- [ ] Idempotency-Key handling; richer filters
-- [ ] Hand-authored or generated **OpenAPI spec** served + validated in CI
+- [x] Model PATCH / `:archive` (reversible) / guarded `DELETE`; Version PATCH / guarded `DELETE`
+- [x] Artifact GET / list / PATCH (immutable uri·digest·sizeBytes → `409`) / DELETE
+- [x] Lineage endpoints (add/list/delete, relation + target validation)
+- [x] Deployment endpoints (create/list/get/patch/delete)
+- [x] Audit feed: `GET /v1/models/{m}/audit` + `GET /v1/audit?subjectType=&subjectId=`
+- [x] **Idempotency-Key** replay for POST creates (in-process store, replays cached 2xx)
+- [x] **Cursor pagination** (real `nextPageToken`, `(createdAt,id)` cursor) — carried from M2,
+      shared `domain.Page`, applied to models/versions/audit
+- [x] Delete guards: production version / model with production → `409` unless `?force=true`
+- [x] Hand-authored **OpenAPI 3.1** spec embedded + served at `/v1/openapi.json`; test asserts
+      it covers the resources and every `$ref` resolves
+- [ ] Richer `filter` grammar + Postgres `custom_properties` filtering — deferred (§03.3, §02.7)
 
 ## M6 — Admin UI ⬜
 

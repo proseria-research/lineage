@@ -1,0 +1,201 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lineage Model API",
+    "version": "v1",
+    "description": "Machine-facing Model API for the Lineage AI model registry: publish, resolve, fetch, and manage models, versions, artifacts, lineage, and deployments. Auth is handled by infrastructure; a trusted X-Lineage-Actor header is recorded for audit."
+  },
+  "servers": [{ "url": "/", "description": "Model API port (:8081)" }],
+  "tags": [
+    { "name": "models" }, { "name": "versions" }, { "name": "artifacts" },
+    { "name": "delivery" }, { "name": "lineage" }, { "name": "deployments" }, { "name": "audit" }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels", "tags": ["models"], "summary": "List models",
+        "parameters": [
+          { "$ref": "#/components/parameters/pageSize" }, { "$ref": "#/components/parameters/pageToken" },
+          { "$ref": "#/components/parameters/orderBy" }, { "$ref": "#/components/parameters/q" },
+          { "name": "state", "in": "query", "schema": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] } }
+        ],
+        "responses": { "200": { "description": "Page of models", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelPage" } } } } }
+      },
+      "post": {
+        "operationId": "createModel", "tags": ["models"], "summary": "Create a model",
+        "parameters": [{ "$ref": "#/components/parameters/idempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateModel" } } } },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Model" } } } },
+          "409": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/models/{model}": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }],
+      "get": { "operationId": "getModel", "tags": ["models"], "summary": "Get a model", "responses": { "200": { "description": "Model", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Model" } } } }, "404": { "$ref": "#/components/responses/Problem" } } },
+      "patch": { "operationId": "patchModel", "tags": ["models"], "summary": "Update mutable model fields", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatchModel" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Model" } } } } } },
+      "delete": { "operationId": "deleteModel", "tags": ["models"], "summary": "Delete a model (cascades)", "parameters": [{ "$ref": "#/components/parameters/force" }], "responses": { "204": { "description": "Deleted" }, "409": { "$ref": "#/components/responses/Problem" } } }
+    },
+    "/v1/models/{model}:archive": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }],
+      "post": { "operationId": "archiveModel", "tags": ["models"], "summary": "Archive a model (soft, reversible via PATCH)", "responses": { "200": { "description": "Archived", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Model" } } } } } }
+    },
+    "/v1/models/{model}/resolve": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }],
+      "get": {
+        "operationId": "resolve", "tags": ["delivery"], "summary": "Resolve a model to native + signed artifact refs",
+        "parameters": [
+          { "name": "stage", "in": "query", "schema": { "type": "string", "enum": ["draft", "staging", "production", "archived"] } },
+          { "name": "version", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Resolution", "headers": { "ETag": { "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Resolution" } } } },
+          "304": { "description": "Not modified (If-None-Match matched)" },
+          "409": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/v1/models/{model}/audit": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }],
+      "get": { "operationId": "modelAudit", "tags": ["audit"], "summary": "Audit trail for a model", "parameters": [{ "$ref": "#/components/parameters/pageSize" }, { "$ref": "#/components/parameters/pageToken" }], "responses": { "200": { "description": "Page of audit events", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuditPage" } } } } } }
+    },
+    "/v1/models/{model}/versions": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }],
+      "get": { "operationId": "listVersions", "tags": ["versions"], "summary": "List versions", "parameters": [{ "$ref": "#/components/parameters/pageSize" }, { "$ref": "#/components/parameters/pageToken" }, { "name": "stage", "in": "query", "schema": { "type": "string" } }], "responses": { "200": { "description": "Page of versions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionPage" } } } } } },
+      "post": { "operationId": "publishVersion", "tags": ["versions"], "summary": "Publish a version (with optional inline artifacts)", "parameters": [{ "$ref": "#/components/parameters/idempotencyKey" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PublishVersion" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PublishResult" } } } }, "409": { "$ref": "#/components/responses/Problem" } } }
+    },
+    "/v1/models/{model}/versions/{version}": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": { "operationId": "getVersion", "tags": ["versions"], "summary": "Get a version", "responses": { "200": { "description": "Version", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelVersion" } } } }, "404": { "$ref": "#/components/responses/Problem" } } },
+      "patch": { "operationId": "patchVersion", "tags": ["versions"], "summary": "Update mutable version metadata", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatchVersion" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelVersion" } } } } } },
+      "delete": { "operationId": "deleteVersion", "tags": ["versions"], "summary": "Delete a version (guarded against production)", "parameters": [{ "$ref": "#/components/parameters/force" }], "responses": { "204": { "description": "Deleted" }, "409": { "$ref": "#/components/responses/Problem" } } }
+    },
+    "/v1/models/{model}/versions/{version}:transition": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "post": { "operationId": "transitionVersion", "tags": ["versions"], "summary": "Move a version to a new stage", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Transition" } } } }, "responses": { "200": { "description": "Transitioned", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelVersion" } } } }, "409": { "$ref": "#/components/responses/Problem" } } }
+    },
+    "/v1/models/{model}/versions/{version}/artifacts": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": { "operationId": "listArtifacts", "tags": ["artifacts"], "summary": "List artifacts on a version", "responses": { "200": { "description": "Artifacts", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Artifact" } } } } } } } } },
+      "post": { "operationId": "registerArtifact", "tags": ["artifacts"], "summary": "Register an artifact by reference", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArtifactInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Artifact" } } } } } }
+    },
+    "/v1/models/{model}/versions/{version}/artifacts:initiateUpload": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "post": { "operationId": "initiateUpload", "tags": ["artifacts"], "summary": "Begin an upload (signed direct / multipart / stream-through)", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InitiateUpload" } } } }, "responses": { "202": { "description": "Upload ticket", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UploadTicket" } } } } } }
+    },
+    "/v1/models/{model}/versions/{version}/artifacts:finalizeUpload": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "post": { "operationId": "finalizeUpload", "tags": ["artifacts"], "summary": "Finalize an upload (verifies digest, creates the artifact)", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FinalizeUpload" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Artifact" } } } }, "422": { "$ref": "#/components/responses/Problem" } } }
+    },
+    "/v1/models/{model}/versions/{version}/artifacts/{artifact}": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }, { "$ref": "#/components/parameters/artifact" }],
+      "get": { "operationId": "getArtifact", "tags": ["artifacts"], "summary": "Get an artifact", "responses": { "200": { "description": "Artifact", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Artifact" } } } }, "404": { "$ref": "#/components/responses/Problem" } } },
+      "patch": { "operationId": "patchArtifact", "tags": ["artifacts"], "summary": "Update artifact metadata (content is immutable)", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatchArtifact" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Artifact" } } } }, "409": { "$ref": "#/components/responses/Problem" } } },
+      "delete": { "operationId": "deleteArtifact", "tags": ["artifacts"], "summary": "Delete an artifact metadata row", "responses": { "204": { "description": "Deleted" } } }
+    },
+    "/v1/models/{model}/versions/{version}/artifacts/{artifact}/content": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }, { "$ref": "#/components/parameters/artifact" }],
+      "get": { "operationId": "fetchContent", "tags": ["delivery"], "summary": "Broker fetch: redirect to signed URL or stream-through", "parameters": [{ "name": "mode", "in": "query", "schema": { "type": "string", "enum": ["stream"] } }], "responses": { "200": { "description": "Streamed bytes" }, "206": { "description": "Partial content (Range)" }, "302": { "description": "Redirect to a signed URL" }, "304": { "description": "Not modified" } } }
+    },
+    "/v1/models/{model}/versions/{version}/lineage": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": { "operationId": "listLineage", "tags": ["lineage"], "summary": "List lineage edges touching a version", "responses": { "200": { "description": "Edges", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LineageEdge" } } } } } } } } },
+      "post": { "operationId": "addLineage", "tags": ["lineage"], "summary": "Add a lineage edge", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineageInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineageEdge" } } } } } }
+    },
+    "/v1/models/{model}/versions/{version}/lineage/{edgeId}": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }, { "name": "edgeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "delete": { "operationId": "deleteLineage", "tags": ["lineage"], "summary": "Delete a lineage edge", "responses": { "204": { "description": "Deleted" } } }
+    },
+    "/v1/models/{model}/versions/{version}/deployments": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": { "operationId": "listDeployments", "tags": ["deployments"], "summary": "List deployments of a version", "responses": { "200": { "description": "Deployments", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Deployment" } } } } } } } } },
+      "post": { "operationId": "createDeployment", "tags": ["deployments"], "summary": "Record a deployment", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Deployment" } } } } } }
+    },
+    "/v1/models/{model}/versions/{version}/deployments/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "operationId": "getDeployment", "tags": ["deployments"], "summary": "Get a deployment", "responses": { "200": { "description": "Deployment", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Deployment" } } } } } },
+      "patch": { "operationId": "patchDeployment", "tags": ["deployments"], "summary": "Update a deployment", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentPatch" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Deployment" } } } } } },
+      "delete": { "operationId": "deleteDeployment", "tags": ["deployments"], "summary": "Delete a deployment", "responses": { "204": { "description": "Deleted" } } }
+    },
+    "/v1/audit": {
+      "get": { "operationId": "auditFeed", "tags": ["audit"], "summary": "Global audit feed", "parameters": [{ "name": "subjectType", "in": "query", "schema": { "type": "string" } }, { "name": "subjectId", "in": "query", "schema": { "type": "string" } }, { "$ref": "#/components/parameters/pageSize" }, { "$ref": "#/components/parameters/pageToken" }], "responses": { "200": { "description": "Page of audit events", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuditPage" } } } } } }
+    },
+    "/v1/openapi.json": {
+      "get": { "operationId": "openapi", "summary": "This OpenAPI document", "responses": { "200": { "description": "OpenAPI 3.1 spec" } } }
+    }
+  },
+  "components": {
+    "parameters": {
+      "model": { "name": "model", "in": "path", "required": true, "schema": { "type": "string" } },
+      "version": { "name": "version", "in": "path", "required": true, "schema": { "type": "string" } },
+      "artifact": { "name": "artifact", "in": "path", "required": true, "schema": { "type": "string" } },
+      "pageSize": { "name": "pageSize", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 500 } },
+      "pageToken": { "name": "pageToken", "in": "query", "schema": { "type": "string" } },
+      "orderBy": { "name": "orderBy", "in": "query", "schema": { "type": "string" } },
+      "q": { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Case-insensitive substring match on name" },
+      "force": { "name": "force", "in": "query", "schema": { "type": "boolean" } },
+      "idempotencyKey": { "name": "Idempotency-Key", "in": "header", "schema": { "type": "string" } }
+    },
+    "responses": {
+      "Problem": { "description": "Error (RFC 9457)", "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } } } }
+    },
+    "schemas": {
+      "Labels": { "type": "object", "additionalProperties": { "type": "string" } },
+      "ModelFormat": { "type": "object", "properties": { "name": { "type": "string" }, "version": { "type": "string" } } },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" },
+          "owner": { "type": "string" }, "state": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+          "labels": { "$ref": "#/components/schemas/Labels" }, "customProperties": {},
+          "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CreateModel": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "description": { "type": "string" }, "owner": { "type": "string" }, "labels": { "$ref": "#/components/schemas/Labels" }, "customProperties": {} } },
+      "PatchModel": { "type": "object", "properties": { "description": { "type": "string" }, "owner": { "type": "string" }, "labels": { "$ref": "#/components/schemas/Labels" }, "customProperties": {}, "state": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] } } },
+      "ModelVersion": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "modelId": { "type": "string" }, "model": { "type": "string" },
+          "name": { "type": "string" }, "description": { "type": "string" }, "author": { "type": "string" },
+          "stage": { "type": "string", "enum": ["draft", "staging", "production", "archived"] },
+          "labels": { "$ref": "#/components/schemas/Labels" }, "customProperties": {},
+          "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PublishVersion": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "description": { "type": "string" }, "author": { "type": "string" }, "labels": { "$ref": "#/components/schemas/Labels" }, "artifacts": { "type": "array", "items": { "$ref": "#/components/schemas/ArtifactInput" } } } },
+      "PublishResult": { "type": "object", "properties": { "version": { "$ref": "#/components/schemas/ModelVersion" }, "artifacts": { "type": "array", "items": { "$ref": "#/components/schemas/Artifact" } } } },
+      "PatchVersion": { "type": "object", "properties": { "description": { "type": "string" }, "author": { "type": "string" }, "labels": { "$ref": "#/components/schemas/Labels" }, "customProperties": {} } },
+      "Transition": { "type": "object", "required": ["to"], "properties": { "to": { "type": "string", "enum": ["draft", "staging", "production", "archived"] }, "reason": { "type": "string" } } },
+      "Artifact": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "versionId": { "type": "string" }, "kind": { "type": "string", "enum": ["MODEL", "DOC"] },
+          "name": { "type": "string" }, "uri": { "type": "string" }, "storageBackend": { "type": "string" },
+          "storagePath": { "type": "string" }, "sizeBytes": { "type": "integer", "format": "int64" }, "digest": { "type": "string" },
+          "mediaType": { "type": "string" }, "modelFormat": { "$ref": "#/components/schemas/ModelFormat" }, "serviceAccount": { "type": "string" },
+          "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ArtifactInput": { "type": "object", "required": ["name", "uri"], "properties": { "kind": { "type": "string", "enum": ["MODEL", "DOC"] }, "name": { "type": "string" }, "uri": { "type": "string" }, "storageBackend": { "type": "string" }, "digest": { "type": "string" }, "sizeBytes": { "type": "integer", "format": "int64" }, "mediaType": { "type": "string" }, "modelFormat": { "$ref": "#/components/schemas/ModelFormat" }, "serviceAccount": { "type": "string" } } },
+      "PatchArtifact": { "type": "object", "properties": { "mediaType": { "type": "string" }, "serviceAccount": { "type": "string" }, "customProperties": {} } },
+      "InitiateUpload": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "kind": { "type": "string", "enum": ["MODEL", "DOC"] }, "sizeBytes": { "type": "integer", "format": "int64" }, "mediaType": { "type": "string" }, "modelFormat": { "$ref": "#/components/schemas/ModelFormat" }, "serviceAccount": { "type": "string" }, "storageBackend": { "type": "string" } } },
+      "FinalizeUpload": { "type": "object", "required": ["uploadId"], "properties": { "uploadId": { "type": "string" }, "digest": { "type": "string" }, "parts": { "type": "array", "items": { "$ref": "#/components/schemas/MultipartPart" } } } },
+      "MultipartPart": { "type": "object", "properties": { "partNumber": { "type": "integer" }, "url": { "type": "string" }, "etag": { "type": "string" } } },
+      "UploadTicket": { "type": "object", "properties": { "uploadId": { "type": "string" }, "url": { "type": "string" }, "method": { "type": "string" }, "headers": { "type": "object", "additionalProperties": { "type": "string" } }, "streamThrough": { "type": "boolean" }, "contentUrl": { "type": "string" }, "multipart": { "type": "boolean" }, "partSize": { "type": "integer", "format": "int64" }, "parts": { "type": "array", "items": { "$ref": "#/components/schemas/MultipartPart" } }, "expiresAt": { "type": "integer", "format": "int64" } } },
+      "ResolvedArtifact": { "type": "object", "properties": { "name": { "type": "string" }, "kind": { "type": "string" }, "storageUri": { "type": "string" }, "signedUrl": { "type": "string" }, "signedUrlExpiresAt": { "type": "integer", "format": "int64" }, "sizeBytes": { "type": "integer", "format": "int64" }, "digest": { "type": "string" }, "mediaType": { "type": "string" }, "serviceAccount": { "type": "string" } } },
+      "Resolution": { "type": "object", "properties": { "model": { "type": "string" }, "versionId": { "type": "string" }, "version": { "type": "string" }, "stage": { "type": "string" }, "digest": { "type": "string" }, "modelFormat": { "$ref": "#/components/schemas/ModelFormat" }, "artifacts": { "type": "array", "items": { "$ref": "#/components/schemas/ResolvedArtifact" } }, "resolvedAt": { "type": "integer", "format": "int64" } } },
+      "LineageEdge": { "type": "object", "properties": { "id": { "type": "string" }, "srcType": { "type": "string" }, "srcId": { "type": "string" }, "relation": { "type": "string", "enum": ["derived_from", "trained_on", "produced_by", "deployed_as"] }, "dstType": { "type": "string" }, "dstId": { "type": "string" }, "dstRef": { "type": "string" }, "createdAt": { "type": "integer", "format": "int64" } } },
+      "LineageInput": { "type": "object", "required": ["relation", "to"], "properties": { "relation": { "type": "string", "enum": ["derived_from", "trained_on", "produced_by", "deployed_as"] }, "to": { "type": "object", "properties": { "version": { "type": "string" }, "uri": { "type": "string" } } } } },
+      "Deployment": { "type": "object", "properties": { "id": { "type": "string" }, "versionId": { "type": "string" }, "environment": { "type": "string" }, "endpointUri": { "type": "string" }, "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] }, "externalRef": { "type": "string" }, "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" } } },
+      "DeploymentInput": { "type": "object", "required": ["environment"], "properties": { "environment": { "type": "string" }, "endpointUri": { "type": "string" }, "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] }, "externalRef": { "type": "string" } } },
+      "DeploymentPatch": { "type": "object", "properties": { "endpointUri": { "type": "string" }, "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] }, "externalRef": { "type": "string" } } },
+      "AuditEvent": { "type": "object", "properties": { "id": { "type": "string" }, "at": { "type": "integer", "format": "int64" }, "actor": { "type": "string" }, "action": { "type": "string" }, "subjectType": { "type": "string" }, "subjectId": { "type": "string" }, "summary": { "type": "string" }, "data": {} } },
+      "ModelPage": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Model" } }, "nextPageToken": { "type": "string" } } },
+      "VersionPage": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/ModelVersion" } }, "nextPageToken": { "type": "string" } } },
+      "AuditPage": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/AuditEvent" } }, "nextPageToken": { "type": "string" } } },
+      "Problem": { "type": "object", "properties": { "type": { "type": "string" }, "title": { "type": "string" }, "status": { "type": "integer" }, "code": { "type": "string" }, "detail": { "type": "string" }, "instance": { "type": "string" }, "details": { "type": "object" } } }
+    }
+  }
+}

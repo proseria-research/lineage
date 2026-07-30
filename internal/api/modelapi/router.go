@@ -18,32 +18,64 @@ import (
 type Router struct {
 	svc         *core.Service
 	actorHeader string
+	idem        *idempotencyStore
 }
 
 func New(svc *core.Service, actorHeader string) *Router {
-	return &Router{svc: svc, actorHeader: actorHeader}
+	return &Router{svc: svc, actorHeader: actorHeader, idem: newIdempotencyStore()}
 }
 
 // Handler registers routes on a Go 1.22+ ServeMux (method + path patterns).
 func (r *Router) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /v1/models", r.createModel)
+
+	// Models
+	mux.HandleFunc("POST /v1/models", r.idempotent(r.createModel))
 	mux.HandleFunc("GET /v1/models", r.listModels)
 	mux.HandleFunc("GET /v1/models/{model}", r.getModel)
+	mux.HandleFunc("PATCH /v1/models/{model}", r.patchModel)
+	mux.HandleFunc("DELETE /v1/models/{model}", r.deleteModel)
+	// {model}:archive shares a segment with a wildcard, so it's parsed from a catch route.
+	mux.HandleFunc("POST /v1/models/{modelAction}", r.modelAction)
 	mux.HandleFunc("GET /v1/models/{model}/resolve", r.resolve)
-	mux.HandleFunc("POST /v1/models/{model}/versions", r.publishVersion)
+	mux.HandleFunc("GET /v1/models/{model}/audit", r.modelAudit)
+
+	// Versions
+	mux.HandleFunc("POST /v1/models/{model}/versions", r.idempotent(r.publishVersion))
 	mux.HandleFunc("GET /v1/models/{model}/versions", r.listVersions)
 	mux.HandleFunc("GET /v1/models/{model}/versions/{version}", r.getVersion)
-	// Colon-action lives in the trailing segment (e.g. "1.4.0:transition"), parsed below.
+	mux.HandleFunc("PATCH /v1/models/{model}/versions/{version}", r.patchVersion)
+	mux.HandleFunc("DELETE /v1/models/{model}/versions/{version}", r.deleteVersion)
+	// {version}:transition lives in the trailing segment, parsed below.
 	mux.HandleFunc("POST /v1/models/{model}/versions/{action}", r.versionAction)
+
 	// Artifacts: register-by-reference + the signed upload flow (§05.6). ':' is a literal
 	// path char to ServeMux, so the colon-actions register as distinct routes.
 	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts", r.registerArtifact)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/artifacts", r.listArtifacts)
 	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts:initiateUpload", r.initiateUpload)
 	mux.HandleFunc("PUT /v1/models/{model}/versions/{version}/artifacts:uploadContent", r.uploadContent)
 	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts:finalizeUpload", r.finalizeUpload)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/artifacts/{artifact}", r.getArtifact)
+	mux.HandleFunc("PATCH /v1/models/{model}/versions/{version}/artifacts/{artifact}", r.patchArtifact)
+	mux.HandleFunc("DELETE /v1/models/{model}/versions/{version}/artifacts/{artifact}", r.deleteArtifact)
 	// Broker fetch: 302 to a fresh signed URL, or stream-through where the backend can't sign (§04.3).
 	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/artifacts/{artifact}/content", r.fetchContent)
+
+	// Lineage
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/lineage", r.addLineage)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/lineage", r.listLineage)
+	mux.HandleFunc("DELETE /v1/models/{model}/versions/{version}/lineage/{edgeId}", r.deleteLineage)
+
+	// Deployments
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/deployments", r.createDeployment)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/deployments", r.listDeployments)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/deployments/{id}", r.getDeployment)
+	mux.HandleFunc("PATCH /v1/models/{model}/versions/{version}/deployments/{id}", r.patchDeployment)
+	mux.HandleFunc("DELETE /v1/models/{model}/versions/{version}/deployments/{id}", r.deleteDeployment)
+
+	// Global audit feed + OpenAPI contract
+	mux.HandleFunc("GET /v1/audit", r.auditFeed)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
 	return mux
 }
@@ -273,13 +305,12 @@ func (r *Router) fetchContent(w http.ResponseWriter, req *http.Request) {
 	_, _ = io.Copy(w, f.Stream)
 }
 
+// openapi serves the hand-authored OpenAPI contract (§00.11.6, §10) — the source of truth
+// for the generated SDK/CLI.
 func (r *Router) openapi(w http.ResponseWriter, _ *http.Request) {
-	// TODO: serve the generated OpenAPI contract (§00.11.6, §10). Placeholder for now.
-	api.WriteJSON(w, http.StatusOK, map[string]any{
-		"openapi": "3.1.0",
-		"info":    map[string]any{"title": "Lineage Model API", "version": "v1"},
-		"paths":   map[string]any{},
-	})
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write(openapiSpec)
 }
 
 // ---- helpers ----
@@ -318,8 +349,11 @@ func decode(req *http.Request, v any) error {
 func listOpts(req *http.Request) domain.ListOptions {
 	q := req.URL.Query()
 	o := domain.ListOptions{
-		OrderBy: q.Get("orderBy"), Q: q.Get("q"),
+		OrderBy: q.Get("orderBy"), Q: q.Get("q"), PageToken: q.Get("pageToken"),
 		Filters: map[string]string{}, Labels: map[string]string{},
+	}
+	if n, err := strconv.Atoi(q.Get("pageSize")); err == nil {
+		o.PageSize = n
 	}
 	if s := q.Get("state"); s != "" {
 		o.Filters["state"] = s

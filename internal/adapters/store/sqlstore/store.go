@@ -81,7 +81,7 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 		q += ` AND name LIKE '%'||?||'%'`
 		args = append(args, o.Q)
 	}
-	q += ` ORDER BY created_at DESC`
+	q += ` ORDER BY created_at DESC, id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, "", err
@@ -97,8 +97,11 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 			out = append(out, m)
 		}
 	}
-	items, next := paginate(out, o.PageSize)
-	return items, next, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	items, next := domain.Page(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID }, o.PageToken, o.PageSize)
+	return items, next, nil
 }
 
 func (s *Store) UpdateModel(ctx context.Context, m *domain.Model) error {
@@ -150,7 +153,7 @@ func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOpt
 		q += ` AND v.stage=?`
 		args = append(args, stg)
 	}
-	q += ` ORDER BY v.created_at DESC`
+	q += ` ORDER BY v.created_at DESC, v.id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, "", err
@@ -162,10 +165,15 @@ func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOpt
 		if err != nil {
 			return nil, "", err
 		}
-		out = append(out, v)
+		if hasLabels(v.Labels, o.Labels) {
+			out = append(out, v)
+		}
 	}
-	items, next := paginate(out, o.PageSize)
-	return items, next, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	items, next := domain.Page(out, func(v *domain.ModelVersion) (int64, string) { return v.CreatedAt, v.ID }, o.PageToken, o.PageSize)
+	return items, next, nil
 }
 
 func (s *Store) UpdateVersion(ctx context.Context, v *domain.ModelVersion) error {
@@ -326,6 +334,135 @@ func (s *Store) AppendAudit(ctx context.Context, e *domain.AuditEvent) error {
 	return err
 }
 
+func (s *Store) DeleteModel(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM model WHERE id=?`), id)
+	return affected(res, err, "model")
+}
+
+func (s *Store) DeleteVersion(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM model_version WHERE id=?`), id)
+	return affected(res, err, "version")
+}
+
+func (s *Store) CountVersionsInStage(ctx context.Context, modelID string, stage domain.Stage) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, s.rb(
+		`SELECT COUNT(*) FROM model_version WHERE model_id=? AND stage=?`), modelID, string(stage)).Scan(&n)
+	return n, err
+}
+
+func (s *Store) GetArtifact(ctx context.Context, versionID, name string) (*domain.Artifact, error) {
+	row := s.db.QueryRowContext(ctx, s.rb(
+		`SELECT `+artCols+` FROM artifact WHERE version_id=? AND name=?`), versionID, name)
+	a, err := scanArtifact(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, domain.NotFound("artifact '" + name + "' not found")
+	}
+	return a, err
+}
+
+func (s *Store) UpdateArtifact(ctx context.Context, a *domain.Artifact) error {
+	res, err := s.db.ExecContext(ctx, s.rb(
+		`UPDATE artifact SET media_type=?,service_account=?,custom_properties=?,updated_at=? WHERE id=?`),
+		a.MediaType, a.ServiceAccount, jsonText(a.CustomProperties), a.UpdatedAt, a.ID)
+	return affected(res, err, "artifact")
+}
+
+func (s *Store) DeleteArtifact(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM artifact WHERE id=?`), id)
+	return affected(res, err, "artifact")
+}
+
+func (s *Store) DeleteLineageEdge(ctx context.Context, id, versionID string) error {
+	res, err := s.db.ExecContext(ctx, s.rb(
+		`DELETE FROM lineage_edge WHERE id=? AND (src_id=? OR dst_id=?)`), id, versionID, versionID)
+	return affected(res, err, "lineage edge")
+}
+
+// ---- Deployments ----
+
+const depCols = "id,version_id,environment,endpoint_uri,status,external_ref,created_at,updated_at"
+
+func (s *Store) CreateDeployment(ctx context.Context, d *domain.Deployment) error {
+	_, err := s.db.ExecContext(ctx, s.rb(
+		`INSERT INTO deployment (`+depCols+`) VALUES (?,?,?,?,?,?,?,?)`),
+		d.ID, d.VersionID, d.Environment, d.EndpointURI, string(d.Status), d.ExternalRef, d.CreatedAt, d.UpdatedAt)
+	return err
+}
+
+func (s *Store) GetDeployment(ctx context.Context, id string) (*domain.Deployment, error) {
+	row := s.db.QueryRowContext(ctx, s.rb(`SELECT `+depCols+` FROM deployment WHERE id=?`), id)
+	d, err := scanDeployment(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, domain.NotFound("deployment '" + id + "' not found")
+	}
+	return d, err
+}
+
+func (s *Store) ListDeployments(ctx context.Context, versionID string) ([]*domain.Deployment, error) {
+	rows, err := s.db.QueryContext(ctx, s.rb(
+		`SELECT `+depCols+` FROM deployment WHERE version_id=? ORDER BY created_at DESC, id DESC`), versionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*domain.Deployment
+	for rows.Next() {
+		d, err := scanDeployment(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) UpdateDeployment(ctx context.Context, d *domain.Deployment) error {
+	res, err := s.db.ExecContext(ctx, s.rb(
+		`UPDATE deployment SET environment=?,endpoint_uri=?,status=?,external_ref=?,updated_at=? WHERE id=?`),
+		d.Environment, d.EndpointURI, string(d.Status), d.ExternalRef, d.UpdatedAt, d.ID)
+	return affected(res, err, "deployment")
+}
+
+func (s *Store) DeleteDeployment(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM deployment WHERE id=?`), id)
+	return affected(res, err, "deployment")
+}
+
+// ---- Audit feed ----
+
+func (s *Store) ListAudit(ctx context.Context, subjectType, subjectID string, o domain.ListOptions) ([]*domain.AuditEvent, string, error) {
+	q := `SELECT id,at,actor,action,subject_type,subject_id,summary,data FROM audit_event WHERE 1=1`
+	var args []any
+	if subjectType != "" {
+		q += ` AND subject_type=?`
+		args = append(args, subjectType)
+	}
+	if subjectID != "" {
+		q += ` AND subject_id=?`
+		args = append(args, subjectID)
+	}
+	q += ` ORDER BY at DESC, id DESC`
+	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	var out []*domain.AuditEvent
+	for rows.Next() {
+		e, err := scanAudit(rows)
+		if err != nil {
+			return nil, "", err
+		}
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	items, next := domain.Page(out, func(e *domain.AuditEvent) (int64, string) { return e.At, e.ID }, o.PageToken, o.PageSize)
+	return items, next, nil
+}
+
 // ---- scan helpers ----
 
 type scanner interface{ Scan(dest ...any) error }
@@ -370,6 +507,26 @@ func scanArtifact(sc scanner) (*domain.Artifact, error) {
 	}
 	a.CustomProperties = fromNull(cp)
 	return &a, nil
+}
+
+func scanDeployment(sc scanner) (*domain.Deployment, error) {
+	var d domain.Deployment
+	var status string
+	if err := sc.Scan(&d.ID, &d.VersionID, &d.Environment, &d.EndpointURI, &status, &d.ExternalRef, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		return nil, err
+	}
+	d.Status = domain.DeploymentStatus(status)
+	return &d, nil
+}
+
+func scanAudit(sc scanner) (*domain.AuditEvent, error) {
+	var e domain.AuditEvent
+	var data sql.NullString
+	if err := sc.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.SubjectType, &e.SubjectID, &e.Summary, &data); err != nil {
+		return nil, err
+	}
+	e.Data = fromNull(data)
+	return &e, nil
 }
 
 // ---- misc helpers ----
@@ -424,14 +581,4 @@ func hasLabels(have, want map[string]string) bool {
 		}
 	}
 	return true
-}
-
-func paginate[T any](items []T, size int) ([]T, string) {
-	if size <= 0 || size > 500 {
-		size = 50
-	}
-	if len(items) > size {
-		return items[:size], "" // TODO: real cursor token (M2 follow-up)
-	}
-	return items, ""
 }

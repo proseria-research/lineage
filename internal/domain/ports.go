@@ -39,11 +39,17 @@ type MetadataStore interface {
 	ListModels(ctx context.Context, o ListOptions) ([]*Model, string, error)
 	UpdateModel(ctx context.Context, m *Model) error
 
+	DeleteModel(ctx context.Context, id string) error
+
 	// Versions
 	CreateVersion(ctx context.Context, v *ModelVersion) error
 	GetVersion(ctx context.Context, model, version string) (*ModelVersion, error)
 	ListVersions(ctx context.Context, model string, o ListOptions) ([]*ModelVersion, string, error)
 	UpdateVersion(ctx context.Context, v *ModelVersion) error
+	DeleteVersion(ctx context.Context, id string) error
+	// CountVersionsInStage counts a model's versions currently in a stage — used to guard
+	// deletes against removing a live production version (§03.4).
+	CountVersionsInStage(ctx context.Context, modelID string, stage Stage) (int, error)
 	// SetStage moves versionID to `to`. If singleton is true and `to` is a singleton
 	// stage, any *other* version of the same model currently in `to` is demoted to
 	// archived within the same transaction (§02.4). Enforcing this inside the store keeps
@@ -54,15 +60,29 @@ type MetadataStore interface {
 
 	// Artifacts
 	CreateArtifact(ctx context.Context, a *Artifact) error
+	GetArtifact(ctx context.Context, versionID, name string) (*Artifact, error)
 	ListArtifacts(ctx context.Context, versionID string) ([]*Artifact, error)
+	UpdateArtifact(ctx context.Context, a *Artifact) error
+	DeleteArtifact(ctx context.Context, id string) error
 	// ArtifactRefsURI reports whether any artifact row still points at uri. GC uses it to
 	// reference-count backend objects before sweeping them (§05.8).
 	ArtifactRefsURI(ctx context.Context, uri string) (bool, error)
 
-	// Lineage & audit
+	// Lineage
 	AddLineageEdge(ctx context.Context, e *LineageEdge) error
 	ListLineage(ctx context.Context, versionID string) ([]*LineageEdge, error)
+	DeleteLineageEdge(ctx context.Context, id, versionID string) error
+
+	// Deployments (§02.3.4)
+	CreateDeployment(ctx context.Context, d *Deployment) error
+	GetDeployment(ctx context.Context, id string) (*Deployment, error)
+	ListDeployments(ctx context.Context, versionID string) ([]*Deployment, error)
+	UpdateDeployment(ctx context.Context, d *Deployment) error
+	DeleteDeployment(ctx context.Context, id string) error
+
+	// Audit (append-only; read for the activity feed, §09)
 	AppendAudit(ctx context.Context, e *AuditEvent) error
+	ListAudit(ctx context.Context, subjectType, subjectID string, o ListOptions) ([]*AuditEvent, string, error)
 }
 
 // StorageCapabilities advertises what a backend can do so the API adapts (§05.2).
