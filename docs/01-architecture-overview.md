@@ -165,7 +165,7 @@ sequenceDiagram
     participant C as ResolutionCache
     participant E as EventBus
 
-    U->>A: POST /v1/models/{m}/versions/{v}:promote {to: production}
+    U->>A: POST /v1/models/{m}/versions/{v}:transition {to: production}
     A->>L: transition(v, production)
     L->>L: validate state machine + singleton stage
     L->>DB: update stage + demote prior production
