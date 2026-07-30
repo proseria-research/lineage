@@ -23,16 +23,20 @@ Start with `docs/00-preplanning.md` for the full framing, axioms, and decisions.
 2. **Helm is a first-class product surface**, versioned and tested with the code.
    "One `helm install` yields a working, secure registry" is an acceptance
    criterion. No Istio dependency.
-3. **Single binary.** One Go binary / one Deployment. It exposes **two logical API
-   surfaces** — Admin/Control (humans/CI managing the registry) and Delivery (runtime
-   systems consuming models) — with different routes and auth, in one process. No
-   separate deployables in v1.
-4. **Capability parity with Kubeflow, our own interface** (no MLMD, no wire compat).
-5. **Storage-agnostic, metadata-authoritative.** Lineage owns metadata + pointers;
+3. **Single binary, two surfaces on two ports.** One Go binary / one Deployment. It
+   serves the **Admin UI** (human web console, `:8080`) and the **Model API**
+   (machine-facing: publish + resolve + fetch, `:8081`, `/v1`). The port is the surface
+   selector (no `/admin` prefix). **Publishing is a Model API operation, not Admin —
+   Admin is UI/human interaction only.** No separate deployables in v1.
+4. **Auth is out of scope.** Infra (ingress/gateway/mesh/NetworkPolicy) owns
+   authN/authZ. Lineage trusts already-authenticated requests and only records an
+   infra-provided identity header (e.g. `X-Lineage-Actor`) for audit attribution.
+5. **Capability parity with Kubeflow, our own interface** (no MLMD, no wire compat).
+6. **Storage-agnostic, metadata-authoritative.** Lineage owns metadata + pointers;
    artifact bytes live in pluggable backends.
-6. **Boring, auditable, governed by default.** Every state transition is recorded.
-7. **Frictionless for inference systems.** KServe, Modal, Baseten et al. must consume
-   from the Delivery API with near-zero glue: resolution returns native `storageUri`s
+7. **Auditable by default.** Every state transition is recorded.
+8. **Frictionless for inference systems.** KServe, Modal, Baseten et al. must consume
+   from the Model API with near-zero glue: resolution returns native `storageUri`s
    (`s3://`/`gs://`/`oci://`/`hf://`), signed HTTPS URLs, digest, size, and model
    format. Ship an optional KServe `lineage://<model>/<stage>` storage-initializer.
 
