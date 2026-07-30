@@ -1,12 +1,57 @@
 // Package pgstore is the Postgres MetadataStore adapter — the full-power HA/prod tier
-// (§02.7). Per-dialect: its own SQL and migrations, free to use JSONB filtering,
-// SELECT ... FOR UPDATE for the singleton invariant, GIN, and pgvector. TODO: implement
-// against a Postgres driver (e.g. jackc/pgx). Kept as a stub so the seam is explicit.
+// (§02.7). It supplies the Postgres dialect ($n placeholders, 23505 detection, row
+// locking via SELECT ... FOR UPDATE) to the shared sqlstore. Engine-specific features
+// (JSONB filtering, GIN, pgvector) can be layered on behind this dialect later.
 package pgstore
 
-// New would connect to dsn, run Postgres migrations, and return a domain.MetadataStore.
-// Left unimplemented in the scaffold; the memory store stands in.
-func New(dsn string) error {
-	_ = dsn
-	return nil
+import (
+	"database/sql"
+	"errors"
+	"strconv"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/proseria-research/lineage/internal/adapters/store/sqlstore"
+)
+
+type dialect struct{}
+
+func (dialect) Name() string { return "postgres" }
+
+// Rebind converts ? placeholders to $1,$2,… (our SQL never uses a literal ?).
+func (dialect) Rebind(q string) string {
+	var b strings.Builder
+	n := 0
+	for i := 0; i < len(q); i++ {
+		if q[i] == '?' {
+			n++
+			b.WriteByte('$')
+			b.WriteString(strconv.Itoa(n))
+		} else {
+			b.WriteByte(q[i])
+		}
+	}
+	return b.String()
+}
+
+func (dialect) IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// LockModelByVersionSQL locks the owning model row so concurrent promotions into a
+// singleton stage serialize (§02.4). One placeholder = the version id.
+func (dialect) LockModelByVersionSQL() string {
+	return `SELECT id FROM model WHERE id = (SELECT model_id FROM model_version WHERE id = ?) FOR UPDATE`
+}
+
+// New connects to dsn and returns a migrated MetadataStore.
+func New(dsn string) (*sqlstore.Store, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+	return sqlstore.Open(db, dialect{})
 }

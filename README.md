@@ -10,13 +10,14 @@ Registry for **capability parity, not wire compatibility**.
 
 ## Status
 
-**Early scaffold.** The Go skeleton compiles, runs, and serves the core happy path
-(create model → publish version + artifacts → stage transitions → resolve) against an
-**in-memory** store. The production adapters (SQLite/Postgres, S3, Redis) are stubs
-behind their ports — see the TODOs.
+**Early, working.** The Go skeleton compiles, runs, and serves the core happy path
+(create model → publish version + artifacts → stage transitions → resolve). Metadata now
+persists in **SQLite or Postgres** (per-dialect adapters behind the `MetadataStore` port,
+§02.7); an in-memory store remains for tests/dev. Storage still uses the `fs` backend
+(S3 is a stub); Redis cache is a stub.
 
-Progress is tracked in [`MILESTONES.md`](MILESTONES.md) (M0/M1 done, M2 persistence in
-progress).
+Set the engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory`. Progress is tracked in
+[`MILESTONES.md`](MILESTONES.md) (M0–M2 done; M3 storage in progress).
 
 ## Run
 
@@ -58,7 +59,7 @@ internal/
     modelapi/           /v1 machine API (§03/§04)
     adminui/            :8080 human console BFF (§06)
   adapters/
-    store/{memory,sqlite,postgres}   MetadataStore (memory works; others stubs, §02.7)
+    store/{memory,sqlite,postgres}   MetadataStore (all real; shared sqlstore + Dialect, §02.7)
     storage/{fs,s3}                  StorageBackend (fs works; s3 stub, §05)
     cache/memory                     ResolutionCache (§04.4)
     events                           EventBus
@@ -82,7 +83,7 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- Real per-dialect `MetadataStore` (SQLite + Postgres, §02.7) + migrations
-- S3 `StorageBackend` with signed URLs + the upload initiate/finalize flow (§05)
-- Resolve cache wired to the event bus; OpenAPI generation + SDK/CLI (§10)
-- Helm chart (§08)
+- **M3:** S3 `StorageBackend` with signed URLs + the upload initiate/finalize flow (§05)
+- **M4:** resolve cache wired to the event bus; `lineage://` initializer (§04)
+- **M5:** full `/v1` (artifacts/lineage/deployments CRUD, cursor pagination), OpenAPI (§03)
+- Helm chart (§08), SDK/CLI (§10)
