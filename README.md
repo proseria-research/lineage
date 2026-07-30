@@ -19,9 +19,14 @@ signed GET/PUT + multipart, with a full upload flow (initiate → PUT → finali
 reference-counted GC, and an IRSA/ECS/IMDS credential chain (§05.4.1). The S3 driver + SigV4
 are verified against a live MinIO server. Redis cache is a stub.
 
+Resolution is one call (`storageUri` + fresh `signedUrl` + digest), HTTP-cacheable
+(`ETag`/`304`) with event-driven cache invalidation; a `/content` broker endpoint redirects
+to a signed URL or streams through (Range-capable) for `fs`; and `lineage://model/stage`
+resolves at pull time via the `lineage-init` KServe storage-initializer.
+
 Set the metadata engine with `LINEAGE_DB_ENGINE=sqlite|postgres|memory` and the storage
 driver with `LINEAGE_STORAGE_DRIVER=fs|s3`. Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md) (M0–M3 done).
+[`MILESTONES.md`](MILESTONES.md) (M0–M4 done).
 
 ## Run
 
@@ -56,6 +61,7 @@ the core.
 
 ```
 cmd/lineage/            main: config → wire adapters into ports → serve
+cmd/lineage-init/       KServe storage-initializer for lineage:// (§04.5)
 internal/
   domain/               entities, enums, stage machine, errors, PORT INTERFACES
   core/                 business logic over the ports (publish, transition, resolve)
@@ -96,6 +102,6 @@ Auth is **out of scope** (infra's job, §00 axiom 4) — the binary trusts the a
 
 ## Next
 
-- **M4:** resolve cache wired to the event bus; `ETag`/`304`; `lineage://` KServe initializer (§04)
 - **M5:** full `/v1` (artifacts/lineage/deployments CRUD, cursor pagination), OpenAPI (§03)
+- **M6:** Admin UI (BFF + web console, §06)
 - Helm chart (§08), SDK/CLI (§10)

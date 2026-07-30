@@ -261,7 +261,6 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 		return nil, err
 	}
 	s.audit(ctx, actor, "artifact.upload", "artifact", a.ID, "uploaded "+model+"@"+version+"/"+a.Name, nil)
-	s.cache.InvalidateModel(model)
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	return a, nil
 }
@@ -278,7 +277,6 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 		return nil, err
 	}
 	s.audit(ctx, actor, "artifact.register", "artifact", a.ID, "registered "+model+"@"+version+"/"+a.Name, nil)
-	s.cache.InvalidateModel(model)
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	return a, nil
 }

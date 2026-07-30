@@ -4,8 +4,11 @@ package modelapi
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/proseria-research/lineage/internal/api"
 	"github.com/proseria-research/lineage/internal/core"
@@ -39,6 +42,8 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts:initiateUpload", r.initiateUpload)
 	mux.HandleFunc("PUT /v1/models/{model}/versions/{version}/artifacts:uploadContent", r.uploadContent)
 	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/artifacts:finalizeUpload", r.finalizeUpload)
+	// Broker fetch: 302 to a fresh signed URL, or stream-through where the backend can't sign (§04.3).
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/artifacts/{artifact}/content", r.fetchContent)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
 	return mux
 }
@@ -215,10 +220,57 @@ func (r *Router) resolve(w http.ResponseWriter, req *http.Request) {
 		api.WriteError(w, err)
 		return
 	}
+	// HTTP caching (§04.2): ETag = resolution digest. `no-cache` = clients may store but must
+	// revalidate, so a fresh signed URL is minted whenever the selection actually changed.
 	if res.Digest != "" {
-		w.Header().Set("ETag", `"`+res.Digest+`"`)
+		etag := `"` + res.Digest + `"`
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "private, no-cache")
+		if matchesETag(req.Header.Get("If-None-Match"), etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 	}
 	api.WriteJSON(w, http.StatusOK, res)
+}
+
+// fetchContent brokers an artifact's bytes (§04.3): 302 to a fresh signed URL by default, or
+// stream the bytes through (with Range + conditional support) when the backend can't sign or
+// the caller passes ?mode=stream.
+func (r *Router) fetchContent(w http.ResponseWriter, req *http.Request) {
+	forceStream := req.URL.Query().Get("mode") == "stream"
+	f, err := r.svc.FetchArtifact(req.Context(), req.PathValue("model"), req.PathValue("version"), req.PathValue("artifact"), forceStream)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	if f.SignedURL != "" {
+		http.Redirect(w, req, f.SignedURL, http.StatusFound)
+		return
+	}
+	defer f.Stream.Close()
+
+	if f.Artifact.Digest != "" {
+		etag := `"` + f.Artifact.Digest + `"`
+		w.Header().Set("ETag", etag)
+		if matchesETag(req.Header.Get("If-None-Match"), etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+	if f.Artifact.MediaType != "" {
+		w.Header().Set("Content-Type", f.Artifact.MediaType)
+	}
+	// A seekable stream (fs files) gets full Range/conditional handling via ServeContent;
+	// otherwise stream straight through with a known length.
+	if rs, ok := f.Stream.(io.ReadSeeker); ok {
+		http.ServeContent(w, req, f.Artifact.Name, time.Time{}, rs)
+		return
+	}
+	if f.Artifact.SizeBytes > 0 {
+		w.Header().Set("Content-Length", strconvI(f.Artifact.SizeBytes))
+	}
+	_, _ = io.Copy(w, f.Stream)
 }
 
 func (r *Router) openapi(w http.ResponseWriter, _ *http.Request) {
@@ -231,6 +283,25 @@ func (r *Router) openapi(w http.ResponseWriter, _ *http.Request) {
 }
 
 // ---- helpers ----
+
+// matchesETag reports whether an If-None-Match header value matches etag (or is "*"). It
+// tolerates comma-separated lists and a weak-validator prefix (§04.2).
+func matchesETag(ifNoneMatch, etag string) bool {
+	if ifNoneMatch == "" {
+		return false
+	}
+	for tok := range strings.SplitSeq(ifNoneMatch, ",") {
+		tok = strings.TrimSpace(tok)
+		if tok == "*" || tok == etag || strings.TrimPrefix(tok, "W/") == etag {
+			return true
+		}
+	}
+	return false
+}
+
+func strconvI(n int64) string {
+	return strconv.FormatInt(n, 10)
+}
 
 func decode(req *http.Request, v any) error {
 	if req.Body == nil {

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/proseria-research/lineage/internal/domain"
 )
@@ -85,6 +86,54 @@ func (s *Service) signRefs(ctx context.Context, r *Resolution) {
 			r.Artifacts[i].SignedURLExpires = domain.NowMillis() + s.signTTL.Milliseconds()
 		}
 	}
+}
+
+// Fetch is the result of FetchArtifact (§04.3): a delivery plan for one artifact's bytes.
+// Exactly one of SignedURL / Stream is populated. The caller closes Stream.
+type Fetch struct {
+	Artifact  *domain.Artifact
+	SignedURL string        // set when the backend can sign (default: 302 redirect)
+	Stream    io.ReadCloser // set for stream-through (backend can't sign, or ?mode=stream)
+}
+
+// FetchArtifact locates a named artifact within a version and prepares byte delivery (§04.3):
+// a fresh signed URL to redirect to, or a stream-through reader when the backend can't sign
+// (or the caller forced streaming). It never proxies bytes when a signed URL will do.
+func (s *Service) FetchArtifact(ctx context.Context, model, version, artifact string, forceStream bool) (*Fetch, error) {
+	v, err := s.store.GetVersion(ctx, model, version)
+	if err != nil {
+		return nil, err
+	}
+	arts, err := s.store.ListArtifacts(ctx, v.ID)
+	if err != nil {
+		return nil, err
+	}
+	var a *domain.Artifact
+	for _, cand := range arts {
+		if cand.Name == artifact {
+			a = cand
+			break
+		}
+	}
+	if a == nil {
+		return nil, domain.NotFound("artifact '" + artifact + "' not found on " + model + "@" + version)
+	}
+	b := s.backend(a.StorageBackend)
+	if b == nil {
+		return nil, domain.Internal("storage backend '" + a.StorageBackend + "' unavailable")
+	}
+	if !forceStream && b.Capabilities().Signing {
+		url, err := b.SignGet(ctx, a.URI, s.signTTL)
+		if err == nil {
+			return &Fetch{Artifact: a, SignedURL: url}, nil
+		}
+		// Fall through to stream-through if signing unexpectedly fails.
+	}
+	rc, err := b.Get(ctx, a.URI)
+	if err != nil {
+		return nil, err
+	}
+	return &Fetch{Artifact: a, Stream: rc}, nil
 }
 
 func cacheKey(sel domain.Selector) string {
