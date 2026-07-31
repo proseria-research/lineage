@@ -35,7 +35,11 @@ database:
       key: dsn
 
 cache:
-  engine: memory # memory | redis (redis adapter is a stub today; memory is the working path)
+  engine: memory # memory | redis
+  redis:
+    addr: "" # host:port of an external/managed Redis
+    db: 0
+    passwordSecret: { name: "", key: password }
 
 storage:
   driver: fs # fs | s3

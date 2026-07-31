@@ -52,8 +52,12 @@ Applies to every `GET` collection.
 { "items": [ /* … */ ], "nextPageToken": "eyJ…" }
 ```
 
-`nextPageToken` absent ⇒ last page. A richer `filter` expression grammar and
-Postgres-only `custom_properties` filtering (`02.7`) are deferred.
+`nextPageToken` absent ⇒ last page.
+
+**Label + custom-property filtering.** `label.<k>=<v>` works on every engine (pushed into a
+Postgres JSONB `@>` containment when available, `02.7`; filtered in Go otherwise). `cp.<k>=<v>`
+filters `custom_properties` and is **Postgres-only** — on SQLite/memory it returns
+`400 invalid_argument`. A richer `filter` expression grammar is still deferred.
 
 ## 4. Models
 

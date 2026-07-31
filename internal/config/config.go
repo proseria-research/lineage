@@ -4,6 +4,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -17,7 +18,16 @@ type Config struct {
 	StorageRoot   string // fs backend root (dev default)
 	S3            S3Config
 	GC            GCConfig
+	Cache         CacheConfig
 	ActorHeader   string // trusted identity header for audit (§00 axiom 4)
+}
+
+// CacheConfig configures the resolution cache (§04.4). memory = dev; redis = prod.
+type CacheConfig struct {
+	Engine        string // memory | redis
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
 }
 
 // GCConfig configures artifact garbage collection (§05.8). Default is retain.
@@ -66,8 +76,23 @@ func Load() Config {
 			Grace:    envDuration("LINEAGE_GC_GRACE", 24*time.Hour),
 			Interval: envDuration("LINEAGE_GC_INTERVAL", time.Hour),
 		},
+		Cache: CacheConfig{
+			Engine:        env("LINEAGE_CACHE_ENGINE", "memory"),
+			RedisAddr:     env("LINEAGE_REDIS_ADDR", "localhost:6379"),
+			RedisPassword: env("LINEAGE_REDIS_PASSWORD", ""),
+			RedisDB:       envInt("LINEAGE_REDIS_DB", 0),
+		},
 		ActorHeader: env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
 	}
+}
+
+func envInt(k string, def int) int {
+	if v := os.Getenv(k); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }
 
 func env(k, def string) string {

@@ -362,8 +362,17 @@ func listOpts(req *http.Request) domain.ListOptions {
 		o.Filters["stage"] = s
 	}
 	for k, vs := range q {
-		if strings.HasPrefix(k, "label.") && len(vs) > 0 {
+		if len(vs) == 0 {
+			continue
+		}
+		if strings.HasPrefix(k, "label.") {
 			o.Labels[strings.TrimPrefix(k, "label.")] = vs[0]
+		}
+		if strings.HasPrefix(k, "cp.") { // custom_properties filter (Postgres-only, §02.7)
+			if o.CustomProps == nil {
+				o.CustomProps = map[string]string{}
+			}
+			o.CustomProps[strings.TrimPrefix(k, "cp.")] = vs[0]
 		}
 	}
 	return o

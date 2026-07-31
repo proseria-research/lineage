@@ -105,6 +105,21 @@ env (Postgres DSN, S3 keys) is added separately via secretKeyRef.
       key: {{ .Values.storage.s3.credentialsSecret.secretKeyKey }}
 {{- end }}
 {{- end }}
+- name: LINEAGE_CACHE_ENGINE
+  value: {{ .Values.cache.engine | quote }}
+{{- if eq .Values.cache.engine "redis" }}
+- name: LINEAGE_REDIS_ADDR
+  value: {{ required "cache.redis.addr is required for cache.engine=redis" .Values.cache.redis.addr | quote }}
+- name: LINEAGE_REDIS_DB
+  value: {{ .Values.cache.redis.db | quote }}
+{{- if .Values.cache.redis.passwordSecret.name }}
+- name: LINEAGE_REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.cache.redis.passwordSecret.name }}
+      key: {{ .Values.cache.redis.passwordSecret.key }}
+{{- end }}
+{{- end }}
 - name: LINEAGE_STORAGE_GC
   value: {{ .Values.storage.gc.mode | quote }}
 - name: LINEAGE_GC_GRACE
