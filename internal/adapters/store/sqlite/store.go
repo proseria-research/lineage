@@ -15,9 +15,10 @@ import (
 
 type dialect struct{}
 
-func (dialect) Name() string                  { return "sqlite" }
-func (dialect) Rebind(q string) string        { return q }  // SQLite uses ? placeholders
-func (dialect) LockModelByVersionSQL() string { return "" } // single-writer; no row lock
+func (dialect) Name() string                     { return "sqlite" }
+func (dialect) Rebind(q string) string           { return q }  // SQLite uses ? placeholders
+func (dialect) LockModelByVersionSQL() string    { return "" } // single-writer; no row lock
+func (dialect) JSONContainsClause(string) string { return "" } // no push-down; filter in Go
 
 func (dialect) IsUniqueViolation(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")

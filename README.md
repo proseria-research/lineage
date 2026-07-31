@@ -17,7 +17,8 @@ in-memory store remains for tests/dev. Artifacts go to a real **`fs`** (dev/air-
 stream-through) or **`s3`** backend — any S3-compatible store (AWS · MinIO · R2 · Ceph) via
 signed GET/PUT + multipart, with a full upload flow (initiate → PUT → finalize, digest-verified),
 reference-counted GC, and an IRSA/ECS/IMDS credential chain (§05.4.1). The S3 driver + SigV4
-are verified against a live MinIO server. Redis cache is a stub.
+are verified against a live MinIO server; the Postgres adapter against a real embedded Postgres.
+The resolution cache is **in-memory (dev) or Redis (prod)**, both behind the same port.
 
 Resolution is one call (`storageUri` + fresh `signedUrl` + digest), HTTP-cacheable
 (`ETag`/`304`) with event-driven cache invalidation; a `/content` broker endpoint redirects
@@ -109,6 +110,8 @@ everything else (incl. the S3 driver and SigV4) is stdlib only.
 | `LINEAGE_METRICS_ADDR` | `:9090` | ops listen addr |
 | `LINEAGE_DB_ENGINE` | `sqlite` | `sqlite` \| `postgres` \| `memory` |
 | `LINEAGE_DB_PATH` | `lineage.db` | SQLite file path / Postgres DSN |
+| `LINEAGE_CACHE_ENGINE` | `memory` | `memory` \| `redis` (§04.4) |
+| `LINEAGE_REDIS_ADDR` / `_PASSWORD` / `_DB` | `localhost:6379` | Redis connection (when `redis`) |
 | `LINEAGE_STORAGE_DRIVER` | `fs` | `fs` \| `s3` |
 | `LINEAGE_STORAGE_ROOT` | `./data/artifacts` | fs backend root |
 | `LINEAGE_S3_BUCKET` / `_REGION` / `_ENDPOINT` | — | s3 target (endpoint overrides for MinIO/R2/Ceph) |

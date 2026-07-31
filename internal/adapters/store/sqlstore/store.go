@@ -23,6 +23,10 @@ type Dialect interface {
 	// LockModelByVersionSQL returns a statement (one ? = version id) that locks the owning
 	// model row FOR UPDATE, or "" if the engine needs no explicit lock (SQLite: single-writer).
 	LockModelByVersionSQL() string
+	// JSONContainsClause returns a WHERE fragment (one ? = the JSON operand) that tests
+	// whether a JSON column contains an object, or "" if the engine can't push this down and
+	// the store must filter in Go. Postgres: `<col>::jsonb @> ?::jsonb` (§02.7).
+	JSONContainsClause(column string) string
 }
 
 type Store struct {
@@ -44,6 +48,29 @@ func Open(db *sql.DB, d Dialect) (*Store, error) {
 func (s *Store) DB() *sql.DB        { return s.db }
 func (s *Store) Close() error       { return s.db.Close() }
 func (s *Store) rb(q string) string { return s.d.Rebind(q) }
+
+// jsonFilters builds label/custom_properties containment WHERE fragments when the dialect can
+// push them down (Postgres JSONB, §02.7). labelsPushed reports whether label filtering was
+// handled in SQL (so the caller skips the Go fallback). Custom-property filtering is
+// Postgres-only — on engines without push-down it is an explicit invalid-argument error.
+func (s *Store) jsonFilters(o domain.ListOptions, labelCol, cpCol string) (clauses []string, args []any, labelsPushed bool, err error) {
+	if len(o.Labels) > 0 {
+		if c := s.d.JSONContainsClause(labelCol); c != "" {
+			clauses = append(clauses, c)
+			args = append(args, marshalMap(o.Labels))
+			labelsPushed = true
+		}
+	}
+	if len(o.CustomProps) > 0 {
+		c := s.d.JSONContainsClause(cpCol)
+		if c == "" {
+			return nil, nil, false, domain.Invalid("custom-property (cp.*) filtering requires the postgres engine (§02.7)")
+		}
+		clauses = append(clauses, c)
+		args = append(args, marshalMap(o.CustomProps))
+	}
+	return clauses, args, labelsPushed, nil
+}
 
 // ---- Models ----
 
@@ -81,6 +108,14 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 		q += ` AND name LIKE '%'||?||'%'`
 		args = append(args, o.Q)
 	}
+	jc, ja, labelsPushed, err := s.jsonFilters(o, "labels", "custom_properties")
+	if err != nil {
+		return nil, "", err
+	}
+	for _, c := range jc {
+		q += " AND " + c
+	}
+	args = append(args, ja...)
 	q += ` ORDER BY created_at DESC, id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
@@ -93,7 +128,7 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 		if err != nil {
 			return nil, "", err
 		}
-		if hasLabels(m.Labels, o.Labels) {
+		if labelsPushed || hasLabels(m.Labels, o.Labels) {
 			out = append(out, m)
 		}
 	}
@@ -162,6 +197,14 @@ func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOpt
 		q += ` AND v.stage=?`
 		args = append(args, stg)
 	}
+	jc, ja, labelsPushed, err := s.jsonFilters(o, "v.labels", "v.custom_properties")
+	if err != nil {
+		return nil, "", err
+	}
+	for _, c := range jc {
+		q += " AND " + c
+	}
+	args = append(args, ja...)
 	q += ` ORDER BY v.created_at DESC, v.id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
@@ -174,7 +217,7 @@ func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOpt
 		if err != nil {
 			return nil, "", err
 		}
-		if hasLabels(v.Labels, o.Labels) {
+		if labelsPushed || hasLabels(v.Labels, o.Labels) {
 			out = append(out, v)
 		}
 	}

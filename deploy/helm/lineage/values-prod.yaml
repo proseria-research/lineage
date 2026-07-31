@@ -14,7 +14,7 @@ database:
       key: dsn
 
 cache:
-  engine: memory # switch to redis once the redis adapter lands
+  engine: memory # set to `redis` + cache.redis.addr for a shared cache across replicas
 
 storage:
   driver: s3

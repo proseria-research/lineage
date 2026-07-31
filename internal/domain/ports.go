@@ -13,12 +13,13 @@ var ErrStorageUnsupported = errors.New("storage: operation not supported by back
 
 // ListOptions carries pagination/filter/sort for collection reads (§03.3).
 type ListOptions struct {
-	PageSize  int
-	PageToken string
-	OrderBy   string            // e.g. "createdAt desc"
-	Q         string            // substring match on name
-	Filters   map[string]string // e.g. {"state":"ACTIVE"}, {"stage":"production"}
-	Labels    map[string]string // label.<key>=<value>
+	PageSize    int
+	PageToken   string
+	OrderBy     string            // e.g. "createdAt desc"
+	Q           string            // substring match on name
+	Filters     map[string]string // e.g. {"state":"ACTIVE"}, {"stage":"production"}
+	Labels      map[string]string // label.<key>=<value>
+	CustomProps map[string]string // cp.<key>=<value> — Postgres-only (JSONB containment, §02.7)
 }
 
 // Selector resolves a version within a model (§04.2). Exactly one field is set;

@@ -83,7 +83,8 @@ memory + SQLite; persistence verified across a restart.
 - [x] Config wiring (`LINEAGE_DB_ENGINE`) picks the adapter at startup; default SQLite
 - [x] FK `ON DELETE CASCADE` in schema (§02.5)
 - [x] Cursor pagination (real `nextPageToken`) — delivered in **M5** (`domain.Page`)
-- [ ] JSONB/label-table filtering, Postgres-native features — carried to **M5/M7**
+- [x] Postgres JSONB `label`/`custom_properties` push-down — delivered post-M9 (per-dialect
+      `JSONContainsClause`); the Postgres adapter is now validated on real embedded Postgres
 
 ## M3 — Storage ✅
 
@@ -151,7 +152,8 @@ SQLite binary smoke run): CRUD, guards, immutability, idempotency, pagination, a
 - [x] Delete guards: production version / model with production → `409` unless `?force=true`
 - [x] Hand-authored **OpenAPI 3.1** spec embedded + served at `/v1/openapi.json`; test asserts
       it covers the resources and every `$ref` resolves
-- [ ] Richer `filter` grammar + Postgres `custom_properties` filtering — deferred (§03.3, §02.7)
+- [x] Postgres `custom_properties` filtering (`cp.<k>`, JSONB `@>`) — done post-M9; a richer
+      `filter` expression grammar is still deferred (§03.3)
 
 ## M6 — Admin UI ✅
 

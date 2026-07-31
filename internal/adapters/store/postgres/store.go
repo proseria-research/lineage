@@ -47,6 +47,12 @@ func (dialect) LockModelByVersionSQL() string {
 	return `SELECT id FROM model WHERE id = (SELECT model_id FROM model_version WHERE id = ?) FOR UPDATE`
 }
 
+// JSONContainsClause pushes label / custom_properties containment into JSONB (§02.7). The
+// columns are TEXT holding JSON; casting to jsonb lets Postgres use the @> operator (GIN-able).
+func (dialect) JSONContainsClause(column string) string {
+	return column + "::jsonb @> ?::jsonb"
+}
+
 // New connects to dsn and returns a migrated MetadataStore.
 func New(dsn string) (*sqlstore.Store, error) {
 	db, err := sql.Open("pgx", dsn)

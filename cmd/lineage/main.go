@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/proseria-research/lineage/internal/adapters/cache/memory"
+	rediscache "github.com/proseria-research/lineage/internal/adapters/cache/redis"
 	"github.com/proseria-research/lineage/internal/adapters/events"
 	"github.com/proseria-research/lineage/internal/adapters/storage/fs"
 	"github.com/proseria-research/lineage/internal/adapters/storage/s3"
@@ -68,7 +69,11 @@ func main() {
 	}
 	log.Printf("storage backend: %s (signing=%v)", cfg.StorageDriver, backend.Capabilities().Signing)
 	backends := map[string]domain.StorageBackend{backend.Name(): backend}
-	cache := memcache.New()
+	cache, err := openCache(cfg)
+	if err != nil {
+		log.Fatalf("open cache (%s): %v", cfg.Cache.Engine, err)
+	}
+	log.Printf("resolution cache: %s", cfg.Cache.Engine)
 	bus := events.New()
 
 	// Telemetry (§09.2): the metric registry is a Meter for the core and a RED recorder for
@@ -153,6 +158,19 @@ func openStore(cfg config.Config) (domain.MetadataStore, error) {
 		return sqlitestore.New(cfg.DBPath)
 	default:
 		return nil, errUnknownEngine(cfg.DBEngine)
+	}
+}
+
+// openCache selects the ResolutionCache adapter from config (§04.4). memory is the
+// dependency-free default; redis is the shared prod cache.
+func openCache(cfg config.Config) (domain.ResolutionCache, error) {
+	switch cfg.Cache.Engine {
+	case "redis":
+		return rediscache.New(cfg.Cache.RedisAddr, cfg.Cache.RedisPassword, cfg.Cache.RedisDB)
+	case "memory", "":
+		return memcache.New(), nil
+	default:
+		return nil, errUnknownEngine(cfg.Cache.Engine)
 	}
 }
 

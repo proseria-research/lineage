@@ -199,6 +199,19 @@ func TestIdempotencyKey(t *testing.T) {
 	}
 }
 
+// custom_properties (cp.*) filtering is Postgres-only (§02.7); on the memory/SQLite engines
+// it must be rejected with a clear 400 rather than silently ignored.
+func TestCustomPropFilterPostgresOnly(t *testing.T) {
+	srv := apiServer(t) // memory-backed
+	if st, _ := do(t, srv, "GET", "/v1/models?cp.costCenter=R-42", "", nil); st != 400 {
+		t.Fatalf("cp.* filter on a non-postgres engine = %d, want 400", st)
+	}
+	// Label filtering, by contrast, works everywhere.
+	if st, _ := do(t, srv, "GET", "/v1/models?label.tier=gold", "", nil); st != 200 {
+		t.Fatalf("label filter = %d, want 200", st)
+	}
+}
+
 func TestCursorPagination(t *testing.T) {
 	srv := apiServer(t)
 	const n = 5

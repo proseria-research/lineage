@@ -66,6 +66,9 @@ func (s *Store) lookupModel(nameOrID string) (*domain.Model, error) {
 }
 
 func (s *Store) ListModels(_ context.Context, o domain.ListOptions) ([]*domain.Model, string, error) {
+	if len(o.CustomProps) > 0 {
+		return nil, "", domain.Invalid("custom-property (cp.*) filtering requires the postgres engine (§02.7)")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []*domain.Model
@@ -160,6 +163,9 @@ func (s *Store) GetVersionByID(_ context.Context, id string) (*domain.ModelVersi
 }
 
 func (s *Store) ListVersions(_ context.Context, model string, o domain.ListOptions) ([]*domain.ModelVersion, string, error) {
+	if len(o.CustomProps) > 0 {
+		return nil, "", domain.Invalid("custom-property (cp.*) filtering requires the postgres engine (§02.7)")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	m, err := s.lookupModel(model)

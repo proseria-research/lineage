@@ -81,7 +81,9 @@ flowchart LR
     evt["version.created /<br/>version.stage_changed"] -. invalidate(model) .-> cache
 ```
 
-- **Backend:** in-memory (dev) or Redis (prod) — the `ResolutionCache` port (§01).
+- **Backend:** in-memory (dev) or Redis (prod), both behind the `ResolutionCache` port (§01).
+  The Redis adapter makes `InvalidateModel` O(1) via a per-model **generation counter** embedded
+  in cache keys (bump the counter → old keys orphan and expire by TTL; no SCAN/DEL sweep).
 - **Invalidation is event-driven:** `version.created` and `version.stage_changed`
   (§03.7) invalidate all resolve entries for that model → near-immediate correctness,
   not TTL-bound staleness. A short TTL backstops missed events.
