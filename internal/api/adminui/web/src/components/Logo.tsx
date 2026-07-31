@@ -1,13 +1,19 @@
-// The Lineage mark: a solid square. Monochrome and sharp — it inherits the current text
-// color (via currentColor), so it flips correctly in light/dark. Used as the brand mark and
-// as an accent in loading/empty states.
+// The Lineage mark: a thin-bordered square (a black-bordered box in light mode). Monochrome
+// and sharp — the border inherits the current text color (via currentColor), so it flips
+// correctly in light/dark. Used as the brand mark and as an accent in loading/empty states.
 
 export function Logo({ size = 12, className = "" }: { size?: number; className?: string }) {
   return (
     <span
       aria-hidden="true"
       className={className}
-      style={{ display: "inline-block", width: size, height: size, background: "currentColor" }}
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        border: "1.5px solid currentColor",
+        boxSizing: "border-box",
+      }}
     />
   );
 }

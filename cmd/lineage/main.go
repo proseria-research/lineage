@@ -39,7 +39,7 @@ var version = "dev"
 func main() {
 	cfg := config.Load()
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
-	log.SetPrefix("▪ ") // the Lineage mark leads every operational log line
+	log.SetPrefix("□ ") // the Lineage mark leads every operational log line
 
 	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
 		log.Printf("lineage %s", version)
