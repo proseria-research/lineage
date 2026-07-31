@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 COPY --from=web /web/dist ./internal/api/adminui/web/dist
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/lineage ./cmd/lineage
+RUN CGO_ENABLED=0 go build -tags console -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/lineage ./cmd/lineage
 
 # 3) Minimal, non-root runtime.
 FROM gcr.io/distroless/static-debian12:nonroot

@@ -4,9 +4,9 @@
 *.db-*
 /lineage
 node_modules/
-# The built console (make web) is NOT committed. A .gitkeep placeholder is kept so the
-# //go:embed directive still compiles on a fresh clone — run `make web` for a real console.
-internal/api/adminui/web/dist/*
-!internal/api/adminui/web/dist/.gitkeep
+# The built console is produced by `make web` and embedded only under the `console` build
+# tag (see internal/api/adminui/static_*.go). It is not committed — a plain `go build`
+# compiles the stub without it.
+internal/api/adminui/web/dist/
 .vite/
 *.tsbuildinfo
