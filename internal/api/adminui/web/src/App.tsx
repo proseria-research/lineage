@@ -1,5 +1,6 @@
 import { Routes, Route, Link } from "react-router-dom";
 import { Layout } from "@/components/Layout";
+import { Logo } from "@/components/Logo";
 import Overview from "@/pages/Overview";
 import Models from "@/pages/Models";
 import ModelDetail from "@/pages/ModelDetail";
@@ -8,8 +9,9 @@ import Activity from "@/pages/Activity";
 
 function NotFound() {
   return (
-    <div className="border border-dashed px-4 py-12 text-center">
-      <div className="label-caps mb-2">404</div>
+    <div className="flex flex-col items-center border border-dashed px-4 py-12 text-center">
+      <Logo size={20} className="mb-3" />
+      <div className="label-caps mb-2">404 · not found</div>
       <Link to="/" className="text-sm underline underline-offset-4">
         Back to overview
       </Link>

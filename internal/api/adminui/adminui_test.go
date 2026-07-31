@@ -63,8 +63,16 @@ func getJSON(t *testing.T, srv *httptest.Server, path string) map[string]any {
 }
 
 // The embedded console is served at / and client-side routes fall back to index.html.
+// The built console is not committed (only a .gitkeep placeholder), so this skips unless
+// `make web` has produced real assets.
 func TestServesEmbeddedConsole(t *testing.T) {
 	srv := setup(t)
+	probe, _ := http.Get(srv.URL + "/")
+	body, _ := io.ReadAll(probe.Body)
+	probe.Body.Close()
+	if !strings.Contains(string(body), `<div id="root">`) {
+		t.Skip("console not built — run `make web`")
+	}
 	for _, path := range []string{"/", "/models", "/models/fraud-detector/versions/1.4.0"} {
 		resp, err := http.Get(srv.URL + path)
 		if err != nil {

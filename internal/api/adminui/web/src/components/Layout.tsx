@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutGrid, Boxes, Activity, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Wordmark } from "@/components/Logo";
 
 const nav = [
   { to: "/", label: "Overview", icon: LayoutGrid, end: true },
@@ -17,9 +18,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-screen grid-cols-[13rem_1fr]">
       <aside className="sticky top-0 h-screen border-r bg-card">
-        <div className="flex h-12 items-center gap-2 border-b px-4">
-          <div className="h-3 w-3 border border-foreground" />
-          <span className="text-sm font-semibold tracking-[0.15em]">LINEAGE</span>
+        <div className="flex h-12 items-center border-b px-4">
+          <Wordmark />
         </div>
         <nav className="p-2">
           {nav.map(({ to, label, icon: Icon, end }) => (

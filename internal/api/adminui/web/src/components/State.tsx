@@ -1,7 +1,14 @@
 // Small shared presentational helpers: loading / error / empty states + page header.
 
+import { Logo } from "@/components/Logo";
+
 export function Loading({ label = "Loading" }: { label?: string }) {
-  return <div className="label-caps animate-pulse px-1 py-8">{label}…</div>;
+  return (
+    <div className="flex items-center gap-2 px-1 py-8">
+      <Logo size={10} className="animate-pulse" />
+      <span className="label-caps">{label}…</span>
+    </div>
+  );
 }
 
 export function ErrorNote({ error }: { error: string }) {
