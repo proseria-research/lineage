@@ -1,4 +1,4 @@
-.PHONY: build run test test-console fmt vet tidy clean web web-dev docker helm-lint
+.PHONY: build run seed test test-console fmt vet tidy clean web web-dev docker helm-lint
 
 BIN := bin/lineage
 WEB := internal/api/adminui/web
@@ -20,6 +20,11 @@ build: web
 
 run: build
 	./$(BIN)
+
+# seed loads the demo dataset into a *running* registry via the Model API. Point it elsewhere
+# with LINEAGE_ENDPOINT, and re-seed a dirty registry with `make seed SEED_FLAGS=-reset`.
+seed:
+	go run ./cmd/lineage-seed $(SEED_FLAGS)
 
 # test runs the default (stub) build; the console-serving test skips. Use test-console for it.
 test:

@@ -154,6 +154,19 @@ curl "localhost:8081/v1/models/fraud-detector/resolve?stage=production"
 Open the console at <http://localhost:8080> and the API contract at
 <http://localhost:8081/v1/openapi.json>.
 
+### Load sample data
+
+With the registry running, seed a demo dataset — five models across every stage, with
+uploaded and by-reference artifacts, lineage edges, deployments, and a real audit trail:
+
+```bash
+make seed                       # or: go run ./cmd/lineage-seed
+make seed SEED_FLAGS=-reset     # replace previously seeded data
+```
+
+It talks to the Model API like any other client, so `LINEAGE_ENDPOINT` (default
+`http://localhost:8081`) points it at a port-forward or a remote install.
+
 ### Deploy with Helm
 
 ```bash
