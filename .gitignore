@@ -4,6 +4,9 @@
 *.db-*
 /lineage
 node_modules/
-# Vite caches; the built web/dist IS committed so the Go binary embeds it anywhere.
+# The built console (make web) is NOT committed. A .gitkeep placeholder is kept so the
+# //go:embed directive still compiles on a fresh clone — run `make web` for a real console.
+internal/api/adminui/web/dist/*
+!internal/api/adminui/web/dist/.gitkeep
 .vite/
 *.tsbuildinfo
