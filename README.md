@@ -7,7 +7,7 @@
 
 # Lineage
 
-**The self-hostable system of record for ML/AI models.**
+**The self-hostable system of record and model registry for ML/AI models.**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](go.mod)
@@ -23,10 +23,6 @@
 Lineage is a model registry and governance layer that sits between experimentation and
 production. It tracks what models and versions exist, where their artifacts live, what
 lifecycle stage each is in, who owns them, and how serving systems fetch them.
-
-It benchmarks against Kubeflow Model Registry for **capability parity — not wire
-compatibility** — with a cleaner data model, a first-class Helm story, and a delivery path
-built for inference systems.
 
 ## Highlights
 
@@ -71,6 +67,46 @@ built for inference systems.
   `traceparent` correlation.
 - A first-class **Helm chart** and a distroless, non-root, statically linked image — one
   `helm install` yields a working, secure registry.
+
+## How Lineage compares
+
+Lineage is built for teams that want to **own** their model registry — self-hosted, over
+their own database and object storage, with governance and delivery built in. It compares
+against **Kubeflow Model Registry** (the closest analog) and **Hugging Face Hub**.
+
+| Capability | Lineage | Kubeflow Model Registry | Hugging Face Hub |
+| --- | --- | --- | --- |
+| **Footprint** | Single self-contained Go binary + Helm chart | Kubernetes / Kubeflow, MLMD-based | SaaS (managed; enterprise / VPC) |
+| **Metadata store** | SQLite (dev / edge) or Postgres (HA) — your database | MLMD on MySQL | Managed, Git-backed repos |
+| **Artifact storage** | S3 / GCS / Azure / filesystem, signed-URL delivery | External URI references | HF-hosted (Git-LFS / Xet) |
+| **Lineage / provenance** | Typed graph: ancestry + impact traversal | MLMD lineage | Informal `base_model` tag |
+| **Serving delivery** | `resolve` → signed URL + `lineage://` KServe initializer | KServe | HF Inference Endpoints |
+| **Lifecycle & governance** | Stages + singleton production, fully audited | Lifecycle state | Tags & model cards |
+| **API contract** | REST + OpenAPI 3.1 (SDK / CLI generated) | REST + Python client | REST + `huggingface_hub` |
+| **Authentication** | Delegated to infrastructure | Cluster identity | Built-in accounts & tokens |
+
+**Why these differences matter**
+
+- **Minimal operational surface.** A single self-contained binary and a Helm chart run the
+  whole system — from a laptop with SQLite to high availability on Postgres, from the same
+  image. There is no separate metadata service to deploy, operate, and secure alongside it.
+- **Your models stay yours.** Metadata lives in your own database and artifact bytes in your
+  own object store; Lineage keeps only pointers. Nothing is hosted on a third party's
+  infrastructure, and the storage remains portable — plain relational tables and native
+  object-store URIs.
+- **Provenance you can actually query.** `derived_from` / `trained_on` / `produced_by` /
+  `deployed_as` are typed edges, so you can answer *"what produced this model?"* (ancestry)
+  and *"if this dataset is bad, what's affected?"* (impact) — not just read an informal
+  `base_model` tag.
+- **Built for the pull path.** One `resolve` call returns a native `storageUri`, a fresh
+  signed URL, and a digest, and `lineage://model/stage` resolves at pull time — so a
+  promotion reaches KServe, Modal, or Baseten with no redeploy and near-zero glue.
+- **Governance without adopting a platform.** Lifecycle stages with a singleton `production`
+  invariant and an append-only audit on every change give you promotion control and a
+  compliance trail without buying into an entire ML platform.
+
+Hugging Face Hub remains excellent for public model sharing and discovery — Lineage is
+deliberately **not** a public hub, and does not try to be.
 
 ## Design principles
 
