@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StageBadge } from "@/components/StageBadge";
 import { StageActions } from "@/components/StageActions";
 import { StageTrack } from "@/components/StageTrack";
+import { Cube } from "@/components/Cube";
 import { LineageGraphView } from "@/components/LineageGraphView";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
@@ -27,12 +28,15 @@ export default function VersionDetail() {
     <div>
       <PageHeader
         title={
-          <span>
-            <Link to={`/models/${model}`} className="text-muted-foreground hover:underline">
-              {model}
-            </Link>
-            <span className="mx-1.5 text-muted-foreground">/</span>
-            <span className="font-mono">{v.name}</span>
+          <span className="flex items-center gap-3">
+            <Cube size={22} className="text-muted-foreground" />
+            <span>
+              <Link to={`/models/${model}`} className="text-muted-foreground hover:underline">
+                {model}
+              </Link>
+              <span className="mx-1.5 text-muted-foreground">/</span>
+              <span className="font-mono">{v.name}</span>
+            </span>
           </span>
         }
         right={

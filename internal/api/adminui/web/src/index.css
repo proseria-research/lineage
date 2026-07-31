@@ -93,6 +93,27 @@
   }
 }
 
+/* Wireframe cube (components/Cube.tsx): a fixed tilt so it always reads as a solid, plus a slow
+   linear yaw. Faces go edge-on and vanish to a line four times a turn — that is the mark. */
+.lineage-cube {
+  transform-style: preserve-3d;
+  transform: rotateX(-24deg) rotateY(0deg);
+  animation: lineage-cube-spin 18s linear infinite;
+}
+
+@keyframes lineage-cube-spin {
+  to {
+    transform: rotateX(-24deg) rotateY(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lineage-cube {
+    animation: none;
+    transform: rotateX(-24deg) rotateY(-34deg);
+  }
+}
+
 /* Uppercase micro-labels used throughout the technical, monochrome UI. */
 .label-caps {
   text-transform: uppercase;
