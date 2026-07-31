@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StageBadge } from "@/components/StageBadge";
 import { StageActions } from "@/components/StageActions";
+import { StageTrack } from "@/components/StageTrack";
 import { LineageGraphView } from "@/components/LineageGraphView";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
@@ -43,6 +44,16 @@ export default function VersionDetail() {
       />
 
       {v.description && <p className="mb-5 max-w-2xl text-sm text-muted-foreground">{v.description}</p>}
+
+      {/* Lifecycle: where this version sits on the stage machine, and when it got there */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Lifecycle</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StageTrack version={v} audit={data.audit} />
+        </CardContent>
+      </Card>
 
       {/* Artifacts */}
       <Card className="mb-6">

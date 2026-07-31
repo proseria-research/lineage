@@ -11,6 +11,8 @@ export interface AuditEvent {
   subjectType: string;
   subjectId: string;
   summary: string;
+  // Action-specific payload recorded with the event; version.stage_changed carries from/to/reason.
+  data?: { from?: Stage; to?: Stage; reason?: string };
 }
 
 export interface Overview {
