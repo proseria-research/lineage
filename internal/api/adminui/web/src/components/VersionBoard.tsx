@@ -6,17 +6,20 @@ import { cn, relTime } from "@/lib/utils";
 // production" and "what is queued behind it" are answered by looking rather than by reading a
 // stage column down a table.
 //
-// Monochrome like the rest of the console. Emphasis is the same fill / outline / dashed scale
-// the stage badges use, transposed onto the cards: production is filled, staging is outlined,
-// draft is quiet, archived is dashed and dimmed. The column already names the stage, so the
-// cards carry no badge — the position is the label.
+// Emphasis is the fill / outline / dashed scale the stage badges use, transposed onto the
+// cards: staging is outlined, draft is quiet, archived is dashed and dimmed. Production is
+// the one stage carrying an invariant (at most one version per model, §02.4), so it is also
+// the one stage tinted — with --production, the same green the website uses. The column
+// already names the stage, so the cards carry no badge: position and heading are the label,
+// and the tint only reinforces them.
+//
+// Each tone owns its hover state as well as its resting one. cn() runs through twMerge, so
+// the tone is listed last and wins over the shared hover classes.
 
 const ORDER: Stage[] = ["draft", "staging", "production", "archived"];
 
-// Production rests one grayscale step off the card so that hovering still has somewhere to
-// move it — an emphasis that cannot change on interaction reads as disabled.
 const cardTone: Record<Stage, string> = {
-  production: "border-foreground bg-secondary",
+  production: "border-production bg-production/10 hover:border-production hover:bg-production/20",
   staging: "border-foreground",
   draft: "border-border",
   archived: "border-border border-dashed text-muted-foreground",
@@ -39,10 +42,10 @@ export function VersionBoard({ model, versions }: { model: string; versions: Ver
           <section
             key={stage}
             aria-label={`${stage} — ${inStage.length} version${inStage.length === 1 ? "" : "s"}`}
-            className={cn("bg-card", stage === "production" && "border-t-2 border-foreground")}
+            className={cn("bg-card", stage === "production" && "border-t-2 border-production")}
           >
             <h3 className="flex items-center justify-between border-b px-3 py-2">
-              <span className={cn("label-caps", stage === "production" && "font-semibold text-foreground")}>
+              <span className={cn("label-caps", stage === "production" && "font-semibold text-production")}>
                 {stage}
               </span>
               <span className="label-caps tabular-nums">{inStage.length}</span>
