@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 import type { VersionInsight } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Empty } from "@/components/State";
 import { Dimensions } from "@/components/Dimensions";
 import { PortraitMark, columnsOf, hasPortrait, portraitTone } from "@/components/VersionMark";
@@ -34,20 +35,26 @@ function LayerFact({ label, value, muted }: { label: string; value: ReactNode; m
   );
 }
 
-function PortraitStat({ label, value, help }: { label: string; value: string; help: string }) {
+function PortraitStat({
+  label,
+  value,
+  help,
+  tooltipAlign,
+}: {
+  label: string;
+  value: string;
+  help: string;
+  tooltipAlign: "start" | "center" | "end";
+}) {
   return (
     <div className="px-3 py-2 first:border-r last:border-l">
       <div className="flex items-center gap-1 label-caps text-muted-foreground">
         {label}
-        <span className="group/stat relative inline-flex cursor-help" aria-label={`${label}: ${help}`} role="note">
-          <Info size={11} strokeWidth={1.5} aria-hidden="true" />
-          <span
-            role="tooltip"
-            className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 border bg-popover px-2 py-1.5 text-left text-xs normal-case leading-relaxed text-popover-foreground opacity-0 shadow-sm transition-none group-hover/stat:opacity-100"
-          >
-            {help}
+        <Tooltip content={help} align={tooltipAlign}>
+          <span className="inline-flex cursor-help" aria-label={`${label}: ${help}`} role="note">
+            <Info size={11} strokeWidth={1.5} aria-hidden="true" />
           </span>
-        </span>
+        </Tooltip>
       </div>
       <div className="mt-1 font-mono text-sm tabular-nums">{value}</div>
     </div>
@@ -88,9 +95,11 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>Portrait</CardTitle>
-          <span className="shrink-0 cursor-help text-muted-foreground" title={portraitHelp} aria-label={portraitHelp} role="note">
-            <Info size={13} strokeWidth={1.5} aria-hidden="true" />
-          </span>
+          <Tooltip content={portraitHelp} className="shrink-0" align="end">
+            <span className="cursor-help text-muted-foreground" aria-label={portraitHelp} role="note">
+              <Info size={13} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+          </Tooltip>
         </div>
       </CardHeader>
       <CardContent>
@@ -100,7 +109,6 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
             width={880}
             height={260}
             responsive
-            title={`portrait · ${columns.length} layers from ${layers.length} block${layers.length === 1 ? "" : "s"}`}
             selectedBlock={selectedBlock}
             onSelectBlock={setSelectedBlock}
           />
@@ -119,7 +127,9 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
           <div className="mt-3 border px-3 py-2.5" aria-live="polite">
             <div className="flex items-start justify-between gap-4">
               <span className={["label-caps", portraitTone(selectedBlock!)].join(" ")}>Block {selected.ordinal}</span>
-              <span className="max-w-[55%] truncate font-mono text-xs text-muted-foreground" title={selected.path}>{selected.path}</span>
+              <Tooltip content={selected.path} className="max-w-[55%]" align="end">
+                <span className="truncate font-mono text-xs text-muted-foreground">{selected.path}</span>
+              </Tooltip>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
               <LayerFact label="Type" value={selected.opType ?? NOT_REPORTED} muted={!selected.opType} />
@@ -131,9 +141,9 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
         )}
 
         <div className="mt-5 grid grid-cols-3 border">
-          <PortraitStat label="Layers" value={String(columns.length)} help="The total number of layers drawn. A repeated block contributes one layer for each repetition." />
-          <PortraitStat label="Blocks" value={String(layers.length)} help="The number of distinct building blocks reported for this model. One block can be repeated across several layers." />
-          <PortraitStat label="Max repeat" value={`×${deepest}`} help="The longest run of the same building block in the model." />
+          <PortraitStat label="Layers" value={String(columns.length)} help="The total number of layers drawn. A repeated block contributes one layer for each repetition." tooltipAlign="start" />
+          <PortraitStat label="Blocks" value={String(layers.length)} help="The number of distinct building blocks reported for this model. One block can be repeated across several layers." tooltipAlign="center" />
+          <PortraitStat label="Max repeat" value={`×${deepest}`} help="The longest run of the same building block in the model." tooltipAlign="end" />
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">

@@ -4,6 +4,7 @@ import { useAsync } from "@/lib/useAsync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtCount, fmtDeltaBytes, fmtBytesOrUnreported } from "@/lib/utils";
 
@@ -253,9 +254,9 @@ export default function Compare() {
                       {m.comparable ? (
                         <Badge variant={m.direction === "worse" ? "solid" : "outline"}>{m.direction}</Badge>
                       ) : (
-                        <Badge variant="dashed" title={m.reason}>
-                          not comparable
-                        </Badge>
+                        <Tooltip content={m.reason} align="end">
+                          <Badge variant="dashed">not comparable</Badge>
+                        </Tooltip>
                       )}
                     </TableCell>
                   </TableRow>

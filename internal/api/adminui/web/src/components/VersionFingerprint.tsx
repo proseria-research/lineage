@@ -1,6 +1,7 @@
 import type { VersionInsight } from "@/lib/api";
 import { Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Empty } from "@/components/State";
 import { FingerprintMark, RING_ORDER, RING_TONE, hasFingerprint } from "@/components/VersionMark";
 import { NOT_REPORTED } from "@/lib/utils";
@@ -29,14 +30,11 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
         <div className="flex items-center justify-between gap-2">
           <CardTitle>Fingerprint</CardTitle>
           {present.length > 0 && (
-            <span
-              className="shrink-0 cursor-help text-muted-foreground"
-              title={reach}
-              aria-label={reach}
-              role="note"
-            >
-              <Info size={13} strokeWidth={1.5} aria-hidden="true" />
-            </span>
+            <Tooltip content={reach} className="shrink-0" align="end">
+              <span className="cursor-help text-muted-foreground" aria-label={reach} role="note">
+                <Info size={13} strokeWidth={1.5} aria-hidden="true" />
+              </span>
+            </Tooltip>
           )}
         </div>
       </CardHeader>
@@ -51,7 +49,6 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
             <FingerprintMark
               insight={insight}
               size={168}
-              title={`fingerprint · ${present.length} of 4 hashes reported`}
             />
 
             {/* Outermost ring first, matching the drawing: topology → shape → dtype → weights.
@@ -63,21 +60,19 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
                 const reported = !!insight?.hashes?.[ring];
                 const tone = RING_TONE[ring];
                 return (
-                  <div
-                    key={ring}
-                    className="flex items-center gap-1.5"
-                    title={insight?.hashes?.[ring] ?? `${ring}: ${NOT_REPORTED}`}
-                  >
-                    <span
-                      className={[
-                        "h-2 w-2 shrink-0 border",
-                        reported
-                          ? `${tone.bg} ${tone.border}`
-                          : "border-dashed border-muted-foreground bg-transparent opacity-50",
-                      ].join(" ")}
-                    />
-                    <span className={["label-caps truncate", reported ? "" : "opacity-60"].join(" ")}>{ring}</span>
-                  </div>
+                  <Tooltip key={ring} content={insight?.hashes?.[ring] ?? `${ring}: ${NOT_REPORTED}`}>
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className={[
+                          "h-2 w-2 shrink-0 border",
+                          reported
+                            ? `${tone.bg} ${tone.border}`
+                            : "border-dashed border-muted-foreground bg-transparent opacity-50",
+                        ].join(" ")}
+                      />
+                      <span className={["label-caps truncate", reported ? "" : "opacity-60"].join(" ")}>{ring}</span>
+                    </span>
+                  </Tooltip>
                 );
               })}
             </div>

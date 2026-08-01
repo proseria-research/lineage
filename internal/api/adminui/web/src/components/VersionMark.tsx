@@ -374,7 +374,6 @@ export function PortraitMark({
   responsive,
   reduced,
   className,
-  title,
   selectedBlock,
   onSelectBlock,
 }: {
@@ -386,7 +385,6 @@ export function PortraitMark({
   /** Below 24px the detail channels collide into grey, so the reduction is mandatory (§12.6). */
   reduced?: boolean;
   className?: string;
-  title?: string;
   /** Selected source block; all of its expanded repeat columns are emphasized. */
   selectedBlock?: number | null;
   /** Enables pointer and keyboard selection of a source block. */
@@ -411,7 +409,6 @@ export function PortraitMark({
         ? { preserveAspectRatio: "xMidYMid meet", style: { display: "block", width: "100%", height: "auto" } }
         : { width, height, style: { display: "block", flex: "none" } })}
     >
-      {title && <title>{title}</title>}
       <Portrait
         layers={insight!.layers!}
         w={width}
@@ -434,7 +431,6 @@ export function FingerprintMark({
   reduced,
   emphasis,
   className,
-  title,
 }: {
   insight?: VersionInsight | null;
   size?: number;
@@ -442,7 +438,6 @@ export function FingerprintMark({
   /** Rings mapped false are drawn muted, for a side-by-side delta. */
   emphasis?: Partial<Record<RingName, boolean>>;
   className?: string;
-  title?: string;
 }) {
   if (!hasFingerprint(insight)) return null;
   const small = reduced ?? size < 24;
@@ -457,7 +452,6 @@ export function FingerprintMark({
       className={className}
       style={{ display: "block", flex: "none" }}
     >
-      {title && <title>{title}</title>}
       <Fingerprint
         hashes={insight!.hashes as Partial<Record<RingName, string>>}
         size={size}

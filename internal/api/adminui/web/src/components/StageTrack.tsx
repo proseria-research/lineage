@@ -1,5 +1,6 @@
 import type { AuditEvent, Stage, VersionSummary } from "@/lib/api";
 import { cn, fmtTime, relTime } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // A compact stage track for one version: the lifecycle line (§02.4) with the stages this
 // version actually reached marked and dated. Entry times are read off the version's own
@@ -45,19 +46,21 @@ export function StageTrack({ version, audit }: { version: VersionSummary; audit:
             <div key={s} className="flex flex-1 flex-col items-center">
               <div className="flex w-full items-center">
                 <Rail show={i > 0} solid={seen} />
-                <span
-                  title={seen ? `${s} · ${fmtTime(entered.get(s))}${reason.get(s) ? ` · ${reason.get(s)}` : ""}` : `${s} · not reached`}
-                  className={cn(
+                <Tooltip
+                  content={seen ? `${s} · ${fmtTime(entered.get(s))}${reason.get(s) ? ` · ${reason.get(s)}` : ""}` : `${s} · not reached`}
+                  align={i === 0 ? "start" : i === ORDER.length - 1 ? "end" : "center"}
+                >
+                  <span className={cn(
                     "flex h-4 w-4 shrink-0 items-center justify-center border",
                     seen ? "border-foreground" : "border-dashed border-border",
-                  )}
-                >
-                  {here ? (
-                    <span className="h-2 w-2 bg-foreground" />
-                  ) : seen ? (
-                    <span className="h-1 w-1 bg-foreground" />
-                  ) : null}
-                </span>
+                  )}>
+                    {here ? (
+                      <span className="h-2 w-2 bg-foreground" />
+                    ) : seen ? (
+                      <span className="h-1 w-1 bg-foreground" />
+                    ) : null}
+                  </span>
+                </Tooltip>
                 <Rail show={i < ORDER.length - 1} solid={next ? visited(next) : false} />
               </div>
               <div className={cn("label-caps mt-2", here && "font-semibold text-foreground")}>{s}</div>

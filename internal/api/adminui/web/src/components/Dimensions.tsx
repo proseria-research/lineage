@@ -34,7 +34,10 @@ export function Dimensions({ value, className }: { value?: string; className?: s
               <span className="tabular-nums">{formatted}</span>
               <span
                 role="tooltip"
-                className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 border bg-popover px-2 py-1.5 text-left text-xs leading-relaxed text-popover-foreground opacity-0 shadow-sm transition-none group-hover/dimension:opacity-100"
+                className={cn(
+                  "pointer-events-none absolute top-full z-20 mt-1 w-56 max-w-[min(14rem,calc(100vw-2rem))] border bg-popover px-2 py-1.5 text-left text-xs leading-relaxed text-popover-foreground opacity-0 shadow-sm transition-none group-hover/dimension:opacity-100",
+                  index === 0 ? "left-0" : "right-0",
+                )}
               >
                 {help}
               </span>
