@@ -10,9 +10,11 @@ node_modules/
 internal/api/adminui/web/dist/
 .vite/
 *.tsbuildinfo
-# Python SDK build/bytecode artifacts (sdk/python).
+# Python bytecode, anywhere it appears.
 __pycache__/
 *.py[cod]
-*.egg-info/
-dist/
-build/
+# Python SDK build output. Anchored to the package: a bare `build/`/`dist/` would swallow
+# any directory of that name elsewhere in the tree.
+/sdk/python/build/
+/sdk/python/dist/
+/sdk/python/*.egg-info/
