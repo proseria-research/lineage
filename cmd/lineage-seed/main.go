@@ -82,6 +82,7 @@ func run(c *client, reset bool) error {
 
 	log.Printf("done: %d models, %d versions, %d artifacts", len(dataset), versions, artifacts)
 	log.Printf("try:  curl %s/v1/models/fraud-detector/resolve?stage=production", c.base)
+	log.Printf("      curl %s/v1/models/sentiment-classifier/diff?from=2.2.0-rc1\\&to=2.2.0-int8", c.base)
 	log.Printf("      open the console at http://localhost:8080")
 	return nil
 }
@@ -117,6 +118,24 @@ func seedVersion(c *client, model string, v version) error {
 	for _, d := range v.Deployments {
 		if err := c.do("POST", "/v1/models/"+model+"/versions/"+v.Name+"/deployments", d, nil); err != nil {
 			return fmt.Errorf("deployment %s: %w", d.Environment, err)
+		}
+	}
+	// Insight facts (§11). Each write is a PATCH, so several producers merge into one
+	// record instead of overwriting each other — which is what the seeded data shows.
+	base := "/v1/models/" + model + "/versions/" + v.Name
+	for _, in := range v.Insight {
+		if err := c.do("PATCH", base+"/insight", in, nil); err != nil {
+			return fmt.Errorf("insight (%s): %w", in.Reporter, err)
+		}
+	}
+	for _, f := range v.Footprints {
+		if err := c.do("PUT", base+"/footprints/"+f.Scenario, f.FootprintInput, nil); err != nil {
+			return fmt.Errorf("footprint %s: %w", f.Scenario, err)
+		}
+	}
+	for _, e := range v.Evaluations {
+		if err := c.do("POST", base+"/evaluations", e, nil); err != nil {
+			return fmt.Errorf("evaluation %s/%s: %w", e.Suite, e.Metric, err)
 		}
 	}
 	return nil
