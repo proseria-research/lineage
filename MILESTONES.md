@@ -1,7 +1,7 @@
 # Lineage — Milestones
 
 Living progress tracker. Update status markers as work lands and link the commit that
-completed a task. Architecture specs are in [`docs/`](docs/) (`00`–`11`); this file
+completed a task. Architecture specs are in [`docs/`](docs/) (`00`–`12`); this file
 tracks *execution* against them.
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started · 🔮 future
@@ -23,18 +23,20 @@ flowchart LR
     M5 --> M10["M10 · SDK & CLI"]
     M5 --> M11["M11 · Model insights"]
     M6 --> M11
+    M11 --> M12["M12 · Version portrait"]
 
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11 done;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M9,M10,M11,M12 done;
+    class M8 active;
 ```
 
 ## Status Summary
 
 | # | Milestone | Docs | Status |
 |---|---|---|---|
-| M0 | Architecture & design docs | `00`–`11` | ✅ |
+| M0 | Architecture & design docs | `00`–`12` | ✅ |
 | M1 | Go scaffold (single binary, ports & adapters) | `01` | ✅ |
 | M2 | Persistence: per-dialect MetadataStore + migrations | `02` | ✅ |
 | M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ✅ |
@@ -42,10 +44,14 @@ flowchart LR
 | M5 | Model API completeness + OpenAPI | `03` | ✅ |
 | M6 | Admin UI: BFF + web console | `06` | ✅ |
 | M7 | Lineage & provenance graph | `07` | ✅ |
-| M8 | Observability: metrics, traces, SLOs | `09` | ✅ |
+| M8 | Observability: metrics, traces, SLOs | `09` | 🚧 |
 | M9 | Deployment: Helm chart + profiles | `08` | ✅ |
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ✅ |
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
+| M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
+
+**Open work:** M8 only — OTLP span export and the SLO alert rules. Both were deferred to M9
+(they need a collector / the chart) and M9 shipped without them.
 
 ---
 
@@ -53,7 +59,8 @@ flowchart LR
 
 Full spec set `00`–`10`, mermaid-only diagrams, decisions recorded in `00 §11`.
 **Done:** commits through `9eed5f0`. `11-model-insights.md` was specced later, with **M11**
-(it replaced the managed-service doc, moved out of this OSS repo).
+(it replaced the managed-service doc, moved out of this OSS repo); `12-version-portrait.md`
+later still, with **M12**.
 
 ## M1 — Go Scaffold ✅
 
@@ -189,13 +196,16 @@ Model API and rendered in the console; verified end-to-end + unit-tested.
 - [x] Console: version detail renders **Provenance (upstream)** + **Impact (downstream)** graphs
       (BFF `/api/…/graph`), version nodes linked
 - [x] Tests: ancestry, depth bound, impact, relation filter, cycle safety (core); graph over HTTP
-- [ ] SDK auto-capture (`produced_by`, `derived_from`) — an SDK feature, lands with **M10**
+- [x] SDK auto-capture (`produced_by`, `derived_from`) — delivered in **M10**
+      (`sdk/python/lineage/client.py`: run + `git://<sha>` provenance, `derived_from` parents)
 
-## M8 — Observability ✅
+## M8 — Observability 🚧
 
 **Goal:** production ops (§09).
 **Done:** a hand-rolled, dependency-free Prometheus registry + `/metrics`, real readiness, and
 structured JSON access logs with correlation IDs — all verified live.
+**Open:** the two trace/alert items below. Metrics, health, and logs are complete; what is
+missing is span *export* (correlation IDs already flow) and rules over the RED metrics.
 
 - [x] **Prometheus registry** (`observability/metrics`, hand-rolled counters/gauges/histograms
       with labels + text exposition — no `client_golang` dep): RED (`surface`/**templated**
@@ -212,8 +222,10 @@ structured JSON access logs with correlation IDs — all verified live.
 - [x] Tests: registry (counter/gauge/histogram cumulative buckets, scrape hooks, label escaping),
       ops handler (health/ready/metrics + failure gating), meter hooks fire from the core
 - [ ] **OTLP span export** (OTel SDK, API→core→store spans) — correlation IDs are in place;
-      exporter wiring targets a collector, so it lands with the chart (**M9**, §08)
-- [ ] SLO dashboards/alert rules — ship as chart assets in **M9**
+      `observability.otlpEndpoint` is rendered by the chart but still `# reserved` and unread
+      by the binary (§09.8)
+- [ ] SLO dashboards/alert rules — the four §09.5 targets as a `PrometheusRule` chart asset
+      over the existing RED metrics; `ServiceMonitor` (scrape) ships, alerting does not
 
 ## M9 — Deployment (Helm) ✅
 
@@ -337,3 +349,18 @@ to build against.
 **Non-goals** (§11.9): the registry derives no fact from an artifact (weights, headers, or
 config); no scanner ships in this repo; no eval orchestration; no verification of accuracy
 claims; no determination of why weights changed.
+
+## M12 — Version Portrait ✅
+
+**Goal:** two procedurally generated marks per version in the console (§12) — a square
+**Fingerprint** (identity, from `insight.hashes`) and a wide **Portrait** (structure, from
+`insight.layers`). Independent sections, deterministic, browser-side at paint time.
+**Done:** `b22a6e9`…`5916f69`. Specced after M11 and built in the same pass, so it was never
+given a milestone row until now.
+
+- [x] `VersionPortrait` / `VersionFingerprint` / `VersionMark` components, drawn only from
+      facts a producer already reported — no new field, table, or API (§12.1)
+- [x] The honesty rule (§12.2): absent input renders an empty section; neither mark ever
+      substitutes for the other; nothing reported ⇒ no mark
+- [x] Interactive portrait with per-level ring colour and dimension details; comparison
+      fingerprints on the Compare view
