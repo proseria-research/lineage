@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Info } from "lucide-react";
 import type { VersionInsight } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty } from "@/components/State";
@@ -18,6 +19,16 @@ function Chan({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
     <div className="flex items-baseline justify-between gap-4 border-b py-1.5">
       <span className="label-caps shrink-0">{k}</span>
       <span className={["text-right font-mono text-xs", muted ? "italic text-muted-foreground" : ""].join(" ")}>{v}</span>
+    </div>
+  );
+}
+
+/** A compact fact in the selected-layer summary. */
+function LayerFact({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="label-caps text-muted-foreground">{label}</div>
+      <div className={[(muted ? "italic text-muted-foreground" : "font-mono"), "mt-1 truncate text-xs"].join(" ")} title={value}>{value}</div>
     </div>
   );
 }
@@ -56,11 +67,17 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
   const reporter = insight?.reporterName
     ? `${insight.reporterName}${insight.reporterVersion ? " " + insight.reporterVersion : ""}`
     : null;
+  const portraitHelp = `One column represents one layer; repeated blocks are expanded into separate columns. Lines show adjacent layers, not the model's actual wiring. The same reported facts always draw the same portrait${reporter ? `, as reported by ${reporter}` : ""}.`;
 
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle>Portrait</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>Portrait</CardTitle>
+          <span className="shrink-0 cursor-help text-muted-foreground" title={portraitHelp} aria-label={portraitHelp} role="note">
+            <Info size={13} strokeWidth={1.5} aria-hidden="true" />
+          </span>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="border px-4 py-5">
@@ -85,44 +102,37 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
         </div>
 
         {selected && (
-          <div className="mt-3 border px-3 py-2" aria-live="polite">
-            <div className="mb-2 flex items-baseline justify-between gap-4">
-              <span className={["label-caps", portraitTone(selectedBlock!)].join(" ")}>Selected block {selected.ordinal}</span>
-              <span className="truncate font-mono text-xs" title={selected.path}>{selected.path}</span>
+          <div className="mt-3 border px-3 py-2.5" aria-live="polite">
+            <div className="flex items-start justify-between gap-4">
+              <span className={["label-caps", portraitTone(selectedBlock!)].join(" ")}>Block {selected.ordinal}</span>
+              <span className="max-w-[55%] truncate font-mono text-xs text-muted-foreground" title={selected.path}>{selected.path}</span>
             </div>
-            <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-4">
-              <Chan k="Operation" v={selected.opType ?? NOT_REPORTED} muted={!selected.opType} />
-              <Chan k="Shape" v={selected.shapeSignature ?? NOT_REPORTED} muted={!selected.shapeSignature} />
-              <Chan k="Repeat" v={`×${selected.repeatCount || 1}`} />
-              <Chan k="Parameters" v={selected.paramCount == null ? NOT_REPORTED : fmtCount(selected.paramCount)} muted={selected.paramCount == null} />
+            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
+              <LayerFact label="Type" value={selected.opType ?? NOT_REPORTED} muted={!selected.opType} />
+              <LayerFact label="Output" value={selected.shapeSignature ?? NOT_REPORTED} muted={!selected.shapeSignature} />
+              <LayerFact label="Repeats" value={`×${selected.repeatCount || 1}`} />
+              <LayerFact label="Parameters" value={selected.paramCount == null ? NOT_REPORTED : fmtCount(selected.paramCount)} muted={selected.paramCount == null} />
             </div>
           </div>
         )}
 
         <div className="mt-5 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
           <Chan
-            k="Columns"
-            v={`${columns.length} layer${columns.length === 1 ? "" : "s"} · ${layers.length} block${layers.length === 1 ? "" : "s"}${deepest > 1 ? `, deepest ×${deepest}` : ""}`}
+            k="Layers shown"
+            v={`${columns.length} layers · ${layers.length} blocks${deepest > 1 ? ` · max ×${deepest}` : ""}`}
           />
-          <Chan k="Nodes" v={widest.sig ? `output width · widest ${widest.sig}` : NOT_REPORTED} muted={!widest.sig} />
-          <Chan k="Edges" v="schematic — shapes are reported, wiring is not" muted />
+          <Chan k="Width shown" v={widest.sig ? `output width · max ${widest.sig}` : NOT_REPORTED} muted={!widest.sig} />
+          <Chan k="Connections" v="adjacent layers · schematic" muted />
           <Chan
-            k="Parameters"
-            v={insight?.paramCountTotal == null ? NOT_REPORTED : `${fmtCount(insight.paramCountTotal)} total`}
+            k="Total parameters"
+            v={insight?.paramCountTotal == null ? NOT_REPORTED : fmtCount(insight.paramCountTotal)}
             muted={insight?.paramCountTotal == null}
           />
           {incomplete > 0 && (
-            <Chan k="Dashed" v={`${incomplete} block${incomplete === 1 ? "" : "s"} · fact not reported`} muted />
+            <Chan k="Dotted layers" v={`${incomplete} incomplete block${incomplete === 1 ? "" : "s"}`} muted />
           )}
         </div>
 
-        <p className="mt-3 max-w-prose text-xs text-muted-foreground">
-          One column per layer, with <span className="font-mono">repeatCount</span> expanded — six
-          transformer layers are six columns. The edges are schematic: producers report block shapes and
-          repeat counts, not which unit connects to which, so the wiring shows that layers are adjacent,
-          not how they are joined. Deterministic — the same facts draw the same mark
-          {reporter ? <>, from what {reporter} reported.</> : "."}
-        </p>
       </CardContent>
     </Card>
   );
