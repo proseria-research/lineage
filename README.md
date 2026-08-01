@@ -278,8 +278,8 @@ external services are needed.
 - **Ports and adapters.** The domain core (`internal/core`, `internal/domain`) depends only
   on port interfaces. Adapters are wired at startup and are never imported by the core.
 - **Documentation.** Design docs live in [`docs/`](docs/), numbered in reading order; every
-  diagram is a Mermaid block; prose is kept concise. Resolved architectural decisions are
-  recorded as numbered ADRs under `docs/ADRs/`.
+  diagram is a Mermaid block; prose is kept concise. Architectural decisions are recorded in
+  [`docs/00-preplanning.md`](docs/00-preplanning.md) §11, which is the decision record.
 - **Tests.** New behavior ships with tests. Keep `go test ./...`, `gofmt`, and `go vet` clean.
 
 ### Pull requests

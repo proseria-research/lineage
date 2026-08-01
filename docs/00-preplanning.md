@@ -235,11 +235,11 @@ The chart is a product surface.
 | `10-sdk-and-cli.md` | client ergonomics |
 | `11-model-insights.md` | model composition as queryable metadata: params, layers, framework, precision/quantization, disk vs memory footprint, evaluations, architecture fingerprint + version diff |
 | `12-version-portrait.md` | procedurally generated per-version mark in the console: mark families, encodings, determinism |
-| `ADRs/` | one numbered file per significant decision |
 
 ## 11. Decisions
 
-Resolved (✅) become ADRs. Open (◻) resolve before the dependent doc.
+This section **is** the decision record — there is no separate ADR set. Each entry carries its
+own rationale; resolved is ✅, open is ◻ and resolves before the dependent doc.
 
 1. ✅ **Language → Go.** Static binaries, best K8s/Helm ergonomics, ecosystem fit.
 2. ✅ **Packaging → single binary, two surfaces on two ports.** One process serves the
@@ -280,5 +280,5 @@ Resolved (✅) become ADRs. Open (◻) resolve before the dependent doc.
 
 ## 12. Preplanning Done When
 
-Axioms + single-binary/two-surface model agreed; §11 decisions resolved (as ADRs);
+Axioms + single-binary/two-surface model agreed; §11 decisions resolved in place;
 §10 roadmap accepted → begin `01-architecture-overview.md`.

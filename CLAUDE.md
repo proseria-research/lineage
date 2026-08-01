@@ -62,8 +62,8 @@ These are hard rules. Follow them every time without being reminded.
 1. **All docs live in `docs/` and are numbered.** Every architecture/instruction
    doc filename begins with a zero-padded ordinal prefix reflecting reading order:
    `00-preplanning.md`, `01-architecture-overview.md`, `02-data-model.md`, …
-   ADRs live in `docs/ADRs/` and are likewise numbered (`0001-<slug>.md`). Never add
-   an un-numbered doc to `docs/`.
+   Never add an un-numbered doc to `docs/`. There is **no ADR set** — decisions are
+   recorded in `docs/00-preplanning.md` §11, which is the decision record.
 
 2. **All diagrams are Mermaid.** Every diagram — architecture, sequence, ER, state
    machine, flow — MUST be authored as a fenced ```mermaid block. Do **not** use
@@ -78,6 +78,6 @@ These are hard rules. Follow them every time without being reminded.
 ## Working style here
 
 - This is a docs-first project right now: we write architecture before code.
-- When a decision in `docs/00-preplanning.md` §11 is resolved, record it as a
-  numbered ADR under `docs/ADRs/` and update the preplanning doc.
+- When a decision in `docs/00-preplanning.md` §11 is resolved, flip its marker to ✅
+  **in place** and write the outcome and rationale into that entry.
 - Keep the `docs/` roadmap (preplanning §10) in sync as docs are added.
