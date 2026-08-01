@@ -1,4 +1,4 @@
-.PHONY: build run seed test test-console fmt vet tidy clean web web-dev docker helm-lint sdk sdk-check cli \
+.PHONY: build run seed test test-console fmt vet tidy clean web web-dev docker docker-init helm-lint sdk sdk-check cli \
         site site-dev site-preview site-check site-links site-deploy
 
 BIN := bin/lineage
@@ -6,6 +6,7 @@ WEB := internal/api/adminui/web
 SITE := site
 CHART := deploy/helm/lineage
 IMAGE ?= ghcr.io/proseria-research/lineage:dev
+INIT_IMAGE ?= ghcr.io/proseria-research/lineage-init:dev
 
 # web builds the Admin console (Vite/React) into web/dist. dist is not committed; the binary
 # embeds it only under the `console` build tag. Run this after changing the console.
@@ -44,9 +45,14 @@ vet:
 tidy:
 	go mod tidy
 
-# docker builds the single image (console + static binary → distroless nonroot).
+# docker builds the registry image (console + static binary → distroless nonroot).
 docker:
 	docker build -t $(IMAGE) .
+
+# docker-init builds the KServe storage-initializer image. CI publishes both; this is the
+# local equivalent of one matrix leg.
+docker-init:
+	docker build -f Dockerfile.init -t $(INIT_IMAGE) .
 
 # helm-lint validates the chart against both profiles.
 helm-lint:
