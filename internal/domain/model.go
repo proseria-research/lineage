@@ -111,14 +111,19 @@ type Artifact struct {
 }
 
 type LineageEdge struct {
-	ID        string          `json:"id"`
-	SrcType   string          `json:"srcType"`
-	SrcID     string          `json:"srcId"`
-	Relation  LineageRelation `json:"relation"`
-	DstType   string          `json:"dstType,omitempty"`
-	DstID     string          `json:"dstId,omitempty"`
-	DstRef    string          `json:"dstRef,omitempty"`
-	CreatedAt int64           `json:"createdAt"`
+	ID       string          `json:"id"`
+	SrcType  string          `json:"srcType"`
+	SrcID    string          `json:"srcId"`
+	Relation LineageRelation `json:"relation"`
+	DstType  string          `json:"dstType,omitempty"`
+	DstID    string          `json:"dstId,omitempty"`
+	DstRef   string          `json:"dstRef,omitempty"`
+	// Properties carries how the relation came about, e.g.
+	// {"method":"quantize","from_dtype":"fp16"} on a derived_from edge (§11.3.6). Keeping
+	// it here lets a diff verdict be corroborated by declared intent without extending the
+	// relation enum.
+	Properties json.RawMessage `json:"properties,omitempty"`
+	CreatedAt  int64           `json:"createdAt"`
 }
 
 type Deployment struct {

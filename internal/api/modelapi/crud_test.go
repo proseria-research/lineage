@@ -270,7 +270,7 @@ func TestAuditFeedAndOpenAPI(t *testing.T) {
 		t.Fatalf("bad openapi version: %v", spec["openapi"])
 	}
 	paths := spec["paths"].(map[string]any)
-	for _, want := range []string{"/v1/models", "/v1/models/{model}", "/v1/models/{model}/versions/{version}/artifacts", "/v1/models/{model}/versions/{version}/deployments"} {
+	for _, want := range []string{"/v1/models", "/v1/models/{model}", "/v1/models/{model}/versions/{version}/artifacts", "/v1/models/{model}/versions/{version}/deployments", "/v1/models/{model}/versions/{version}/insight", "/v1/models/{model}/versions/{version}/evaluations", "/v1/models/{model}/diff"} {
 		if _, ok := paths[want]; !ok {
 			t.Fatalf("openapi missing path %q", want)
 		}

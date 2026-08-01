@@ -86,6 +86,21 @@ type MetadataStore interface {
 	// Audit (append-only; read for the activity feed, §09)
 	AppendAudit(ctx context.Context, e *AuditEvent) error
 	ListAudit(ctx context.Context, subjectType, subjectID string, o ListOptions) ([]*AuditEvent, string, error)
+
+	// Insights (§11). Facts submitted by producers; the store only persists and returns
+	// them. GetInsight returns NotFound when a version has no insight recorded yet.
+	GetInsight(ctx context.Context, versionID string) (*VersionInsight, error)
+	UpsertInsight(ctx context.Context, in *VersionInsight) error
+	// ReplaceLayerBlocks swaps a version's whole layer set: the breakdown is a list, so
+	// per-element merge is meaningless (§11.6.1).
+	ReplaceLayerBlocks(ctx context.Context, versionID string, blocks []*LayerBlock) error
+	ListLayerBlocks(ctx context.Context, versionID string) ([]*LayerBlock, error)
+	// UpsertFootprint writes one scenario, keyed by (versionID, scenario).
+	UpsertFootprint(ctx context.Context, f *Footprint) error
+	ListFootprints(ctx context.Context, versionID string) ([]*Footprint, error)
+	// CreateEvaluation appends; evaluations are never overwritten (§11.7).
+	CreateEvaluation(ctx context.Context, e *Evaluation) error
+	ListEvaluations(ctx context.Context, versionID string) ([]*Evaluation, error)
 }
 
 // StorageCapabilities advertises what a backend can do so the API adapts (§05.2).

@@ -21,6 +21,12 @@ type Store struct {
 	lineage     map[string]*domain.LineageEdge  // id -> edge
 	deployments map[string]*domain.Deployment   // id -> deployment
 	audit       []*domain.AuditEvent
+
+	// Insights (§11), all keyed by version id.
+	insights    map[string]*domain.VersionInsight
+	layers      map[string][]*domain.LayerBlock
+	footprints  map[string][]*domain.Footprint
+	evaluations map[string][]*domain.Evaluation
 }
 
 func New() *Store {
@@ -31,6 +37,10 @@ func New() *Store {
 		artifacts:   map[string]*domain.Artifact{},
 		lineage:     map[string]*domain.LineageEdge{},
 		deployments: map[string]*domain.Deployment{},
+		insights:    map[string]*domain.VersionInsight{},
+		layers:      map[string][]*domain.LayerBlock{},
+		footprints:  map[string][]*domain.Footprint{},
+		evaluations: map[string][]*domain.Evaluation{},
 	}
 }
 
@@ -228,6 +238,11 @@ func (s *Store) deleteVersionLocked(id string) {
 			delete(s.lineage, eid)
 		}
 	}
+	// Insight rows cascade with the version (§11.3).
+	delete(s.insights, id)
+	delete(s.layers, id)
+	delete(s.footprints, id)
+	delete(s.evaluations, id)
 }
 
 func (s *Store) CountVersionsInStage(_ context.Context, modelID string, stage domain.Stage) (int, error) {

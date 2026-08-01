@@ -349,18 +349,19 @@ func (s *Store) ListArtifacts(ctx context.Context, versionID string) ([]*domain.
 
 // ---- Lineage & audit ----
 
+const edgeCols = "id,src_type,src_id,relation,dst_type,dst_id,dst_ref,properties,created_at"
+
 func (s *Store) AddLineageEdge(ctx context.Context, e *domain.LineageEdge) error {
 	_, err := s.db.ExecContext(ctx, s.rb(
-		`INSERT INTO lineage_edge (id,src_type,src_id,relation,dst_type,dst_id,dst_ref,created_at)
-		 VALUES (?,?,?,?,?,?,?,?)`),
-		e.ID, e.SrcType, e.SrcID, string(e.Relation), e.DstType, e.DstID, e.DstRef, e.CreatedAt)
+		`INSERT INTO lineage_edge (`+edgeCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
+		e.ID, e.SrcType, e.SrcID, string(e.Relation), e.DstType, e.DstID, e.DstRef,
+		jsonText(e.Properties), e.CreatedAt)
 	return err
 }
 
 func (s *Store) ListLineage(ctx context.Context, versionID string) ([]*domain.LineageEdge, error) {
 	rows, err := s.db.QueryContext(ctx, s.rb(
-		`SELECT id,src_type,src_id,relation,dst_type,dst_id,dst_ref,created_at
-		 FROM lineage_edge WHERE src_id=? OR dst_id=?`), versionID, versionID)
+		`SELECT `+edgeCols+` FROM lineage_edge WHERE src_id=? OR dst_id=?`), versionID, versionID)
 	if err != nil {
 		return nil, err
 	}
@@ -369,10 +370,12 @@ func (s *Store) ListLineage(ctx context.Context, versionID string) ([]*domain.Li
 	for rows.Next() {
 		var e domain.LineageEdge
 		var rel string
-		if err := rows.Scan(&e.ID, &e.SrcType, &e.SrcID, &rel, &e.DstType, &e.DstID, &e.DstRef, &e.CreatedAt); err != nil {
+		var props sql.NullString
+		if err := rows.Scan(&e.ID, &e.SrcType, &e.SrcID, &rel, &e.DstType, &e.DstID, &e.DstRef, &props, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		e.Relation = domain.LineageRelation(rel)
+		e.Properties = fromNull(props)
 		out = append(out, &e)
 	}
 	return out, rows.Err()
