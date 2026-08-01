@@ -9,6 +9,8 @@ import { StageTrack } from "@/components/StageTrack";
 import { Cube } from "@/components/Cube";
 import { LineageGraphView } from "@/components/LineageGraphView";
 import { InsightPanel } from "@/components/InsightPanel";
+import { VersionPortrait } from "@/components/VersionPortrait";
+import { VersionFingerprint } from "@/components/VersionFingerprint";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
@@ -50,15 +52,22 @@ export default function VersionDetail() {
 
       {v.description && <p className="mb-5 max-w-2xl text-sm text-muted-foreground">{v.description}</p>}
 
-      {/* Lifecycle: where this version sits on the stage machine, and when it got there */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Lifecycle</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <StageTrack version={v} audit={data.audit} />
-        </CardContent>
-      </Card>
+      {/* Top row: what this version *is* (§12.4, identity) beside where it sits (§02.4).
+          The fingerprint is square and compact; the lifecycle takes the remaining width. */}
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+        <VersionFingerprint insight={data.insight} />
+        <Card>
+          <CardHeader>
+            <CardTitle>Lifecycle</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StageTrack version={v} audit={data.audit} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* The structure drawing (§12.3), full width — a left-to-right stack wants the axis. */}
+      <VersionPortrait insight={data.insight} />
 
       {/* Artifacts */}
       <Card className="mb-6">

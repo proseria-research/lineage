@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 /* Lineage console design system — monochrome, thin 1px lines, sharp (0-radius) borders.
-   All tokens are grayscale; there is no accent color. Auto light/dark via prefers-color-scheme. */
+   Every token is grayscale with one deliberate exception: --portrait, a low-chroma slate used
+   only by the version portrait diagram (§12.3). It is not an accent and nothing else may use
+   it — the chart is the one surface where a drawn network needs to separate from the 1px
+   furniture around it. Auto light/dark via prefers-color-scheme. */
 
 :root {
   --radius: 0px;
@@ -24,6 +27,7 @@
   --border: oklch(0.9 0 0);
   --input: oklch(0.9 0 0);
   --ring: oklch(0.16 0 0);
+  --portrait: oklch(0.53 0.045 245);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -47,6 +51,7 @@
     --border: oklch(0.28 0 0);
     --input: oklch(0.3 0 0);
     --ring: oklch(0.8 0 0);
+    --portrait: oklch(0.72 0.05 245);
   }
 }
 
@@ -70,6 +75,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-portrait: var(--portrait);
   --radius-sm: 0px;
   --radius-md: 0px;
   --radius-lg: 0px;

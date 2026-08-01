@@ -233,6 +233,7 @@ The chart is a product surface.
 | `09-observability-and-ops.md` | metrics, logs, traces, SLOs, runbooks |
 | `10-sdk-and-cli.md` | client ergonomics |
 | `11-model-insights.md` | model composition as queryable metadata: params, layers, framework, precision/quantization, disk vs memory footprint, evaluations, architecture fingerprint + version diff |
+| `12-version-portrait.md` | procedurally generated per-version mark in the console: mark families, encodings, determinism |
 | `ADRs/` | one numbered file per significant decision |
 
 ## 11. Decisions
