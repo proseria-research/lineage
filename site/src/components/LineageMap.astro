@@ -82,27 +82,54 @@ const nodes = [
 			>
 				<path class="map__arrow" d="M 0 0 L 10 5 L 0 10 z"></path>
 			</marker>
+			{/* marker-end is a CSS property, so hover swaps the arrowhead for the lit one. */}
+			<marker
+				id="map-arrow-lit"
+				viewBox="0 0 10 10"
+				refX="9"
+				refY="5"
+				markerWidth="5"
+				markerHeight="5"
+				orient="auto-start-reverse"
+			>
+				<path class="map__arrow map__arrow--lit" d="M 0 0 L 10 5 L 0 10 z"></path>
+			</marker>
 		</defs>
 
+		{/*
+			One group per edge — branch, relation, and leaf together — so hovering any part
+			of an edge lights the whole edge and dims the rest. The wide transparent hit
+			path makes the dotted curve catchable; the dots themselves are 2.5px.
+		*/}
 		{
-			nodes.map(({ leaf, side, fan }) => (
-				<path class="map__branch" d={branch(leaf, side, fan)} marker-end="url(#map-arrow)" />
-			))
-		}
-
-		{
-			nodes.map(({ leaf, side }) => {
+			nodes.map(({ leaf, side, fan }, index) => {
 				const at = labelAt(leaf, side);
+				const x = leafX(side);
+				const y = leaf.cy - LEAF.h / 2;
+				const d = branch(leaf, side, fan);
 				return (
-					<text class="map__relation" x={at.x} y={at.y} text-anchor="middle">
-						{leaf.relation}
-					</text>
+					<g class="map__edge">
+						<path class="map__hit" d={d} />
+						<path class="map__branch" d={d} marker-end="url(#map-arrow)" />
+						<text class="map__relation" x={at.x} y={at.y} text-anchor="middle">
+							{leaf.relation}
+						</text>
+						<g class="map__node-group" style={`--n: ${index + 1}`}>
+							<rect class="map__node" x={x} y={y} width={LEAF.w} height={LEAF.h} />
+							<text class="map__kind" x={x + 14} y={y + 22}>
+								{leaf.kind}
+							</text>
+							<text class="map__name" x={x + 14} y={y + 43}>
+								{leaf.name}
+							</text>
+						</g>
+					</g>
 				);
 			})
 		}
 
 		{/* The subject sits on top of the branch ends, so it is drawn after them. */}
-		<g class="map__node-group" style="--n: 0">
+		<g class="map__node-group map__subject" style="--n: 0">
 			<rect
 				class="map__node map__node--subject"
 				x={CENTRE.x}
@@ -114,23 +141,5 @@ const nodes = [
 			<text class="map__subject-name" x={CENTRE.x + 16} y={CENTRE.y + 48}>fraud-detector 1.4.0</text>
 			<text class="map__meta" x={CENTRE.x + 16} y={CENTRE.y + 67}>production · sha256:9f2c4a10</text>
 		</g>
-
-		{
-			nodes.map(({ leaf, side }, index) => {
-				const x = leafX(side);
-				const y = leaf.cy - LEAF.h / 2;
-				return (
-					<g class="map__node-group" style={`--n: ${index + 1}`}>
-						<rect class="map__node" x={x} y={y} width={LEAF.w} height={LEAF.h} />
-						<text class="map__kind" x={x + 14} y={y + 22}>
-							{leaf.kind}
-						</text>
-						<text class="map__name" x={x + 14} y={y + 43}>
-							{leaf.name}
-						</text>
-					</g>
-				);
-			})
-		}
 	</svg>
 </figure>
