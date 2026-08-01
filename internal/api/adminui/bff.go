@@ -66,6 +66,11 @@ type versionDetailDTO struct {
 	Lineage        []*domain.LineageEdge `json:"lineage"`
 	Deployments    []*domain.Deployment  `json:"deployments"`
 	Audit          []*domain.AuditEvent  `json:"audit"`
+	// Insight is null when nobody has reported on this version. The console renders that
+	// as "not reported", never as zeroes (§11.8).
+	Insight     *domain.VersionInsight `json:"insight"`
+	Footprints  []*domain.Footprint    `json:"footprints"`
+	Evaluations []*domain.Evaluation   `json:"evaluations"`
 }
 
 // stageOrder gives transition buttons a stable, sensible order (promote paths first).
@@ -162,10 +167,34 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 	edges, _ := r.svc.ListLineage(ctx, model, version)
 	deps, _ := r.svc.ListDeployments(ctx, model, version)
 	audit, _, _ := r.svc.ListAudit(ctx, "model_version", v.ID, domain.ListOptions{PageSize: 50})
+	// Insight is optional: an error here means nothing has been reported, which is a
+	// legitimate state the panel renders as such (§11.2).
+	insight, _ := r.svc.GetInsight(ctx, model, version, true)
+	footprints, _ := r.svc.ListFootprints(ctx, model, version)
+	evals, _ := r.svc.ListEvaluations(ctx, model, version)
 	api.WriteJSON(w, http.StatusOK, versionDetailDTO{
 		Model: model, Version: toSummary(v), AllowedTargets: allowedTargets(v.Stage),
 		Artifacts: nz(arts), Lineage: nz(edges), Deployments: nz(deps), Audit: nz(audit),
+		Insight: insight, Footprints: nz(footprints), Evaluations: nz(evals),
 	})
+}
+
+// compare backs the console's side-by-side view (§11.8). It is the same core diff the
+// Model API serves, shaped for one model's two versions.
+func (r *Router) compare(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+	from, to := q.Get("from"), q.Get("to")
+	if from == "" || to == "" {
+		api.WriteError(w, domain.Invalid("compare requires ?from= and ?to= version names"))
+		return
+	}
+	model := req.PathValue("model")
+	d, err := r.svc.DiffVersions(req.Context(), model, from, model, to)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, d)
 }
 
 // transition promotes/moves a version's stage (§03.7) — the console's human-approver action.

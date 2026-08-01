@@ -64,23 +64,41 @@ export default function ModelDetail() {
                 <TableHead>Stage</TableHead>
                 <TableHead>Author</TableHead>
                 <TableHead className="text-right">Created</TableHead>
+                <TableHead className="text-right">Compare</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.versions.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono font-medium">
-                    <Link to={`/models/${model}/versions/${v.name}`} className="hover:underline underline-offset-4">
-                      {v.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <StageBadge stage={v.stage} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{v.author || "—"}</TableCell>
-                  <TableCell className="text-right label-caps">{relTime(v.createdAt)}</TableCell>
-                </TableRow>
-              ))}
+              {data.versions.map((v, i) => {
+                // Adjacent rows answer the usual question — what changed in this release?
+                // Any other pair is reachable by editing the compare URL.
+                const neighbour = data.versions[i + 1];
+                return (
+                  <TableRow key={v.id}>
+                    <TableCell className="font-mono font-medium">
+                      <Link to={`/models/${model}/versions/${v.name}`} className="hover:underline underline-offset-4">
+                        {v.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <StageBadge stage={v.stage} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{v.author || "—"}</TableCell>
+                    <TableCell className="text-right label-caps">{relTime(v.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      {neighbour ? (
+                        <Link
+                          to={`/models/${model}/compare?from=${encodeURIComponent(neighbour.name)}&to=${encodeURIComponent(v.name)}`}
+                          className="label-caps hover:underline underline-offset-4"
+                        >
+                          vs {neighbour.name}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>

@@ -95,6 +95,128 @@ export interface Deployment {
   updatedAt: number;
 }
 
+// ---- Model insights (§11). Facts reported by producers; the registry derives none of
+// them, so every value carries where it came from and absent means "not reported". ----
+
+export type FactSource = "declared" | "derived" | "measured";
+
+export interface FieldSource {
+  source: FactSource;
+  reporter?: string;
+  reporterVersion?: string;
+  at: number;
+}
+
+export interface LayerBlock {
+  ordinal: number;
+  path: string;
+  opType?: string;
+  repeatCount: number;
+  shapeSignature?: string;
+  dtype?: string;
+  paramCount?: number | null;
+  bytes?: number | null;
+}
+
+export interface VersionInsight {
+  versionId: string;
+  framework?: { name?: string; version?: string };
+  producer?: { name?: string; version?: string };
+  paramCountTotal?: number | null;
+  paramCountTrainable?: number | null;
+  paramCountMethod?: string;
+  tensorCount?: number | null;
+  dtypeDominant?: string;
+  quantMethod?: string;
+  diskBytes?: number | null;
+  weightsBytes?: number | null;
+  hashes: { topology?: string; shape?: string; dtype?: string; weights?: string };
+  source: FactSource;
+  fieldSources?: Record<string, FieldSource>;
+  reporterName?: string;
+  reporterVersion?: string;
+  coverage?: Record<string, string>;
+  layers?: LayerBlock[];
+  updatedAt: number;
+}
+
+export interface Footprint {
+  id: string;
+  scenario: string;
+  deviceClass?: string;
+  batch?: number | null;
+  seqLen?: number | null;
+  weightsBytes?: number | null;
+  kvCacheBytes?: number | null;
+  activationBytes?: number | null;
+  runtimeOverheadBytes?: number | null;
+  totalBytes?: number | null;
+  source: "estimated" | "measured";
+  basis?: Record<string, unknown>;
+}
+
+export interface Evaluation {
+  id: string;
+  suite: string;
+  metric: string;
+  split?: string;
+  value: number;
+  higherIsBetter: boolean;
+  nSamples?: number | null;
+  harnessName?: string;
+  harnessVersion?: string;
+  source: FactSource;
+  runAt?: number;
+}
+
+export type Verdict = "identical" | "reweighted" | "recast" | "rescaled" | "rearchitected" | "unknown";
+
+export interface HashCmp {
+  from?: string;
+  to?: string;
+  changed?: boolean | null;
+  present: boolean;
+}
+
+export interface InsightDiff {
+  from: { model: string; version: string };
+  to: { model: string; version: string };
+  verdict: Verdict;
+  candidates?: Verdict[];
+  missing?: string[];
+  hashes: Record<string, HashCmp>;
+  tensors?: { unchanged: number; changed: number; added: number; removed: number; changedPatterns?: string[] };
+  params?: { field: string; from?: number | null; to?: number | null; delta?: number | null; fromSource?: string; toSource?: string }[];
+  footprints?: {
+    scenario: string;
+    fromTotalBytes?: number | null;
+    toTotalBytes?: number | null;
+    delta?: number | null;
+    fromSource?: string;
+    toSource?: string;
+    comparable: boolean;
+  }[];
+  metrics?: {
+    suite: string;
+    metric: string;
+    split?: string;
+    harnessVersion?: string;
+    from?: number | null;
+    to?: number | null;
+    delta?: number | null;
+    direction?: "better" | "worse" | "same";
+    comparable: boolean;
+    reason?: string;
+  }[];
+  basis: {
+    fromHasInsight: boolean;
+    toHasInsight: boolean;
+    fromHashes?: string[];
+    toHashes?: string[];
+    tensorDigests: boolean;
+  };
+}
+
 export interface VersionDetail {
   model: string;
   version: VersionSummary & { description?: string; labels?: Record<string, string> };
@@ -103,6 +225,10 @@ export interface VersionDetail {
   lineage: LineageEdge[];
   deployments: Deployment[];
   audit: AuditEvent[];
+  // null when no producer has reported on this version.
+  insight: VersionInsight | null;
+  footprints: Footprint[];
+  evaluations: Evaluation[];
 }
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -146,6 +272,10 @@ export const api = {
   graph: (m: string, v: string, direction: "upstream" | "downstream") =>
     getJSON<LineageGraph>(
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/graph?direction=${direction}`,
+    ),
+  compare: (m: string, from: string, to: string) =>
+    getJSON<InsightDiff>(
+      `/api/models/${encodeURIComponent(m)}/compare?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
   activity: (token = "") =>
     getJSON<{ items: AuditEvent[]; nextPageToken: string }>(`/api/activity${token ? `?pageToken=${encodeURIComponent(token)}` : ""}`),
