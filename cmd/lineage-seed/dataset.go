@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 
 	"github.com/proseria-research/lineage/internal/core"
@@ -28,6 +30,19 @@ type version struct {
 	Lineage     []core.LineageInput
 	Path        []domain.Stage // stage moves applied in order; empty leaves it in draft
 	Deployments []core.DeploymentInput
+	// Insight submissions, applied in order (§11.6.1). More than one entry seeds the
+	// multi-producer case the merge exists for: a header scanner reports what it can read
+	// cheaply, then the SDK adds what only a publish-time walk knows. Leaving this empty
+	// seeds a version nobody has reported on, which the console renders as such.
+	Insight     []core.InsightWrite
+	Footprints  []seedFootprint
+	Evaluations []core.EvaluationInput
+}
+
+// seedFootprint is one memory scenario; the scenario name is the upsert key (§11.3.3).
+type seedFootprint struct {
+	Scenario string
+	core.FootprintInput
 }
 
 // blob is a synthetic artifact payload. Bytes are deterministic, so re-seeding produces the
@@ -52,7 +67,16 @@ func (b blob) bytes() []byte {
 
 // Lineage edge constructors (§07): `to` carries exactly one of a sibling version or an
 // external URI, so each relation gets its own helper.
-func derivedFrom(v string) core.LineageInput  { return edge(domain.RelDerivedFrom, v, "") }
+func derivedFrom(v string) core.LineageInput { return edge(domain.RelDerivedFrom, v, "") }
+
+// derivedFromWith records *how* the version was derived alongside the edge (§11.3.6) — the
+// hashes can show the shape is unchanged, but only a declaration says "this is a quantize".
+func derivedFromWith(v, properties string) core.LineageInput {
+	e := edge(domain.RelDerivedFrom, v, "")
+	e.Properties = json.RawMessage(properties)
+	return e
+}
+
 func trainedOn(uri string) core.LineageInput  { return edge(domain.RelTrainedOn, "", uri) }
 func producedBy(uri string) core.LineageInput { return edge(domain.RelProducedBy, "", uri) }
 
@@ -71,6 +95,81 @@ func onnx(filler string) blob {
 }
 
 func props(s string) json.RawMessage { return json.RawMessage(s) }
+
+// ---- Insight helpers (§11) ----
+
+// facts marshals a fact map for an InsightWrite payload.
+func facts(kv map[string]any) map[string]json.RawMessage {
+	out := make(map[string]json.RawMessage, len(kv))
+	for k, v := range kv {
+		b, err := json.Marshal(v)
+		if err != nil {
+			panic("seed: unmarshalable fact " + k + ": " + err.Error())
+		}
+		out[k] = b
+	}
+	return out
+}
+
+func hashes(topology, shape, dtype, weights string) map[string]string {
+	h := map[string]string{}
+	for k, v := range map[string]string{"topology": topology, "shape": shape, "dtype": dtype, "weights": weights} {
+		if v != "" {
+			h[k] = "sha256:" + v
+		}
+	}
+	return h
+}
+
+var yes, no = true, false
+
+// eval is a reported quality result. Direction is explicit because the sign of a delta
+// cannot be inferred from a metric name (§11.3.4).
+func eval(suite, metric, split string, value float64, higherIsBetter *bool) core.EvaluationInput {
+	return core.EvaluationInput{
+		Suite: suite, Metric: metric, Split: split, Value: value, HigherIsBetter: higherIsBetter,
+		HarnessName: "lm-eval", HarnessVersion: "0.4.2", NSamples: ptr(int64(1821)),
+		Source: domain.SourceMeasured,
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// distilbertTensors is a trimmed but realistic tensor list for the sentiment model, enough
+// for the per-tensor diff to show a partial weight change (§11.4.2).
+var distilbertTensors = []string{
+	"classifier.weight",
+	"distilbert.embeddings.word_embeddings.weight",
+	"distilbert.transformer.layer.0.attention.q_lin.weight",
+	"distilbert.transformer.layer.0.attention.v_lin.weight",
+	"distilbert.transformer.layer.0.ffn.lin1.weight",
+	"distilbert.transformer.layer.1.attention.q_lin.weight",
+	"distilbert.transformer.layer.1.attention.v_lin.weight",
+	"distilbert.transformer.layer.1.ffn.lin1.weight",
+}
+
+// archDoc builds a canonical arch doc whose per-tensor digests are deterministic. Tensors
+// named in `changed` get a different digest, so a diff between two docs reports exactly
+// those as changed — the signature of a merged adapter rather than a full fine-tune.
+func archDoc(dtype string, changed ...string) json.RawMessage {
+	dirty := map[string]bool{}
+	for _, c := range changed {
+		dirty[c] = true
+	}
+	doc := domain.ArchDoc{}
+	for _, name := range distilbertTensors {
+		salt := "base"
+		if dirty[name] {
+			salt = "tuned"
+		}
+		sum := sha256.Sum256([]byte(name + "|" + dtype + "|" + salt))
+		doc.Tensors = append(doc.Tensors, domain.ArchTensor{
+			Name: name, Dtype: dtype, Digest: "sha256:" + hex.EncodeToString(sum[:]),
+		})
+	}
+	b, _ := json.Marshal(doc)
+	return b
+}
 
 var (
 	staged     = []domain.Stage{domain.StageStaging}
@@ -123,6 +222,20 @@ var dataset = []seedModel{
 					Status:      domain.DeployActive,
 					ExternalRef: "kserve/payments/fraud-detector",
 				}},
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+					Reporter: "lineage-scanner", ReporterVersion: "0.3.1",
+					Facts: facts(map[string]any{
+						"hashes":        hashes("fraud-topo-v1", "fraud-shape-v1", "fp32-dtypes", ""),
+						"framework":     map[string]string{"name": "xgboost", "version": "2.0"},
+						"dtypeDominant": "fp32",
+						"coverage": map[string]string{
+							"paramCountTotal": domain.CoverageNotAttempted,
+							"weightsBytes":    domain.CoverageNotAttempted,
+						},
+					}),
+				}},
+				Evaluations: []core.EvaluationInput{eval("holdout-2026-04", "recall_at_fpr_001", "test", 0.712, &yes)},
 			},
 			{
 				Name: "1.2.0-rc1", Author: "dev@acme.example",
@@ -131,6 +244,24 @@ var dataset = []seedModel{
 				Uploads:     []blob{onnx("graph-embeddings-")},
 				Lineage:     []core.LineageInput{derivedFrom("1.1.0")},
 				Path:        staged,
+				// A header-only scan: three hashes, no weights hash. A diff against 1.1.0
+				// still separates a shape change from an unchanged shape, but cannot tell an
+				// untouched republish from a retrain — and reports that (§11.4.3).
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+					Reporter: "lineage-scanner", ReporterVersion: "0.3.1",
+					Facts: facts(map[string]any{
+						// Same tree structure, wider feature space: `rescaled`, and decidable
+						// from header hashes alone — no weights hash needed (§11.4.1).
+						"hashes":        hashes("fraud-topo-v1", "fraud-shape-v2", "fp32-dtypes", ""),
+						"framework":     map[string]string{"name": "xgboost", "version": "2.0"},
+						"dtypeDominant": "fp32",
+						"coverage": map[string]string{
+							"paramCountTotal": domain.CoverageNotAttempted,
+							"weightsBytes":    domain.CoverageNotAttempted,
+						},
+					}),
+				}},
 				Deployments: []core.DeploymentInput{{
 					Environment: stagingEnv,
 					EndpointURI: "https://staging.serving.acme.example/v1/models/fraud-detector:predict",
@@ -186,6 +317,27 @@ var dataset = []seedModel{
 					EndpointURI: "https://serving.acme.example/v1/models/churn-predictor:predict",
 					Status:      domain.DeployActive,
 				}},
+				// A pickled sklearn model exposes nothing safely, so the only honest record
+				// is a declaration plus a coverage map saying why the rest is absent. The
+				// console shows "not reported" here, and a diff against 0.9.0 returns
+				// verdict `unknown` rather than inventing one (§11.2, §11.5).
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDeclared,
+					Reporter: "release-checklist",
+					Facts: facts(map[string]any{
+						"framework": map[string]string{"name": "scikit-learn", "version": "1.5"},
+						"diskBytes": 6_291_456,
+						"coverage": map[string]string{
+							"paramCountTotal": domain.CoverageUnavailable,
+							"tensorCount":     domain.CoverageUnavailable,
+							"hashes":          domain.CoverageUnavailable,
+						},
+					}),
+				}},
+				Evaluations: []core.EvaluationInput{
+					eval("holdout-2026-05", "auc", "test", 0.8412, &yes),
+					eval("holdout-2026-05", "logloss", "test", 0.3187, &no),
+				},
 			},
 		},
 	},
@@ -210,6 +362,50 @@ var dataset = []seedModel{
 					EndpointURI: "https://serving.acme.example/v1/models/sentiment-classifier:predict",
 					Status:      domain.DeployActive,
 				}},
+				// Two producers, disjoint fields: the scanner reads the file header, the SDK
+				// reports what only a publish-time module walk knows (§11.6.1).
+				Insight: []core.InsightWrite{
+					{
+						SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+						Reporter: "lineage-scanner", ReporterVersion: "0.3.1",
+						Facts: facts(map[string]any{
+							"hashes":        hashes("d15t1lb3rt-topo", "d15t1lb3rt-shape", "fp32-dtypes", ""),
+							"framework":     map[string]string{"name": "pytorch", "version": "2.4.1"},
+							"producer":      map[string]string{"name": "transformers", "version": "4.44"},
+							"tensorCount":   101,
+							"dtypeDominant": "fp32",
+							"diskBytes":     267_967_963,
+							"coverage":      map[string]string{"quantMethod": domain.CoverageUnavailable},
+						}),
+						Layers: &[]domain.LayerBlock{
+							{Path: "distilbert.embeddings.word_embeddings", OpType: "Embedding", ShapeSignature: "[30522,768]", Dtype: "fp32", ParamCount: ptr(int64(23_440_896))},
+							{Path: "distilbert.transformer.layer.*.attention.q_lin", OpType: "Linear", RepeatCount: 6, ShapeSignature: "[768,768]", Dtype: "fp32", ParamCount: ptr(int64(590_592))},
+							{Path: "distilbert.transformer.layer.*.ffn.lin1", OpType: "Linear", RepeatCount: 6, ShapeSignature: "[768,3072]", Dtype: "fp32", ParamCount: ptr(int64(2_362_368))},
+							{Path: "classifier", OpType: "Linear", ShapeSignature: "[768,2]", Dtype: "fp32", ParamCount: ptr(int64(1_538))},
+						},
+					},
+					{
+						SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+						Reporter: "lineage-sdk", ReporterVersion: "1.0.0",
+						Facts: facts(map[string]any{
+							"paramCountTotal":  66_955_010,
+							"paramCountMethod": "from_tensors",
+							"weightsBytes":     267_820_040,
+							"hashes":           map[string]string{"weights": "sha256:base-weights"},
+							"archDoc":          archDoc("fp32"),
+							"coverage":         map[string]string{"paramCountTotal": domain.CoverageFilled},
+						}),
+					},
+				},
+				Footprints: []seedFootprint{{
+					Scenario: "bs1-seq128",
+					FootprintInput: core.FootprintInput{
+						DeviceClass: "cpu", Batch: ptr(int64(1)), SeqLen: ptr(int64(128)),
+						WeightsBytes: ptr(int64(267_820_040)), TotalBytes: ptr(int64(412_090_368)),
+						Source: domain.FootprintMeasured,
+					},
+				}},
+				Evaluations: []core.EvaluationInput{eval("sst2", "acc", "validation", 0.9106, &yes)},
 			},
 			{
 				Name: "2.2.0-rc1", Author: "lee@acme.example",
@@ -219,6 +415,82 @@ var dataset = []seedModel{
 					ModelFormat: &domain.ModelFormat{Name: "transformers", Version: "4.44"},
 				}},
 				Lineage: []core.LineageInput{derivedFrom("2.1.0")},
+				// Same architecture, same precision, different weights — but only the
+				// attention projections and the head moved. That partial pattern is a merged
+				// adapter, which a checkpoint-level digest could never show (§11.4.2).
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+					Reporter: "lineage-sdk", ReporterVersion: "1.0.0",
+					Facts: facts(map[string]any{
+						"hashes":           hashes("d15t1lb3rt-topo", "d15t1lb3rt-shape", "fp32-dtypes", "tuned-weights"),
+						"framework":        map[string]string{"name": "pytorch", "version": "2.4.1"},
+						"paramCountTotal":  66_955_010,
+						"paramCountMethod": "from_tensors",
+						"tensorCount":      101,
+						"dtypeDominant":    "fp32",
+						"diskBytes":        267_967_963,
+						"archDoc": archDoc("fp32",
+							"classifier.weight",
+							"distilbert.transformer.layer.0.attention.q_lin.weight",
+							"distilbert.transformer.layer.0.attention.v_lin.weight",
+							"distilbert.transformer.layer.1.attention.q_lin.weight",
+							"distilbert.transformer.layer.1.attention.v_lin.weight",
+						),
+					}),
+				}},
+				Evaluations: []core.EvaluationInput{eval("sst2", "acc", "validation", 0.9231, &yes)},
+			},
+			{
+				Name: "2.2.0-int8", Author: "lee@acme.example",
+				Description: "Post-training quantization of the rc1 checkpoint for CPU serving.",
+				Artifacts: []core.ArtifactInput{{
+					Name: "weights", URI: "hf://acme/sentiment-support-tickets-int8",
+					ModelFormat: &domain.ModelFormat{Name: "onnx", Version: "1.16"},
+				}},
+				// The edge records *how* it was derived; hashes prove the shape is unchanged
+				// but cannot prove why the weights moved (§11.3.6, §11.4.4).
+				Lineage: []core.LineageInput{
+					derivedFromWith("2.2.0-rc1", `{"method":"quantize","from_dtype":"fp32","tool":"onnxruntime"}`),
+				},
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+					Reporter: "lineage-sdk", ReporterVersion: "1.0.0",
+					Facts: facts(map[string]any{
+						// Same topology and shape, different dtype: the recast row of §11.4.1.
+						"hashes":           hashes("d15t1lb3rt-topo", "d15t1lb3rt-shape", "int8-dtypes", "int8-weights"),
+						"framework":        map[string]string{"name": "onnxruntime", "version": "1.19"},
+						"paramCountTotal":  66_955_010,
+						"paramCountMethod": "from_tensors",
+						"tensorCount":      101,
+						"dtypeDominant":    "int8",
+						"quantMethod":      "ptq-static",
+						"quantScope":       map[string]any{"excluded": []string{"classifier"}},
+						"diskBytes":        67_512_320,
+						"archDoc":          archDoc("int8"),
+					}),
+				}},
+				Footprints: []seedFootprint{
+					{
+						Scenario: "bs1-seq128",
+						FootprintInput: core.FootprintInput{
+							DeviceClass: "cpu", Batch: ptr(int64(1)), SeqLen: ptr(int64(128)),
+							WeightsBytes: ptr(int64(67_108_864)), TotalBytes: ptr(int64(148_897_792)),
+							Source: domain.FootprintMeasured,
+						},
+					},
+					{
+						// An estimate must carry the assumptions behind it, or the number
+						// cannot be interpreted by anyone else (§11.3.3).
+						Scenario: "bs32-seq512",
+						FootprintInput: core.FootprintInput{
+							DeviceClass: "cpu", Batch: ptr(int64(32)), SeqLen: ptr(int64(512)),
+							TotalBytes: ptr(int64(1_073_741_824)), Source: domain.FootprintEstimated,
+							Basis: props(`{"kvDtype":"int8","activationModel":"peak-per-layer","runtime":"onnxruntime 1.19"}`),
+						},
+					},
+				},
+				// The tradeoff: a quarter of the disk, half a point of accuracy.
+				Evaluations: []core.EvaluationInput{eval("sst2", "acc", "validation", 0.9178, &yes)},
 			},
 		},
 	},
@@ -229,16 +501,55 @@ var dataset = []seedModel{
 			Owner:       "supply-ml@acme.example",
 			Labels:      map[string]string{"team": "supply", "tier": "standard"},
 		},
-		Versions: []version{{
-			Name: "0.4.0", Author: "raj@acme.example",
-			Description: "Experimental hierarchical model; not yet evaluated.",
-			Artifacts: []core.ArtifactInput{{
-				Name: "model.xgb", URI: "gs://acme-models/demand-forecast/0.4.0/model.xgb",
-				MediaType:   "application/octet-stream",
-				ModelFormat: &domain.ModelFormat{Name: "xgboost", Version: "2.0"},
-			}},
-			Lineage: []core.LineageInput{trainedOn("gs://acme-datasets/supply/orders-2026-06.parquet")},
-		}},
+		Versions: []version{
+			{
+				Name: "0.4.0", Author: "raj@acme.example",
+				Description: "Experimental hierarchical model; not yet evaluated.",
+				Artifacts: []core.ArtifactInput{{
+					Name: "model.xgb", URI: "gs://acme-models/demand-forecast/0.4.0/model.xgb",
+					MediaType:   "application/octet-stream",
+					ModelFormat: &domain.ModelFormat{Name: "xgboost", Version: "2.0"},
+				}},
+				Lineage: []core.LineageInput{trainedOn("gs://acme-datasets/supply/orders-2026-06.parquet")},
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+					Reporter: "lineage-scanner", ReporterVersion: "0.3.1",
+					Facts: facts(map[string]any{
+						"hashes":        hashes("demand-topo-v1", "demand-shape-v1", "fp32-dtypes", ""),
+						"framework":     map[string]string{"name": "xgboost", "version": "2.0"},
+						"dtypeDominant": "fp32",
+						"coverage":      map[string]string{"weightsBytes": domain.CoverageNotAttempted},
+					}),
+				}},
+			},
+			{
+				// A scheduled weekly retrain: identical structure, so the header hashes all
+				// match. Without a weights hash the diff cannot tell whether the retrain
+				// actually moved anything — it narrows to two candidates and names what is
+				// missing rather than picking one (§11.4.3).
+				Name: "0.4.1", Author: "raj@acme.example",
+				Description: "Weekly retrain on July orders; same structure as 0.4.0.",
+				Artifacts: []core.ArtifactInput{{
+					Name: "model.xgb", URI: "gs://acme-models/demand-forecast/0.4.1/model.xgb",
+					MediaType:   "application/octet-stream",
+					ModelFormat: &domain.ModelFormat{Name: "xgboost", Version: "2.0"},
+				}},
+				Lineage: []core.LineageInput{
+					derivedFrom("0.4.0"),
+					trainedOn("gs://acme-datasets/supply/orders-2026-07.parquet"),
+				},
+				Insight: []core.InsightWrite{{
+					SchemaVersion: core.InsightSchemaVersion, Source: domain.SourceDerived,
+					Reporter: "lineage-scanner", ReporterVersion: "0.3.1",
+					Facts: facts(map[string]any{
+						"hashes":        hashes("demand-topo-v1", "demand-shape-v1", "fp32-dtypes", ""),
+						"framework":     map[string]string{"name": "xgboost", "version": "2.0"},
+						"dtypeDominant": "fp32",
+						"coverage":      map[string]string{"weightsBytes": domain.CoverageNotAttempted},
+					}),
+				}},
+			},
+		},
 	},
 	{
 		CreateModelInput: core.CreateModelInput{
