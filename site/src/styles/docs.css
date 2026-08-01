@@ -1,0 +1,92 @@
+/* Starlight adjustments so the guides read as the same publication as the
+   landing page. Tokens live in tokens.css. */
+
+.site-title,
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+	font-family: var(--ln-display);
+	font-weight: 600;
+	letter-spacing: -0.022em;
+}
+
+.site-title {
+	font-size: 1.15rem;
+}
+
+.sl-markdown-content h1 {
+	font-size: clamp(2rem, 4vw, 2.75rem);
+	line-height: 1.05;
+}
+
+.sl-markdown-content h2 {
+	font-size: 1.5rem;
+	margin-top: 2.5rem;
+	padding-top: 1.25rem;
+	border-top: 2px solid var(--ln-rule);
+}
+
+.sl-markdown-content h3 {
+	font-size: 1.15rem;
+}
+
+/* Square corners everywhere, matching the mark. */
+.sl-markdown-content :is(pre, blockquote, table, img),
+.card,
+.starlight-aside,
+.expressive-code .frame pre,
+.expressive-code .frame .header {
+	border-radius: 0 !important;
+}
+
+.sl-markdown-content code:not(:where(pre code)) {
+	border: 1px solid var(--ln-rule);
+	border-radius: 0;
+	padding: 0.1rem 0.3rem;
+}
+
+.sl-markdown-content table {
+	font-size: 0.92rem;
+}
+
+.sl-markdown-content th {
+	font-family: var(--ln-mono);
+	font-size: 0.72rem;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	color: var(--ln-ink-faint);
+}
+
+/* Sidebar reads as a register of sections. */
+.sidebar-content summary,
+.sidebar-content > ul > li > details > summary .large,
+nav.sidebar .top-level > li > details > summary {
+	font-family: var(--ln-mono);
+	font-size: 0.72rem !important;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+}
+
+.sidebar-content a[aria-current='page'] {
+	border-radius: 0;
+	font-weight: 600;
+}
+
+/* Mermaid diagrams sit in the same frame as everything else. */
+.mermaid,
+pre.mermaid {
+	border: 2px solid var(--ln-rule);
+	background: var(--ln-paper-raised);
+	padding: 1.25rem;
+	overflow-x: auto;
+}
+
+/* Wide code scrolls inside its own box; the page never scrolls sideways.
+   Tables are left alone — Starlight already wraps them, and forcing
+   `display: block` here would break the table formatting context. */
+.sl-markdown-content pre {
+	max-width: 100%;
+	overflow-x: auto;
+}

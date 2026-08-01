@@ -1,0 +1,12 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "lineage-site",
+	"compatibility_date": "2026-01-01",
+	// Static-assets-only Worker: Cloudflare serves ./dist directly, with no
+	// Worker script in front of it.
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "404-page",
+		"html_handling": "auto-trailing-slash"
+	}
+}

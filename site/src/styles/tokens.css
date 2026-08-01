@@ -1,0 +1,92 @@
+/*
+ * Lineage design tokens.
+ *
+ * The accent palette is the lifecycle stage machine: production green,
+ * staging amber, draft/archived slate. Those three hex values are the same
+ * ones the project's own roadmap diagram uses, so the site, the docs, and
+ * the repository agree on what a stage looks like.
+ */
+
+:root {
+	/* Surfaces and ink — light ("paper") */
+	--ln-paper: #f5f5f2;
+	--ln-paper-raised: #fbfbf9;
+	--ln-paper-sunk: #eceae4;
+	--ln-ink: #14171c;
+	--ln-ink-muted: #4d5560;
+	--ln-ink-faint: #78808c;
+	--ln-rule: #d6d5cc;
+	--ln-rule-strong: #14171c;
+
+	/* Stages */
+	--ln-production: #1f7a3d;
+	--ln-production-wash: #e2efe6;
+	--ln-staging: #b45309;
+	--ln-staging-wash: #f5eade;
+	--ln-slate: #334155;
+	--ln-slate-wash: #e7e8e6;
+
+	/* Type */
+	--ln-display: 'Bricolage Grotesque Variable', 'Public Sans Variable', system-ui, sans-serif;
+	--ln-body: 'Public Sans Variable', system-ui, -apple-system, sans-serif;
+	--ln-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+	/* Rhythm */
+	--ln-gutter: clamp(1.25rem, 4vw, 3rem);
+	--ln-measure: 1200px;
+	--ln-frame: 2px;
+}
+
+:root[data-theme='dark'] {
+	--ln-paper: #0f1216;
+	--ln-paper-raised: #161a20;
+	--ln-paper-sunk: #0a0c0f;
+	--ln-ink: #eceae4;
+	--ln-ink-muted: #9aa2ae;
+	--ln-ink-faint: #6c7684;
+	--ln-rule: #272c34;
+	--ln-rule-strong: #3d4550;
+
+	--ln-production: #4bb572;
+	--ln-production-wash: #14261b;
+	--ln-staging: #dc9038;
+	--ln-staging-wash: #2a1e10;
+	--ln-slate: #8b98ab;
+	--ln-slate-wash: #1a1e24;
+}
+
+/* ---- Starlight theme mapping --------------------------------------------
+ *
+ * Deliberately narrow: fonts, the accent, and the page surfaces. Starlight's
+ * own gray ramp is left alone, because it is what guarantees text contrast in
+ * both themes.
+ *
+ * The selector list matters. Starlight declares its light-theme values under
+ * `:root[data-theme='light']`, which outranks a plain `:root` block — so every
+ * override is repeated at that specificity for both themes.
+ */
+
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+	--sl-font: var(--ln-body);
+	--sl-font-mono: var(--ln-mono);
+
+	--sl-color-accent: var(--ln-production);
+	--sl-color-accent-low: var(--ln-production-wash);
+	--sl-color-text-accent: var(--ln-production);
+
+	--sl-color-bg: var(--ln-paper);
+	--sl-color-bg-nav: var(--ln-paper);
+	--sl-color-bg-sidebar: var(--ln-paper);
+	--sl-color-bg-inline-code: var(--ln-paper-sunk);
+}
+
+:root,
+:root[data-theme='light'] {
+	--sl-color-accent-high: #14532a;
+}
+
+:root[data-theme='dark'] {
+	--sl-color-accent-high: #b6e5c6;
+}
