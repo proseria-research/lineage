@@ -1,7 +1,8 @@
+import { useState } from "react";
 import type { VersionInsight } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty } from "@/components/State";
-import { PortraitMark, columnsOf, hasPortrait } from "@/components/VersionMark";
+import { PortraitMark, columnsOf, hasPortrait, portraitTone } from "@/components/VersionMark";
 import { fmtCount, NOT_REPORTED } from "@/lib/utils";
 
 // The structure section (§12.3): the model's layer stack drawn as a layered network, one
@@ -22,6 +23,8 @@ function Chan({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
 }
 
 export function VersionPortrait({ insight }: { insight: VersionInsight | null }) {
+  const [selectedBlock, setSelectedBlock] = useState<number | null>(null);
+
   if (!hasPortrait(insight)) {
     return (
       <Card className="mb-6">
@@ -39,6 +42,7 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
   }
 
   const layers = insight!.layers!;
+  const selected = selectedBlock == null ? null : layers[selectedBlock] ?? null;
   const columns = columnsOf(layers);
   const deepest = layers.reduce((m, l) => Math.max(m, l.repeatCount || 1), 1);
   const incomplete = layers.filter((l) => l.paramCount == null || !l.shapeSignature).length;
@@ -66,8 +70,34 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
             height={260}
             responsive
             title={`portrait · ${columns.length} layers from ${layers.length} block${layers.length === 1 ? "" : "s"}`}
+            selectedBlock={selectedBlock}
+            onSelectBlock={setSelectedBlock}
           />
         </div>
+
+        <div className="mt-3 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+          <span>Choose a column to inspect its block; repeated columns select together.</span>
+          {selected && (
+            <button type="button" className="shrink-0 underline underline-offset-4 hover:text-foreground" onClick={() => setSelectedBlock(null)}>
+              Clear selection
+            </button>
+          )}
+        </div>
+
+        {selected && (
+          <div className="mt-3 border px-3 py-2" aria-live="polite">
+            <div className="mb-2 flex items-baseline justify-between gap-4">
+              <span className={["label-caps", portraitTone(selectedBlock!)].join(" ")}>Selected block {selected.ordinal}</span>
+              <span className="truncate font-mono text-xs" title={selected.path}>{selected.path}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-4">
+              <Chan k="Operation" v={selected.opType ?? NOT_REPORTED} muted={!selected.opType} />
+              <Chan k="Shape" v={selected.shapeSignature ?? NOT_REPORTED} muted={!selected.shapeSignature} />
+              <Chan k="Repeat" v={`×${selected.repeatCount || 1}`} />
+              <Chan k="Parameters" v={selected.paramCount == null ? NOT_REPORTED : fmtCount(selected.paramCount)} muted={selected.paramCount == null} />
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
           <Chan

@@ -57,6 +57,18 @@ function stream(seed: string): () => number {
 const MAX_NODES = 6; // above this the edge bundle turns to grey mush at 128px
 const MAX_COLUMNS = 20;
 
+/** A block's colour is a stable visual discriminator, not an encoding of a model fact. */
+export const PORTRAIT_TONES = [
+  "text-portrait-block-1",
+  "text-portrait-block-2",
+  "text-portrait-block-3",
+  "text-portrait-block-4",
+] as const;
+
+export function portraitTone(block: number): (typeof PORTRAIT_TONES)[number] {
+  return PORTRAIT_TONES[block % PORTRAIT_TONES.length];
+}
+
 /** Output width of a block: the last dim of "[768,3072]". Null when unparseable. */
 function outWidth(sig?: string): number | null {
   if (!sig) return null;
@@ -93,7 +105,21 @@ export function columnsOf(layers: LayerBlock[]): Column[] {
   return cols;
 }
 
-function Portrait({ layers, w, h, reduced }: { layers: LayerBlock[]; w: number; h: number; reduced: boolean }) {
+function Portrait({
+  layers,
+  w,
+  h,
+  reduced,
+  selectedBlock,
+  onSelectBlock,
+}: {
+  layers: LayerBlock[];
+  w: number;
+  h: number;
+  reduced: boolean;
+  selectedBlock?: number | null;
+  onSelectBlock?: (block: number) => void;
+}) {
   // The stack runs left to right, so the box is padded asymmetrically: tight on the sides to
   // give the columns room, generous top and bottom so the widest layer is not flush.
   const padX = Math.max(2, w * 0.045);
@@ -117,6 +143,10 @@ function Portrait({ layers, w, h, reduced }: { layers: LayerBlock[]; w: number; 
   });
 
   const out: React.ReactElement[] = [];
+  const interactive = !reduced && onSelectBlock != null;
+  const hasSelection = selectedBlock != null;
+  const isSelected = (block: number) => selectedBlock === block;
+  const select = (block: number) => onSelectBlock?.(block);
 
   // Reduced: columns as ticks, no nodes and no edges — at 20px both are mud (§12.6).
   if (reduced) {
@@ -132,6 +162,8 @@ function Portrait({ layers, w, h, reduced }: { layers: LayerBlock[]; w: number; 
           y2={padY + (H + extent) / 2}
           stroke="currentColor"
           strokeWidth={1}
+          strokeOpacity={hasSelection && !isSelected(c.block) ? 0.3 : 1}
+          className={portraitTone(c.block)}
           shapeRendering="crispEdges"
         />,
       );
@@ -143,6 +175,7 @@ function Portrait({ layers, w, h, reduced }: { layers: LayerBlock[]; w: number; 
   // connections swallow the nodes and the stack stops reading as layers.
   for (let i = 0; i < cols.length - 1; i++) {
     const dashed = cols[i].dashed || cols[i + 1].dashed;
+    const touchesSelection = isSelected(cols[i].block) || isSelected(cols[i + 1].block);
     ys[i].forEach((y1, a) => {
       ys[i + 1].forEach((y2, b) => {
         out.push(
@@ -154,7 +187,7 @@ function Portrait({ layers, w, h, reduced }: { layers: LayerBlock[]; w: number; 
             y2={y2}
             stroke="currentColor"
             strokeWidth={1}
-            strokeOpacity={dashed ? 0.09 : 0.18}
+            strokeOpacity={hasSelection ? (touchesSelection ? 0.58 : 0.05) : dashed ? 0.09 : 0.18}
           />,
         );
       });
@@ -163,21 +196,67 @@ function Portrait({ layers, w, h, reduced }: { layers: LayerBlock[]; w: number; 
 
   const r = Math.max(1, Math.min(4.5, h / 46));
   cols.forEach((c, i) => {
-    ys[i].forEach((y, k) => {
-      out.push(
-        <circle
-          key={`n${i}_${k}`}
-          cx={cx(i)}
-          cy={y}
-          r={r}
-          stroke="currentColor"
-          strokeWidth={1}
-          // A missing fact is a visible state, never a guessed size (§12.2).
-          strokeDasharray={c.dashed ? "1.5 1.5" : undefined}
-          className="fill-card"
-        />,
-      );
-    });
+    const selected = isSelected(c.block);
+    const dimmed = hasSelection && !selected;
+    const extent = H * (c.nodes / maxNodes);
+    out.push(
+      <g
+        key={`column${i}`}
+        role={interactive ? "button" : undefined}
+        tabIndex={interactive ? 0 : undefined}
+        aria-label={interactive ? `Select block ${layers[c.block].ordinal}: ${layers[c.block].path}` : undefined}
+        aria-pressed={interactive ? selected : undefined}
+        className={[portraitTone(c.block), interactive ? "group cursor-pointer focus:outline-none" : undefined].filter(Boolean).join(" ")}
+        onClick={interactive ? () => select(c.block) : undefined}
+        onKeyDown={interactive ? (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            select(c.block);
+          }
+        } : undefined}
+      >
+        {/* A generous invisible target makes narrow columns usable without changing the drawing. */}
+        {interactive && (
+          <rect
+            x={cx(i) - Math.max(10, Math.min(24, dx / 2 || 24))}
+            y={padY}
+            width={Math.max(20, Math.min(48, dx || 48))}
+            height={H}
+            fill="transparent"
+            stroke="currentColor"
+            strokeOpacity={0}
+            className="group-focus-visible:stroke-opacity-100"
+          />
+        )}
+        {ys[i].map((y, k) => (
+          <circle
+            key={`n${i}_${k}`}
+            cx={cx(i)}
+            cy={y}
+            r={selected ? r + 1 : r}
+            stroke="currentColor"
+            strokeWidth={selected ? 2 : 1}
+            strokeOpacity={dimmed ? 0.28 : 1}
+            // A missing fact is a visible state, never a guessed size (§12.2).
+            strokeDasharray={c.dashed ? "1.5 1.5" : undefined}
+            className="fill-card"
+          />
+        ))}
+        {selected && (
+          <rect
+            x={cx(i) - r - 5}
+            y={padY + (H - extent) / 2 - r - 5}
+            width={(r + 5) * 2}
+            height={extent + (r + 5) * 2}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            pointerEvents="none"
+          />
+        )}
+      </g>,
+    );
   });
 
   return <>{out}</>;
@@ -296,6 +375,8 @@ export function PortraitMark({
   reduced,
   className,
   title,
+  selectedBlock,
+  onSelectBlock,
 }: {
   insight?: VersionInsight | null;
   width?: number;
@@ -306,6 +387,10 @@ export function PortraitMark({
   reduced?: boolean;
   className?: string;
   title?: string;
+  /** Selected source block; all of its expanded repeat columns are emphasized. */
+  selectedBlock?: number | null;
+  /** Enables pointer and keyboard selection of a source block. */
+  onSelectBlock?: (block: number) => void;
 }) {
   if (!hasPortrait(insight)) return null;
   const small = reduced ?? Math.min(width, height) < 24;
@@ -318,14 +403,23 @@ export function PortraitMark({
     <svg
       viewBox={`0 0 ${width} ${height}`}
       fill="none"
-      aria-hidden="true"
+      aria-hidden={onSelectBlock ? undefined : "true"}
+      role={onSelectBlock ? "group" : undefined}
+      aria-label={onSelectBlock ? "Model layer portrait. Select a block to inspect its reported facts." : undefined}
       className={[small ? undefined : "text-portrait", className].filter(Boolean).join(" ") || undefined}
       {...(responsive
         ? { preserveAspectRatio: "xMidYMid meet", style: { display: "block", width: "100%", height: "auto" } }
         : { width, height, style: { display: "block", flex: "none" } })}
     >
       {title && <title>{title}</title>}
-      <Portrait layers={insight!.layers!} w={width} h={height} reduced={small} />
+      <Portrait
+        layers={insight!.layers!}
+        w={width}
+        h={height}
+        reduced={small}
+        selectedBlock={selectedBlock}
+        onSelectBlock={onSelectBlock}
+      />
     </svg>
   );
 }

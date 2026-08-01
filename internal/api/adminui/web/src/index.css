@@ -2,7 +2,8 @@
 
 /* Lineage console design system — monochrome, thin 1px lines, sharp (0-radius) borders.
    Every UI token is grayscale. The only colour lives in the two generated version marks
-   (§12): --portrait for the structure diagram, and --fp-* for the four fingerprint rings.
+   (§12): --portrait for structural edges, --portrait-block-* for individual layer blocks,
+   and --fp-* for the four fingerprint rings.
    None of these is an accent, and no other surface may use them — a drawn diagram needs to
    separate from the 1px furniture around it, and four nested rings need to be told apart.
    In both marks colour is redundant with position and with a text label, never the sole
@@ -30,6 +31,13 @@
   --input: oklch(0.9 0 0);
   --ring: oklch(0.16 0 0);
   --portrait: oklch(0.53 0.045 245);
+  /* Portrait blocks cycle through four low-chroma hues. The colour follows the reported
+     block ordinal, so every expanded repeat has the same hue; it separates groups but does
+     not claim a model fact. Structural edges remain the neutral portrait slate. */
+  --portrait-block-1: oklch(0.52 0.07 255);
+  --portrait-block-2: oklch(0.54 0.07 165);
+  --portrait-block-3: oklch(0.56 0.075 75);
+  --portrait-block-4: oklch(0.53 0.08 25);
   /* Fingerprint rings, outermost to innermost. Low chroma and matched lightness so no ring
      dominates; hues far enough apart to name a ring without counting inward (§12.4). */
   --fp-topology: oklch(0.52 0.07 255);
@@ -60,6 +68,10 @@
     --input: oklch(0.3 0 0);
     --ring: oklch(0.8 0 0);
     --portrait: oklch(0.72 0.05 245);
+    --portrait-block-1: oklch(0.72 0.075 255);
+    --portrait-block-2: oklch(0.74 0.075 165);
+    --portrait-block-3: oklch(0.78 0.08 75);
+    --portrait-block-4: oklch(0.72 0.085 25);
     --fp-topology: oklch(0.72 0.075 255);
     --fp-shape: oklch(0.74 0.075 165);
     --fp-dtype: oklch(0.78 0.08 75);
@@ -88,6 +100,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-portrait: var(--portrait);
+  --color-portrait-block-1: var(--portrait-block-1);
+  --color-portrait-block-2: var(--portrait-block-2);
+  --color-portrait-block-3: var(--portrait-block-3);
+  --color-portrait-block-4: var(--portrait-block-4);
   --color-fp-topology: var(--fp-topology);
   --color-fp-shape: var(--fp-shape);
   --color-fp-dtype: var(--fp-dtype);
