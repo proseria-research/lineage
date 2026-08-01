@@ -1,0 +1,302 @@
+---
+import Marketing from '../layouts/Marketing.astro';
+import StageBoard from '../components/StageBoard.astro';
+
+const upstream = [
+	{ type: 'trained_on', target: 's3://data/transactions-2026-q1/' },
+	{ type: 'produced_by', target: 'kfp://runs/8b21c4de' },
+	{ type: 'derived_from', target: 'fraud-detector 1.2.0' },
+];
+
+const downstream = [
+	{ type: 'deployed_as', target: 'kserve · prod-eu-1' },
+	{ type: 'derived_from', target: 'fraud-detector-lite 0.1.0' },
+];
+
+const ownership = [
+	{
+		title: 'One binary',
+		body: 'A single Go process serves the admin console on :8080 and the machine API on :8081. There is no metadata service to deploy, operate, and secure beside it.',
+		note: 'distroless · non-root · statically linked',
+	},
+	{
+		title: 'Your database',
+		body: 'SQLite on a laptop or at the edge; Postgres with row locking and JSONB filtering in production. Per-dialect adapters behind one port — the same image, the same behaviour.',
+		note: 'sqlite · postgres',
+	},
+	{
+		title: 'Your bucket',
+		body: 'Artifact bytes live in your object store and move directly between storage and consumer. Lineage holds pointers, digests, and sizes — never the payload.',
+		note: 'filesystem · s3 · minio · r2 · ceph',
+	},
+	{
+		title: 'Your perimeter',
+		body: 'Authentication stays with your ingress, gateway, or mesh. Lineage trusts an already-authenticated request and records the actor header against every change.',
+		note: 'X-Lineage-Actor',
+	},
+];
+
+const sections = [
+	{
+		title: 'Start here',
+		blurb: 'Get a registry running and publish something real.',
+		links: [
+			{ label: 'Quickstart', href: '/start/quickstart/' },
+			{ label: 'Core concepts', href: '/start/concepts/' },
+			{ label: 'Register your first model', href: '/start/first-model/' },
+		],
+	},
+	{
+		title: 'Registry',
+		blurb: 'Models, versions, artifacts, stages, and the audit trail.',
+		links: [
+			{ label: 'Publishing versions', href: '/guides/publishing-versions/' },
+			{ label: 'Stages & promotion', href: '/guides/stages-and-promotion/' },
+			{ label: 'Labels & search', href: '/guides/labels-and-search/' },
+		],
+	},
+	{
+		title: 'Delivery',
+		blurb: 'How serving systems find and fetch the right bytes.',
+		links: [
+			{ label: 'Resolving a model', href: '/delivery/resolve/' },
+			{ label: 'KServe', href: '/delivery/kserve/' },
+			{ label: 'Custom runtimes', href: '/delivery/custom-runtimes/' },
+		],
+	},
+	{
+		title: 'Provenance',
+		blurb: 'Typed edges, ancestry, impact analysis, and version diff.',
+		links: [
+			{ label: 'The lineage graph', href: '/guides/lineage-graph/' },
+			{ label: 'Model insights', href: '/guides/model-insights/' },
+			{ label: 'Comparing versions', href: '/guides/version-diff/' },
+		],
+	},
+	{
+		title: 'Operations',
+		blurb: 'Configuration, storage, metrics, and keeping it healthy.',
+		links: [
+			{ label: 'Configuration', href: '/operate/configuration/' },
+			{ label: 'Storage backends', href: '/operate/storage-backends/' },
+			{ label: 'Observability', href: '/operate/observability/' },
+		],
+	},
+	{
+		title: 'Deployment',
+		blurb: 'From a laptop to a highly available cluster.',
+		links: [
+			{ label: 'Deploy with Helm', href: '/deploy/helm/' },
+			{ label: 'Production checklist', href: '/deploy/production-checklist/' },
+			{ label: 'Local development', href: '/deploy/local-development/' },
+		],
+	},
+];
+---
+
+<Marketing
+	title="Lineage — the self-hostable model registry"
+	description="Lineage is the system of record for ML/AI models: registry, lifecycle governance, typed provenance, and one-call delivery to your serving stack. Self-hosted, in a single Go binary."
+>
+	<section class="hero">
+		<div class="shell hero__inner">
+			<div class="hero__copy">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hostable model registry</p>
+				<h1 class="hero__title">Exactly one version is in production.</h1>
+				<p class="hero__lede">
+					Lineage is the system of record for the models you ship. Promote a version and the
+					incumbent is archived in the same transaction, the audit trail records who did it, and
+					every serving system picks up the change on its next resolve — no redeploy, no glue code.
+				</p>
+
+				<div class="hero__actions">
+					<a class="button button--solid" href="/start/quickstart/">Read the quickstart</a>
+					<a class="button" href="https://github.com/proseria-research/lineage">Source on GitHub</a>
+				</div>
+
+				<div class="terminal">
+					<span class="terminal__line"
+						><span class="terminal__prompt">$</span> git clone
+						https://github.com/proseria-research/lineage</span
+					>
+					<span class="terminal__line"
+						><span class="terminal__prompt">$</span> cd lineage && make run</span
+					>
+					<span class="terminal__note">SQLite, local filesystem storage, no other dependencies.</span>
+				</div>
+			</div>
+
+			<StageBoard />
+		</div>
+	</section>
+
+	<section class="band">
+		<div class="shell split">
+			<div class="split__copy">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>delivery</p>
+				<h2 class="section__title">One call, and it is serving.</h2>
+				<p>
+					Serving systems do not need to know how your registry is laid out. They ask for a model at
+					a stage and get back everything required to pull it: a native storage URI, a freshly
+					signed URL, the digest to verify against, the size, and the model format.
+				</p>
+				<p>
+					Responses carry an <code>ETag</code>, so a poller that has not missed anything gets a
+					<code>304</code>. Promotions invalidate the cache by event, not by expiry.
+				</p>
+				<p class="split__link">
+					<a href="/delivery/resolve/">How resolution works →</a>
+				</p>
+			</div>
+
+			<div class="exchange">
+				<div class="exchange__request">
+					<span class="tag tag--verb">GET</span>
+					<code>/v1/models/fraud-detector/resolve?stage=production</code>
+				</div>
+				<pre class="exchange__response"><code>{`{
+  "model": "fraud-detector",
+  "version": "1.4.0",
+  "stage": "production",
+  "artifacts": [
+    {
+      "name": "model.onnx",
+      "storageUri": "s3://models/fraud-detector/1.4.0/model.onnx",
+      "signedUrl": "https://s3.eu-west-1.amazonaws.com/...",
+      "digest": "sha256:9f2c4a10...",
+      "sizeBytes": 431717888,
+      "modelFormat": { "name": "onnx", "version": "1.16" }
+    }
+  ]
+}`}</code></pre>
+				<p class="exchange__foot">
+					Or hand KServe <code>lineage://fraud-detector/production</code> once and let the
+					storage-initializer resolve it at pull time.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="band band--sunk">
+		<div class="shell">
+			<div class="section__head">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>provenance</p>
+				<h2 class="section__title">Ask what produced it. Ask what it breaks.</h2>
+				<p class="section__lede">
+					Provenance is recorded as typed edges, not as a free-text tag. Walk upstream to explain a
+					model, or downstream from a bad dataset to find every version and deployment that
+					inherited the problem.
+				</p>
+			</div>
+
+			<div class="graph">
+				<div class="graph__group">
+					<h3 class="eyebrow">upstream · what produced it</h3>
+					<ul class="edges">
+						{
+							upstream.map((edge) => (
+								<li class="edge">
+									<span class="edge__type">{edge.type}</span>
+									<span class="edge__wire" aria-hidden="true" />
+									<span class="edge__target">{edge.target}</span>
+								</li>
+							))
+						}
+					</ul>
+				</div>
+
+				<div class="graph__subject">
+					<span class="graph__badge">version</span>
+					<span class="graph__name">fraud-detector 1.4.0</span>
+					<span class="graph__meta">production · sha256:9f2c4a10 · onnx</span>
+				</div>
+
+				<div class="graph__group">
+					<h3 class="eyebrow">downstream · what depends on it</h3>
+					<ul class="edges">
+						{
+							downstream.map((edge) => (
+								<li class="edge">
+									<span class="edge__type">{edge.type}</span>
+									<span class="edge__wire" aria-hidden="true" />
+									<span class="edge__target">{edge.target}</span>
+								</li>
+							))
+						}
+					</ul>
+				</div>
+			</div>
+
+			<p class="graph__foot">
+				<a href="/guides/lineage-graph/">Recording and traversing edges →</a>
+			</p>
+		</div>
+	</section>
+
+	<section class="band">
+		<div class="shell">
+			<div class="section__head">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hosted</p>
+				<h2 class="section__title">Own the whole thing.</h2>
+				<p class="section__lede">
+					Self-hosting is the primary way to run Lineage, not a stripped-down tier of it. Your
+					metadata sits in your database, your weights sit in your bucket, and both stay portable —
+					plain relational tables and native object-store URIs.
+				</p>
+			</div>
+
+			<ul class="tiles">
+				{
+					ownership.map((tile) => (
+						<li class="tile">
+							<h3 class="tile__title">{tile.title}</h3>
+							<p class="tile__body">{tile.body}</p>
+							<p class="tile__note">{tile.note}</p>
+						</li>
+					))
+				}
+			</ul>
+		</div>
+	</section>
+
+	<section class="band band--sunk">
+		<div class="shell">
+			<div class="section__head">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>guides</p>
+				<h2 class="section__title">Everything, written down.</h2>
+			</div>
+
+			<ul class="cards">
+				{
+					sections.map((section) => (
+						<li class="card-link">
+							<h3 class="card-link__title">{section.title}</h3>
+							<p class="card-link__blurb">{section.blurb}</p>
+							<ul class="card-link__list">
+								{section.links.map((link) => (
+									<li>
+										<a href={link.href}>{link.label}</a>
+									</li>
+								))}
+							</ul>
+						</li>
+					))
+				}
+			</ul>
+		</div>
+	</section>
+
+	<section class="closer">
+		<div class="shell closer__inner">
+			<h2 class="closer__title">Put it on the record.</h2>
+			<p class="closer__lede">
+				Run it locally in a minute, or install the chart into a cluster and point it at your Postgres
+				and your bucket.
+			</p>
+			<div class="hero__actions">
+				<a class="button button--solid" href="/start/quickstart/">Quickstart</a>
+				<a class="button" href="/deploy/helm/">Deploy with Helm</a>
+			</div>
+		</div>
+	</section>
+</Marketing>

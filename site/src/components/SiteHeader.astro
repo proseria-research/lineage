@@ -1,0 +1,50 @@
+---
+import Mark from './Mark.astro';
+---
+
+<header class="masthead">
+	<div class="masthead__inner">
+		<a class="wordmark" href="/">
+			<Mark size={20} />
+			<span>Lineage</span>
+		</a>
+
+		<nav class="masthead__nav" aria-label="Main">
+			<a href="/start/quickstart/">Quickstart</a>
+			<a href="/start/concepts/">Concepts</a>
+			<a href="/guides/registering-models/">Guides</a>
+			<a href="/clients/api-conventions/">API</a>
+		</nav>
+
+		<div class="masthead__end">
+			<button class="theme-switch" type="button" data-theme-toggle aria-live="polite">
+				<span class="theme-switch__label">Theme</span>
+				<span class="theme-switch__value" data-theme-label>system</span>
+			</button>
+			<a class="masthead__repo" href="https://github.com/proseria-research/lineage">GitHub</a>
+		</div>
+	</div>
+</header>
+
+<script>
+	const root = document.documentElement;
+	const label = document.querySelector<HTMLElement>('[data-theme-label]');
+	const button = document.querySelector<HTMLElement>('[data-theme-toggle]');
+
+	const paint = () => {
+		if (label) label.textContent = root.dataset.theme === 'light' ? 'light' : 'dark';
+	};
+
+	button?.addEventListener('click', () => {
+		const next = root.dataset.theme === 'light' ? 'dark' : 'light';
+		root.dataset.theme = next;
+		try {
+			localStorage.setItem('starlight-theme', next);
+		} catch {
+			/* storage unavailable — the theme still applies for this page */
+		}
+		paint();
+	});
+
+	paint();
+</script>

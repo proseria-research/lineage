@@ -1,0 +1,74 @@
+---
+import Mark from './Mark.astro';
+
+const columns = [
+	{
+		title: 'Start',
+		links: [
+			{ label: 'What Lineage is', href: '/start/what-lineage-is/' },
+			{ label: 'Quickstart', href: '/start/quickstart/' },
+			{ label: 'Core concepts', href: '/start/concepts/' },
+			{ label: 'First model', href: '/start/first-model/' },
+		],
+	},
+	{
+		title: 'Registry',
+		links: [
+			{ label: 'Publishing versions', href: '/guides/publishing-versions/' },
+			{ label: 'Stages & promotion', href: '/guides/stages-and-promotion/' },
+			{ label: 'Lineage graph', href: '/guides/lineage-graph/' },
+			{ label: 'Audit trail', href: '/guides/audit-trail/' },
+		],
+	},
+	{
+		title: 'Delivery',
+		links: [
+			{ label: 'Resolve', href: '/delivery/resolve/' },
+			{ label: 'Artifact content', href: '/delivery/artifact-content/' },
+			{ label: 'KServe', href: '/delivery/kserve/' },
+			{ label: 'Custom runtimes', href: '/delivery/custom-runtimes/' },
+		],
+	},
+	{
+		title: 'Run it',
+		links: [
+			{ label: 'Deploy with Helm', href: '/deploy/helm/' },
+			{ label: 'Production checklist', href: '/deploy/production-checklist/' },
+			{ label: 'Configuration', href: '/operate/configuration/' },
+			{ label: 'Observability', href: '/operate/observability/' },
+		],
+	},
+];
+---
+
+<footer class="footer">
+	<div class="footer__inner">
+		<div class="footer__brand">
+			<a class="wordmark" href="/">
+				<Mark size={20} />
+				<span>Lineage</span>
+			</a>
+			<p>The system of record for the models you ship.</p>
+			<p class="footer__license">
+				Apache 2.0 · <a href="https://github.com/proseria-research/lineage">proseria-research/lineage</a>
+			</p>
+		</div>
+
+		<div class="footer__columns">
+			{
+				columns.map((column) => (
+					<nav aria-label={column.title}>
+						<h2 class="eyebrow">{column.title}</h2>
+						<ul>
+							{column.links.map((link) => (
+								<li>
+									<a href={link.href}>{link.label}</a>
+								</li>
+							))}
+						</ul>
+					</nav>
+				))
+			}
+		</div>
+	</div>
+</footer>
