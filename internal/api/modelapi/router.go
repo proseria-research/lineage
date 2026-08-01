@@ -90,6 +90,7 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/audit", r.auditFeed)
 	mux.HandleFunc("GET /v1/diff", r.globalDiff)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
+	mux.HandleFunc("GET /v1/insight-schema.json", r.insightSchemaDoc)
 	return mux
 }
 

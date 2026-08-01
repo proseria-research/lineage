@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lineage.dev/schemas/insight-write/1",
+  "title": "Lineage insight submission",
+  "description": "The payload contract for reporting model-composition facts to a Lineage registry (§11.6.1). Versioned independently of the API: a producer sends `schemaVersion` and the registry rejects a version it does not speak, rather than partially applying the write. Unknown fields are rejected, not dropped, so a producer can tell it is talking to an older registry.",
+  "x-schemaVersion": "1",
+  "type": "object",
+  "required": ["schemaVersion", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1",
+      "description": "The contract this payload is written against."
+    },
+    "source": {
+      "$ref": "#/$defs/factSource",
+      "description": "How this producer obtained the facts in this write. Stamped onto every field the write touches."
+    },
+    "reporter": {
+      "type": "string",
+      "description": "The tool submitting this record, e.g. 'lineage-scanner'. Distinct from facts.producer, which is the library that wrote the model files."
+    },
+    "reporterVersion": { "type": "string" },
+    "facts": {
+      "type": "object",
+      "description": "Mergeable fields. On PATCH an absent key is left unchanged and an explicit null clears; `hashes` and `coverage` merge per sub-key. On PUT the document is replaced.",
+      "additionalProperties": false,
+      "properties": {
+        "framework": { "$ref": "#/$defs/nameVersion", "description": "Runtime the model targets, e.g. pytorch / 2.4.1." },
+        "producer": { "$ref": "#/$defs/nameVersion", "description": "Library that wrote the files, e.g. transformers / 4.44." },
+        "paramCountTotal": { "$ref": "#/$defs/nullableCount" },
+        "paramCountTrainable": { "$ref": "#/$defs/nullableCount" },
+        "paramCountMethod": {
+          "oneOf": [{ "type": "null" }, { "enum": ["from_tensors", "from_config", "declared"] }],
+          "description": "The methods disagree under tied embeddings and sharded checkpoints, so the record states which was used."
+        },
+        "tensorCount": { "$ref": "#/$defs/nullableCount" },
+        "dtypeDominant": {
+          "oneOf": [{ "type": "null" }, { "enum": ["fp32", "fp16", "bf16", "int8", "int4", "mixed"] }]
+        },
+        "quantMethod": {
+          "type": ["string", "null"],
+          "description": "e.g. gptq, awq, bnb-nf4, Q4_K_M, ptq-static. Null means not quantized. This is a declared value: hashes cannot distinguish quantization from retraining (§11.4.4)."
+        },
+        "quantScope": {
+          "type": ["object", "null"],
+          "description": "Which modules were quantized or held out at higher precision."
+        },
+        "diskBytes": { "$ref": "#/$defs/nullableCount", "description": "Sum of MODEL artifact sizes." },
+        "weightsBytes": {
+          "$ref": "#/$defs/nullableCount",
+          "description": "Sum of tensor nbytes. Differs from diskBytes under sharding, zip, or compression — do not conflate them."
+        },
+        "hashes": { "$ref": "#/$defs/hashes" },
+        "archDoc": { "$ref": "#/$defs/archDoc" },
+        "coverage": {
+          "type": ["object", "null"],
+          "description": "Per field, why a value was or was not supplied. Distinguishes 'the format does not expose this' from 'not attempted' — an unfilled field must never be reported as zero.",
+          "additionalProperties": { "enum": ["filled", "unavailable_for_format", "not_attempted"] }
+        }
+      }
+    },
+    "layers": {
+      "type": ["array", "null"],
+      "description": "The layer breakdown, collapsed over repeats. Absent leaves the recorded set alone; an explicit (even empty) array replaces the whole set, since a list has no meaningful per-element merge.",
+      "items": { "$ref": "#/$defs/layerBlock" }
+    }
+  },
+  "$defs": {
+    "factSource": {
+      "enum": ["declared", "derived", "measured"],
+      "description": "declared = asserted by a human or CI, attributed but not verified. derived = computed by a producer from the model itself. measured = observed by a runtime or harness, valid only within its stated basis."
+    },
+    "nameVersion": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "nullableCount": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Null means not reported. Never send 0 for an unknown value."
+    },
+    "hashes": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "The four-level architecture fingerprint (§11.4), computed over the canonical arch doc. Levels are separable so the diff verdict is a table lookup rather than a heuristic; submit whatever you can compute. Merges per sub-key, so a header-only scanner may send the first three and the SDK add `weights` later.",
+      "properties": {
+        "topology": {
+          "type": ["string", "null"],
+          "description": "Ordered op graph: op types, connectivity, and non-weight attributes (num_heads, kernel, stride, activation, norm placement). Excludes shapes, dtypes, weights."
+        },
+        "shape": { "type": ["string", "null"], "description": "Topology plus every tensor shape. Excludes dtypes and weights." },
+        "dtype": { "type": ["string", "null"], "description": "The per-tensor dtype vector. Excludes weights." },
+        "weights": {
+          "type": ["string", "null"],
+          "description": "Merkle root over per-tensor content digests, sorted by name. Compute it while the artifact is already streaming at publish, never by re-downloading. Omitting it narrows the diff verdict rather than breaking it."
+        }
+      }
+    },
+    "archDoc": {
+      "type": ["object", "null"],
+      "description": "The canonical normalized graph summary the hashes were computed over. Producers may carry any additional keys; the registry reads only `tensors`, for the per-tensor partial diff. See the normalization rules in docs/11 §4.5 — two producers must agree on them or their hashes will not match.",
+      "properties": {
+        "tensors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "shape": { "type": "array", "items": { "type": "integer" } },
+              "dtype": { "type": "string" },
+              "digest": {
+                "type": "string",
+                "description": "Content digest of this tensor's bytes, e.g. sha256:… Retaining these is what lets a diff say 'only q_proj and lm_head changed' — a merged LoRA adapter rather than a full fine-tune."
+              }
+            }
+          }
+        }
+      }
+    },
+    "layerBlock": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "description": "One distinct block, collapsed over repeats. An 80-layer decoder contributes one entry per distinct sub-module with repeatCount 80, not eighty copies.",
+      "properties": {
+        "path": { "type": "string", "description": "Dotted path with '*' for the repeated block index, e.g. model.layers.*.self_attn.q_proj" },
+        "opType": { "type": "string", "description": "e.g. Linear, Conv2d, LayerNorm, Attention" },
+        "repeatCount": { "type": "integer", "minimum": 1, "default": 1 },
+        "shapeSignature": { "type": "string", "description": "e.g. [4096,4096]" },
+        "dtype": { "type": "string" },
+        "paramCount": { "$ref": "#/$defs/nullableCount", "description": "Per single instance; multiply by repeatCount for the rollup." },
+        "bytes": { "$ref": "#/$defs/nullableCount", "description": "Per single instance." },
+        "ordinal": { "type": "integer", "description": "Ignored on write; assigned by position." }
+      }
+    }
+  }
+}

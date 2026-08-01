@@ -12,6 +12,15 @@ import (
 // Model-insight endpoints (§11.6). Producers write facts here; consumers and the console
 // read them. Nothing in this file opens an artifact.
 
+// insightSchemaDoc serves the versioned submission schema. It is the contract a producer
+// builds against, so it is published from the registry itself rather than only in docs —
+// a producer can fetch the exact schema the server it is talking to enforces (§11d).
+func (r *Router) insightSchemaDoc(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/schema+json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write(insightSchema)
+}
+
 // writeInsight backs both PATCH (merge per field — the default) and PUT (full replace).
 func (r *Router) writeInsight(replace bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1",
+  "source": "derived",
+  "reporter": "lineage-scanner",
+  "reporterVersion": "0.3.1",
+  "facts": {
+    "framework": { "name": "pytorch", "version": "2.4.1" },
+    "producer": { "name": "transformers", "version": "4.44.0" },
+    "tensorCount": 291,
+    "dtypeDominant": "bf16",
+    "diskBytes": 16060522496,
+    "weightsBytes": 16060522496,
+    "hashes": {
+      "topology": "sha256:0f1c…topology",
+      "shape": "sha256:0f1c…shape",
+      "dtype": "sha256:0f1c…dtype"
+    },
+    "coverage": {
+      "paramCountTotal": "not_attempted",
+      "quantMethod": "unavailable_for_format",
+      "weightsHash": "not_attempted"
+    }
+  },
+  "layers": [
+    { "path": "model.embed_tokens", "opType": "Embedding", "shapeSignature": "[128256,4096]", "dtype": "bf16", "paramCount": 525336576 },
+    { "path": "model.layers.*.self_attn.q_proj", "opType": "Linear", "repeatCount": 32, "shapeSignature": "[4096,4096]", "dtype": "bf16", "paramCount": 16777216 },
+    { "path": "model.layers.*.mlp.down_proj", "opType": "Linear", "repeatCount": 32, "shapeSignature": "[4096,14336]", "dtype": "bf16", "paramCount": 58720256 },
+    { "path": "lm_head", "opType": "Linear", "shapeSignature": "[128256,4096]", "dtype": "bf16", "paramCount": 525336576 }
+  ]
+}
