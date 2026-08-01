@@ -100,15 +100,18 @@ take effect with **no manifest change**.
 **Grammar:**
 ```
 lineage://<model>[/<stage>][@<version>][#<artifact>]
-# lineage://fraud-detector                 → default stage (production), MODEL artifact
+# lineage://fraud-detector                 → default stage (production), all MODEL artifacts
 # lineage://fraud-detector/staging          → staging
 # lineage://fraud-detector@1.4.0            → exact version
 # lineage://fraud-detector/production#model.onnx  → a named artifact
 ```
 
 **KServe** — ship an optional **`ClusterStorageContainer`** whose init container
-understands `lineage://`. It calls `resolve`, picks the `MODEL` artifact, and pulls it into
-the model dir via `signedUrl` (or the broker `/content` endpoint). The init entrypoint is
+understands `lineage://`. It calls `resolve` and pulls **every `MODEL` artifact** of the
+resolved version into the model dir via `signedUrl` (or the broker `/content` endpoint) —
+sharded weights, config and tokenizer are separate artifacts of one version, so taking only
+the first would mount an incomplete model. `DOC` artifacts (model cards) are excluded; a
+`#artifact` fragment narrows the pull to one named artifact. The init entrypoint is
 `lineage-init <lineage-uri> <dest-dir>` (`cmd/lineage-init`; env `LINEAGE_ENDPOINT`,
 `LINEAGE_ACTOR`).
 

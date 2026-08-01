@@ -1,7 +1,8 @@
 // Command lineage-init is the KServe storage-initializer for lineage:// URIs (§04.5). It
 // runs as the init container of an InferenceService: given a lineage:// reference and a
 // destination directory, it resolves the model against the Model API and downloads the
-// MODEL artifact (via its signed URL, else the broker /content endpoint) into the dir.
+// version's MODEL artifacts (via signed URL, else the broker /content endpoint) into the dir.
+// A #artifact fragment narrows that to one named artifact.
 //
 //	lineage-init lineage://fraud-detector/production /mnt/models
 //
@@ -18,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/proseria-research/lineage/internal/domain"
@@ -36,14 +38,16 @@ func main() {
 
 // resolution mirrors the subset of the /resolve response the initializer needs (§04.2).
 type resolution struct {
-	Version   string `json:"version"`
-	Artifacts []struct {
-		Name       string `json:"name"`
-		Kind       string `json:"kind"`
-		StorageURI string `json:"storageUri"`
-		SignedURL  string `json:"signedUrl"`
-		SizeBytes  int64  `json:"sizeBytes"`
-	} `json:"artifacts"`
+	Version   string     `json:"version"`
+	Artifacts []artifact `json:"artifacts"`
+}
+
+type artifact struct {
+	Name       string `json:"name"`
+	Kind       string `json:"kind"`
+	StorageURI string `json:"storageUri"`
+	SignedURL  string `json:"signedUrl"`
+	SizeBytes  int64  `json:"sizeBytes"`
 }
 
 func run(rawURI, dest string) error {
@@ -60,41 +64,50 @@ func run(rawURI, dest string) error {
 		return err
 	}
 
-	// Pick the requested artifact, or the MODEL artifact by default.
-	idx := -1
-	for i, a := range res.Artifacts {
-		if ref.Artifact != "" && a.Name == ref.Artifact {
-			idx = i
-			break
+	// Take the named artifact if the URI has a #fragment, else every MODEL artifact. Sharded
+	// weights, config and tokenizer are separate artifacts of one version, so stopping at the
+	// first would mount an incomplete model dir. DOC artifacts (model cards) stay out.
+	var selected []artifact
+	for _, a := range res.Artifacts {
+		if ref.Artifact != "" {
+			if a.Name == ref.Artifact {
+				selected = append(selected, a)
+			}
+			continue
 		}
-		if ref.Artifact == "" && a.Kind == string(domain.KindModel) {
-			idx = i
-			break
+		if a.Kind == string(domain.KindModel) {
+			selected = append(selected, a)
 		}
 	}
-	if idx < 0 {
+	if len(selected) == 0 {
 		return fmt.Errorf("no matching artifact for %q in resolved version %s", rawURI, res.Version)
 	}
-	a := res.Artifacts[idx]
 
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return err
 	}
-	out := filepath.Join(dest, a.Name)
-
-	// Prefer the signed URL (bytes flow straight from storage); otherwise fall back to the
-	// broker /content endpoint, which streams through for backends that can't sign (§04.3).
-	src := a.SignedURL
-	if src == "" {
-		src = endpoint + "/v1/models/" + url.PathEscape(ref.Model) +
-			"/versions/" + url.PathEscape(res.Version) +
-			"/artifacts/" + url.PathEscape(a.Name) + "/content"
+	for _, a := range selected {
+		// The name is server-supplied and becomes a path inside the mounted model volume, so
+		// it is checked before use: a bad registry must not write outside the model dir.
+		if a.Name == "" || a.Name == "." || a.Name == ".." ||
+			strings.ContainsAny(a.Name, `/\`) || filepath.IsAbs(a.Name) {
+			return fmt.Errorf("refusing unsafe artifact name %q", a.Name)
+		}
+		out := filepath.Join(dest, a.Name)
+		// Prefer the signed URL (bytes flow straight from storage); otherwise fall back to the
+		// broker /content endpoint, which streams through for backends that can't sign (§04.3).
+		src := a.SignedURL
+		if src == "" {
+			src = endpoint + "/v1/models/" + url.PathEscape(ref.Model) +
+				"/versions/" + url.PathEscape(res.Version) +
+				"/artifacts/" + url.PathEscape(a.Name) + "/content"
+		}
+		n, err := download(ctx, src, out)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("lineage-init: wrote %s (%d bytes) from %s@%s\n", out, n, ref.Model, res.Version)
 	}
-	n, err := download(ctx, src, out)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("lineage-init: wrote %s (%d bytes) from %s@%s\n", out, n, ref.Model, res.Version)
 	return nil
 }
 
