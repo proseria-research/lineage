@@ -15,6 +15,11 @@
   (`02.5`), not opaque ids: `/v1/models/{model}/versions/{version}`. IDs are returned in
   every body and accepted in list filters. Names must match
   `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$` (lowercase slug, path-safe, exact-match).
+- **Artifact names are filenames**, not slugs, so they match
+  `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$` (`.` and `..` rejected) — mixed case and a leading
+  dot are allowed, since real model repos ship `README.md` and `.gitattributes`. They are
+  compared **case-insensitively** for uniqueness within a version: `README.md` and
+  `readme.md` would collide on a case-insensitive filesystem once downloaded together.
 - **Timestamps** are epoch-millis integers (`createdAt`, `updatedAt`) — matches `02`.
 - **Idempotency:** `POST` creates accept an `Idempotency-Key` header; a retry with the
   same key returns the original result. Re-publishing an existing version name without a

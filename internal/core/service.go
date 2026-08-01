@@ -197,7 +197,7 @@ func (s *Service) registerArtifact(ctx context.Context, versionID string, ai Art
 	if ai.Kind == "" {
 		ai.Kind = domain.KindModel
 	}
-	if !domain.ValidName(ai.Name) {
+	if !domain.ValidArtifactName(ai.Name) {
 		return nil, domain.Invalid("invalid artifact name '" + ai.Name + "'")
 	}
 	if ai.URI == "" {

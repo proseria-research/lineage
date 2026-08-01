@@ -11,11 +11,31 @@ import (
 // NowMillis is the canonical timestamp: epoch-millis, set by the app (§02.1).
 func NowMillis() int64 { return time.Now().UnixMilli() }
 
-// nameRe is the path-safe, exact-match name pattern for models/versions/artifacts (§03.1).
+// nameRe is the path-safe, exact-match name pattern for models and versions (§03.1). These
+// are URL identities, so they stay lowercase slugs — case-folding collisions across stores
+// and filesystems are not worth the ergonomics.
 var nameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$`)
 
-// ValidName reports whether s is a legal entity name.
+// artifactNameRe is the filename pattern for artifacts. Artifacts are *files*, and real model
+// repos ship `README.md`, `MODEL_CARD.md` and `.gitattributes`, so mixed case and a leading
+// dot are allowed where model/version names forbid them. The charset stays path-safe: no
+// separators, no whitespace, no control or shell characters. Traversal is rejected separately
+// because `..` matches this pattern (§05.6).
+var artifactNameRe = regexp.MustCompile(`^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$`)
+
+// ValidName reports whether s is a legal model or version name.
 func ValidName(s string) bool { return nameRe.MatchString(s) }
+
+// ValidArtifactName reports whether s is a legal artifact (file) name. It is deliberately
+// more permissive than ValidName, but must never admit a name that escapes the directory it
+// is joined into — artifact names become storage keys server-side and local paths in the SDK,
+// CLI and KServe initializer.
+func ValidArtifactName(s string) bool {
+	if s == "." || s == ".." {
+		return false
+	}
+	return artifactNameRe.MatchString(s)
+}
 
 // ---- Enums (stored as TEXT + CHECK, §02.7) ----
 
