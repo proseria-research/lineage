@@ -1,7 +1,8 @@
 # 00 — Preplanning
 
-> Status: **Draft**. Frames the problem, sets axioms, records decisions. Nothing is
-> final until promoted into a numbered doc (`01`, `02`, …).
+> Status: **Accepted**. Frames the problem, sets axioms, records decisions. The axioms and
+> §11 decisions here are binding; the behaviour they imply is specified in `01`–`12`, all of
+> which are implemented.
 
 ## 1. Vision
 
@@ -264,8 +265,10 @@ Resolved (✅) become ADRs. Open (◻) resolve before the dependent doc.
    returns native `storageUri` + signed URL + digest + model format; ship an optional
    KServe `lineage://<model>/<stage>` storage-initializer. Serves KServe, Modal,
    Baseten with near-zero glue (§5.1). Detail in `04`.
-8. ◻ **Model API resolve/fetch data path.** *Leaning SoT DB + cache, read replicas
-   later* — confirm in `04`.
+8. ✅ **Model API resolve/fetch data path → source-of-truth DB + resolution cache.**
+   Confirmed as built in `04`: resolve reads the store, the cache is invalidated by
+   `version.created`/`stage_changed`/`artifact.created` events rather than by direct calls,
+   and a short TTL backstops a missed event. Read replicas remain a later, additive change.
 9. ✅ **No Kubeflow/MLMD wire-compat adapter.** A permanent API shim contradicts axiom 5
    and means chasing someone else's evolving surface for a promise we don't value.
    Migration, *if ever needed*, is served by a one-shot CLI **importer** (read

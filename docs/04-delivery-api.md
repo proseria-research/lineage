@@ -1,6 +1,6 @@
 # 04 — Model API: Consumption (Delivery)
 
-> Status: **Draft**. The consumption half of the Model API (`:8081`, `/v1`): resolve a
+> Status: **Implemented**. The consumption half of the Model API (`:8081`, `/v1`): resolve a
 > model by stage/tag → get native + signed artifact refs, fetch bytes, and the
 > `lineage://` KServe initializer. Read-heavy, cacheable. Publish/CRUD is `03`; storage
 > internals are `05`.

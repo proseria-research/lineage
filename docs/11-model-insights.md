@@ -1,6 +1,6 @@
 # 11 — Model Insights
 
-> Status: **Draft**. The fact API for model composition: parameter counts, layer breakdown,
+> Status: **Implemented**. The fact API for model composition: parameter counts, layer breakdown,
 > framework, precision/quantization, disk vs memory footprint, evaluation results, and an
 > architecture fingerprint that classifies the difference between two versions. Lineage
 > stores and queries these facts; producers outside the registry derive them. Storage is

@@ -1,6 +1,6 @@
 # 08 — Deployment & Helm
 
-> Status: **Draft**. The Helm chart as a product surface (§00 axiom 2): structure,
+> Status: **Implemented**. The Helm chart as a product surface (§00 axiom 2): structure,
 > values, `dev`/`prod` profiles, migrations, upgrade/rollback, secrets, HA. Topology is
 > introduced in `01.6`.
 

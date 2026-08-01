@@ -1,6 +1,6 @@
 # 05 — Storage & Artifacts
 
-> Status: **Draft**. The `StorageBackend` port, its drivers, artifact addressing,
+> Status: **Implemented**. The `StorageBackend` port, its drivers, artifact addressing,
 > content integrity, signed upload/download, stream-through fallback, and garbage
 > collection. Metadata is `02`; the APIs that call this are `03` (upload) and `04`
 > (fetch).

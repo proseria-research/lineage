@@ -1,6 +1,6 @@
 # 09 — Observability & Ops
 
-> Status: **Draft**. Metrics, health, logs, traces, SLOs, backup/DR, and runbooks — all
+> Status: **Implemented**. Metrics, health, logs, traces, SLOs, backup/DR, and runbooks — all
 > surfaced through the chart (§00.7). Complements deployment `08`.
 
 ## 1. Signals

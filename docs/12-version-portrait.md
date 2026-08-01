@@ -1,6 +1,6 @@
 # 12 — Version Portrait
 
-> Status: **Draft**. Two procedurally generated marks for a model version in the console —
+> Status: **Implemented**. Two procedurally generated marks for a model version in the console —
 > a square **Fingerprint** (identity) and a wide **Portrait** (structure). Independent
 > sections, deterministic, drawn only from facts a producer already reported. Facts are `11`;
 > console placement is `06`.
