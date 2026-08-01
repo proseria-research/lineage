@@ -5,6 +5,7 @@ import Overview from "@/pages/Overview";
 import Models from "@/pages/Models";
 import ModelDetail from "@/pages/ModelDetail";
 import VersionDetail from "@/pages/VersionDetail";
+import Compare from "@/pages/Compare";
 import Activity from "@/pages/Activity";
 
 function NotFound() {
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/models" element={<Models />} />
         <Route path="/models/:model" element={<ModelDetail />} />
         <Route path="/models/:model/versions/:version" element={<VersionDetail />} />
+        <Route path="/models/:model/compare" element={<Compare />} />
         <Route path="/activity" element={<Activity />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

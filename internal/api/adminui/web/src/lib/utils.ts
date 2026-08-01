@@ -41,6 +41,39 @@ export function relTime(ms?: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// Parameter counts read better abbreviated: 8_030_261_248 -> "8.03B". Zero is a real
+// value here, so only null/undefined render as "not reported" (§11.2).
+export function fmtCount(n?: number | null): string {
+  if (n === null || n === undefined) return NOT_REPORTED;
+  if (n < 1000) return String(n);
+  const units: [number, string][] = [
+    [1e12, "T"],
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [scale, suffix] of units) {
+    if (n >= scale) return `${(n / scale).toFixed(2).replace(/\.?0+$/, "")}${suffix}`;
+  }
+  return String(n);
+}
+
+// A fact nobody submitted is not a zero and not a blank. It renders as its own thing so a
+// reader can tell "nothing reported this" from "reported as none" (§11.8).
+export const NOT_REPORTED = "not reported";
+
+// fmtBytes returns "—" for absent values; insight surfaces want the explicit wording.
+export function fmtBytesOrUnreported(n?: number | null): string {
+  return n === null || n === undefined ? NOT_REPORTED : fmtBytes(n);
+}
+
+// Signed byte delta, e.g. "-9.6 GB". Zero is "no change" rather than "0 B".
+export function fmtDeltaBytes(n?: number | null): string {
+  if (n === null || n === undefined) return "—";
+  if (n === 0) return "no change";
+  return `${n > 0 ? "+" : "−"}${fmtBytes(Math.abs(n))}`;
+}
+
 export function shortDigest(d?: string): string {
   if (!d) return "—";
   const [algo, hex] = d.split(":");

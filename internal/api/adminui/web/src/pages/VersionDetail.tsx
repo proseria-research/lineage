@@ -8,6 +8,7 @@ import { StageActions } from "@/components/StageActions";
 import { StageTrack } from "@/components/StageTrack";
 import { Cube } from "@/components/Cube";
 import { LineageGraphView } from "@/components/LineageGraphView";
+import { InsightPanel } from "@/components/InsightPanel";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
@@ -97,6 +98,9 @@ export default function VersionDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Composition facts reported by producers (§11.8) */}
+      <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />
 
       {/* Lineage graph: provenance (upstream) + impact (downstream), §07.3 */}
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">

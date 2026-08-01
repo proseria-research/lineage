@@ -309,11 +309,11 @@ Design documents live in [`docs/`](docs/), numbered in reading order:
 
 ## Project status
 
-Actively developed. Milestones **M0–M9 are complete** — architecture, persistence, storage,
-delivery, the full `/v1` API, the admin console, the lineage graph, observability, and the
-Helm chart. Remaining: an OpenAPI-generated **Python SDK and CLI** (M10) and **model
-insights** — fingerprint, footprint, evaluations (M11). Progress is tracked in
-[`MILESTONES.md`](MILESTONES.md).
+Actively developed. Milestones **M0–M9 and M11 are complete** — architecture, persistence,
+storage, delivery, the full `/v1` API, the admin console, the lineage graph, observability,
+the Helm chart, and model insights (composition facts, architecture fingerprint, and
+version diff). Remaining: an OpenAPI-generated **Python SDK and CLI** (M10). Progress is
+tracked in [`MILESTONES.md`](MILESTONES.md).
 
 ## License
 
