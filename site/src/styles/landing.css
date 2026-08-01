@@ -786,6 +786,10 @@ code {
 .tile {
 	background: var(--ln-paper);
 	padding: clamp(1.25rem, 2.5vw, 1.9rem);
+	transition: background 0.2s ease;
+}
+.tile:hover {
+	background: var(--ln-paper-raised);
 }
 .tile__title {
 	font-size: 1.25rem;
@@ -942,6 +946,57 @@ code {
 		opacity: 1;
 		transform: none;
 	}
+}
+
+/* ---- Scroll reveal -------------------------------------------------------- */
+
+/* Progressive enhancement: the hidden state is scoped to an attribute the script
+   sets, so the page reads normally if the script never runs. The easing and the
+   14px rise are the hero's, so a section arriving mid-scroll moves like the load-in. */
+html[data-reveal-ready] [data-reveal] > * {
+	opacity: 0;
+	transform: translateY(14px);
+	transition:
+		opacity 0.6s ease,
+		transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html[data-reveal-ready] [data-reveal].is-revealed > * {
+	opacity: 1;
+	transform: none;
+}
+/* Children arrive in sequence, so a section resolves rather than snapping in. */
+html[data-reveal-ready] [data-reveal].is-revealed > *:nth-child(2) {
+	transition-delay: 90ms;
+}
+html[data-reveal-ready] [data-reveal].is-revealed > *:nth-child(3) {
+	transition-delay: 180ms;
+}
+
+/* The provenance wires draw outward from the node they hang off. */
+html[data-reveal-ready] [data-reveal] .edge__wire {
+	transform: scaleX(0);
+	transform-origin: left center;
+	transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s;
+}
+html[data-reveal-ready] [data-reveal].is-revealed .edge__wire {
+	transform: none;
+}
+
+/* The fingerprint settles ring by ring, outermost first — the order the levels are
+   read in, and the order a diff walks them. */
+html[data-reveal-ready] [data-reveal] .fp__ring-group {
+	opacity: 0;
+	transform: rotate(-14deg) scale(0.94);
+	transform-box: view-box;
+	transform-origin: center;
+	transition:
+		opacity 0.6s ease,
+		transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+	transition-delay: calc(220ms + var(--ring-index) * 110ms);
+}
+html[data-reveal-ready] [data-reveal].is-revealed .fp__ring-group {
+	opacity: 1;
+	transform: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
