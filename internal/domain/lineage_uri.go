@@ -57,7 +57,7 @@ func ParseLineageURI(s string) (LineageRef, error) {
 		}
 		ref.Stage = Stage(stage)
 	}
-	if ref.Artifact != "" && !ValidName(ref.Artifact) {
+	if ref.Artifact != "" && !ValidArtifactName(ref.Artifact) {
 		return LineageRef{}, Invalid("invalid artifact in lineage uri: '" + s + "'")
 	}
 	return ref, nil

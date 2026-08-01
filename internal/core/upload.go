@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/proseria-research/lineage/internal/domain"
@@ -98,7 +99,7 @@ func (s *Service) InitiateUpload(ctx context.Context, actor, model, version stri
 	if in.Kind == "" {
 		in.Kind = domain.KindModel
 	}
-	if !domain.ValidName(in.Name) {
+	if !domain.ValidArtifactName(in.Name) {
 		return nil, domain.Invalid("invalid artifact name '" + in.Name + "'")
 	}
 	v, err := s.store.GetVersion(ctx, model, version)
@@ -106,9 +107,12 @@ func (s *Service) InitiateUpload(ctx context.Context, actor, model, version stri
 		return nil, err
 	}
 	// Fail fast on an existing name so the client doesn't upload bytes it can't finalize (§05.5).
+	// Compared case-insensitively: artifact names are filenames, and `README.md` alongside
+	// `readme.md` would resolve to one path on a case-insensitive filesystem (macOS, and any
+	// consumer downloading both into one directory), silently overwriting bytes.
 	if arts, err := s.store.ListArtifacts(ctx, v.ID); err == nil {
 		for _, a := range arts {
-			if a.Name == in.Name {
+			if strings.EqualFold(a.Name, in.Name) {
 				return nil, domain.Exists("artifact '" + in.Name + "' already exists on " + model + "@" + version)
 			}
 		}
