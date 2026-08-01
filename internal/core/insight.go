@@ -313,6 +313,19 @@ var factSetters = map[string]func(*domain.VersionInsight, json.RawMessage) error
 	},
 }
 
+// InsightFactFields returns every mergeable fact field this registry accepts, sorted.
+// The published JSON Schema is checked against it, so the contract producers build
+// against cannot drift from what the code actually takes (§11.6.1).
+func InsightFactFields() []string {
+	out := make([]string, 0, len(factSetters)+2)
+	for k := range factSetters {
+		out = append(out, k)
+	}
+	out = append(out, "hashes", "coverage") // handled specially: they merge per sub-key
+	sort.Strings(out)
+	return out
+}
+
 // applyFacts writes each submitted field and returns the field names touched, so the
 // caller can stamp one attribution across exactly those (§11.2). `hashes` and `coverage`
 // merge per sub-key: a scanner supplies three hashes and the SDK adds the fourth later.

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1",
+  "source": "derived",
+  "reporter": "lineage-sdk",
+  "reporterVersion": "1.0.0",
+  "facts": {
+    "paramCountTotal": 8030261248,
+    "paramCountTrainable": 8030261248,
+    "paramCountMethod": "from_tensors",
+    "hashes": { "weights": "sha256:0f1c…weights" },
+    "archDoc": {
+      "tensors": [
+        { "name": "model.embed_tokens.weight", "shape": [128256, 4096], "dtype": "bf16", "digest": "sha256:aa" },
+        { "name": "model.layers.0.self_attn.q_proj.weight", "shape": [4096, 4096], "dtype": "bf16", "digest": "sha256:bb" },
+        { "name": "lm_head.weight", "shape": [128256, 4096], "dtype": "bf16", "digest": "sha256:cc" }
+      ]
+    },
+    "coverage": { "paramCountTotal": "filled" }
+  }
+}

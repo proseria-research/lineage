@@ -264,6 +264,35 @@ ladder establishes that topology and shape are unchanged; `quant_method` (§3.1)
 edge `method` (§3.6) remain declared values. Separating the two numerically requires
 per-tensor dequantized cosine similarity — a producer-side concern, not the registry's.
 
+### 4.5 Canonical form (normative)
+
+Two producers must derive the same hash for the same model, or every diff between their
+models reads as `rearchitected`. The registry cannot verify this — it does not read
+artifacts — so the rules are normative here and fixed by the fixtures shipped with the
+JSON Schema (§6.4).
+
+**Common rules.** UTF-8, LF line endings, no trailing whitespace. Tensor names are taken
+verbatim from the format, never renamed. Ordering is byte-wise ascending on the tensor
+name. Integers serialize as plain decimal; floats as the shortest round-tripping form.
+Every hash is `sha256:` + lowercase hex over the byte stream defined below.
+
+| Hash | Byte stream |
+|---|---|
+| `topology` | one line per op in graph order: `opType\x00input_indices(comma-sep)\x00k=v;…\n`, where the attribute list excludes anything shape-, dtype-, or weight-derived and is sorted by key |
+| `shape` | the `topology` stream, then one line per tensor: `name\x00d0,d1,…\n` |
+| `dtype` | one line per tensor: `name\x00dtype\n`, using the canonical dtype vocabulary below |
+| `weights` | one line per tensor: `name\x00tensorDigest\n`, where `tensorDigest` is `sha256:` + hex of that tensor's raw bytes |
+
+**Canonical dtype vocabulary:** `fp64`, `fp32`, `fp16`, `bf16`, `fp8e4m3`, `fp8e5m2`,
+`int64`, `int32`, `int16`, `int8`, `uint8`, `int4`, `uint4`, `bool`. Framework spellings
+(`float16`, `torch.bfloat16`, `F16`) normalize to these. An unmappable dtype is passed
+through verbatim rather than guessed at, which makes the disagreement visible in a diff
+instead of hiding it.
+
+**Scope.** Hashes are computed over the canonical arch doc only. The `layer_block`
+breakdown (§3.2) is a presentational rollup and is never hashed — collapsing repeats there
+must not change a fingerprint.
+
 ## 5. Producers (reference)
 
 No component in this section ships with the registry. It is included as context for
@@ -356,6 +385,78 @@ the missing inputs named. The registry does not infer a verdict from absent data
 - **`?include=sources`** returns `field_sources`, so a consumer can distinguish a `measured`
   footprint from an `estimated` one without a second call.
 
+### 6.4 The producer contract
+
+```
+GET /v1/insight-schema.json     the versioned submission schema this registry enforces
+```
+
+Served by the registry itself, not only documented, so a producer can fetch the exact
+schema the server it is talking to will apply. It is versioned independently of the
+OpenAPI document, since producers track it on their own cadence (§1).
+
+The contract has three parts:
+
+| Part | Where |
+|---|---|
+| Submission schema | `GET /v1/insight-schema.json`; `x-schemaVersion` matches the `schemaVersion` the registry accepts |
+| Canonical hash derivation | §4.5, normative |
+| Golden fixtures | `internal/api/modelapi/testdata/producers/` — one per producer shape, asserted against a running registry in CI |
+
+A registry test compares the schema's published field list against the set the code
+actually accepts, so the two cannot drift.
+
+### 6.5 Worked example
+
+A header scanner reports what it can read cheaply, and marks what it could not:
+
+```bash
+curl -X PATCH "$LINEAGE/v1/models/llama-guard/versions/fp16/insight" \
+  -H 'Content-Type: application/json' -d '{
+    "schemaVersion": "1",
+    "source": "derived",
+    "reporter": "lineage-scanner", "reporterVersion": "0.3.1",
+    "facts": {
+      "framework": {"name": "pytorch", "version": "2.4.1"},
+      "tensorCount": 291,
+      "dtypeDominant": "bf16",
+      "hashes": {"topology": "sha256:…", "shape": "sha256:…", "dtype": "sha256:…"},
+      "coverage": {"paramCountTotal": "not_attempted", "quantMethod": "unavailable_for_format"}
+    }
+  }'
+```
+
+Later, the SDK adds what only a publish-time walk can supply. It names no other field, so
+nothing the scanner reported is disturbed:
+
+```bash
+curl -X PATCH "$LINEAGE/v1/models/llama-guard/versions/fp16/insight" \
+  -H 'Content-Type: application/json' -d '{
+    "schemaVersion": "1",
+    "source": "derived",
+    "reporter": "lineage-sdk", "reporterVersion": "1.0.0",
+    "facts": {
+      "paramCountTotal": 8030261248,
+      "paramCountMethod": "from_tensors",
+      "hashes": {"weights": "sha256:…"}
+    }
+  }'
+```
+
+A format that reveals nothing still produces an honest record — `declared` facts plus a
+coverage map saying why the rest is absent:
+
+```bash
+curl -X PATCH "$LINEAGE/v1/models/churn/versions/3/insight" \
+  -H 'Content-Type: application/json' -d '{
+    "schemaVersion": "1", "source": "declared", "reporter": "release-checklist",
+    "facts": {
+      "framework": {"name": "scikit-learn", "version": "1.5.1"},
+      "coverage": {"paramCountTotal": "unavailable_for_format", "hashes": "unavailable_for_format"}
+    }
+  }'
+```
+
 ## 7. Governance
 
 - **Audited.** Every insight, evaluation, and footprint write appends an `audit_event` in
@@ -397,7 +498,7 @@ the missing inputs named. The registry does not infer a verdict from absent data
 
 | Item | Where / when |
 |---|---|
-| A reference scanner producer | Separate system; once the schema is stable. This document's API is the contract. |
+| A reference scanner producer | Separate system. The contract it builds against is published (§6.4). |
 | Per-tensor numeric similarity (quantization confirmation) | Producer-side, if declared values prove insufficient. |
 | Promotion gating on evaluations (§7) | With a policy engine. |
 | pgvector semantic search over insights + model cards | Here; Postgres-only, per `02.7` tiering. |

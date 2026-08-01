@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1",
+  "source": "declared",
+  "reporter": "release-checklist",
+  "facts": {
+    "framework": { "name": "scikit-learn", "version": "1.5.1" },
+    "quantMethod": null,
+    "coverage": {
+      "paramCountTotal": "unavailable_for_format",
+      "tensorCount": "unavailable_for_format",
+      "hashes": "unavailable_for_format"
+    }
+  }
+}
