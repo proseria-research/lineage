@@ -1,6 +1,6 @@
 # 03 — Model API
 
-> Status: **Draft**. The machine-facing Model API (`:8081`, `/v1`): publish/register,
+> Status: **Implemented**. The machine-facing Model API (`:8081`, `/v1`): publish/register,
 > resource CRUD, lifecycle transitions, lineage, deployments, errors. **Consumption**
 > (resolve + fetch) is `04`. Entities are `02`; storage/upload internals are `05`.
 

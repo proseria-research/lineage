@@ -1,6 +1,6 @@
 # 02 — Data Model
 
-> Status: **Draft**. Finalizes entities, relationships, the stage state machine, and the
+> Status: **Implemented**. Finalizes entities, relationships, the stage state machine, and the
 > constraints/portability rules that let one schema run identically on SQLite and
 > Postgres. Consumed by `03` (Model API), `04` (consumption), `05` (storage), `07`
 > (lineage).

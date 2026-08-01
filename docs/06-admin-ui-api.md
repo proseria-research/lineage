@@ -1,6 +1,6 @@
 # 06 — Admin UI API
 
-> Status: **Draft**. The human web console's backend-for-frontend on `:8080`. Shaped for
+> Status: **Implemented**. The human web console's backend-for-frontend on `:8080`. Shaped for
 > the UI (aggregations, search, dashboards, lineage/audit views); **not** the public
 > contract — that's the Model API (`03`/`04`). Mutations reuse the same domain core.
 

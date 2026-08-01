@@ -1,6 +1,6 @@
 # 07 — Lineage & Provenance
 
-> Status: **Draft**. The graph that gives the project its name: typed provenance edges,
+> Status: **Implemented**. The graph that gives the project its name: typed provenance edges,
 > their semantics, and the traversal queries (ancestry, impact analysis). Edge storage is
 > `02.3.6`; the edge API is `03.8`.
 

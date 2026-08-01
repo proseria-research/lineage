@@ -1,6 +1,6 @@
 # 01 — Architecture Overview
 
-> Status: **Draft**. Builds on `00-preplanning.md`. Defines components, the two API
+> Status: **Implemented**. Builds on `00-preplanning.md`. Defines components, the two API
 > surfaces, request flows, and deployment topology. Details deferred to `02`–`08`.
 
 ## 1. Shape
