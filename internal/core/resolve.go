@@ -58,11 +58,17 @@ func WithInsight() ResolveOption { return func(o *resolveOpts) { o.insight = tru
 
 // Resolve returns the version matching sel plus signed artifact refs, using the
 // resolve cache with event-driven invalidation (§04.2, §04.4).
-func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector, opts ...ResolveOption) (*Resolution, error) {
+func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector, opts ...ResolveOption) (_ *Resolution, err error) {
 	var ro resolveOpts
 	for _, o := range opts {
 		o(&ro)
 	}
+	ctx, sp := s.tracer.Start(ctx, "core.Resolve")
+	// Named err + one defer: every return path reports its own outcome, so a span can never
+	// be silently marked OK because a new early return forgot to record.
+	defer func() { sp.RecordError(err); sp.End() }()
+	sp.SetString("lineage.model", model)
+
 	// The included blocks are part of the cached shape, so they belong in the key.
 	key := model + "|" + cacheKey(sel)
 	if ro.insight {
@@ -72,10 +78,14 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 		var r Resolution
 		if json.Unmarshal(cached, &r) == nil {
 			s.meter.ResolveServed(true)
+			// The cache decision is the single most useful attribute on this span: it explains
+			// the latency difference between two otherwise identical resolves (§04.4).
+			sp.SetString("lineage.cache", "hit")
 			s.signRefs(ctx, &r) // signed URLs are minted per response, never cached (§04.4)
 			return &r, nil
 		}
 	}
+	sp.SetString("lineage.cache", "miss")
 	s.meter.ResolveServed(false)
 	v, err := s.store.Resolve(ctx, model, sel)
 	if err != nil {
@@ -85,6 +95,7 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 	if err != nil {
 		return nil, err
 	}
+	sp.SetString("lineage.version", v.Name)
 	r := &Resolution{
 		Model: model, VersionID: v.ID, Version: v.Name, Stage: v.Stage,
 		Artifacts: make([]ResolvedArtifact, 0, len(arts)), ResolvedAt: domain.NowMillis(),

@@ -68,7 +68,12 @@ ingress:
 
 autoscaling: { enabled: false, min: 2, max: 10 }
 podDisruptionBudget: { enabled: false }
-observability: { metrics: true, serviceMonitor: false, otlpEndpoint: "" }
+observability:                                   # otlpEndpoint "" = tracing off (09.4)
+  metrics: true
+  serviceMonitor: { enabled: false }
+  otlpEndpoint: ""                               # host:port or http(s):// collector
+  traceSampleRatio: 1.0
+  prometheusRule: { enabled: false }             # SLO alerts (09.5)
 migrations: { auto: true }                       # run migrate hook
 actorHeader: X-Lineage-Actor
 ```

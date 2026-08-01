@@ -19,7 +19,16 @@ type Config struct {
 	S3            S3Config
 	GC            GCConfig
 	Cache         CacheConfig
+	Tracing       TracingConfig
 	ActorHeader   string // trusted identity header for audit (§00 axiom 4)
+}
+
+// TracingConfig configures OTLP span export (§09.4). Empty endpoint = tracing off, which is
+// the default: correlation IDs work without a collector, spans need one.
+type TracingConfig struct {
+	Endpoint    string  // OTLP/HTTP collector, host:port or http(s):// URL
+	ServiceName string  // resource service.name
+	SampleRatio float64 // parent-based head sampling, 0..1
 }
 
 // CacheConfig configures the resolution cache (§04.4). memory = dev; redis = prod.
@@ -82,8 +91,24 @@ func Load() Config {
 			RedisPassword: env("LINEAGE_REDIS_PASSWORD", ""),
 			RedisDB:       envInt("LINEAGE_REDIS_DB", 0),
 		},
+		Tracing: TracingConfig{
+			// OTEL_EXPORTER_OTLP_ENDPOINT is the OTel-standard variable; honour it as a fallback
+			// so a collector injected by a sidecar/operator works with no Lineage-specific config.
+			Endpoint:    env("LINEAGE_OTLP_ENDPOINT", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+			ServiceName: env("LINEAGE_SERVICE_NAME", "lineage"),
+			SampleRatio: envFloat("LINEAGE_TRACE_SAMPLE_RATIO", 1.0),
+		},
 		ActorHeader: env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
 	}
+}
+
+func envFloat(k string, def float64) float64 {
+	if v := os.Getenv(k); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
 
 func envInt(k string, def int) int {

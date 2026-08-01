@@ -42,9 +42,21 @@ Readiness gates traffic during startup/migration.
 
 - **Logs:** structured JSON — `ts`, `level`, `requestId`, `actor`, `surface`, `route`,
   `status`, `latencyMs`. **Never** log secrets, signed URLs, or artifact bytes.
-- **Traces:** OpenTelemetry, `traceparent` propagated; spans API → core → DB/storage;
-  OTLP export to `observability.otlpEndpoint` (`08`).
+- **Traces:** OpenTelemetry, `traceparent` propagated; spans API → core → store; OTLP/HTTP
+  export to `observability.otlpEndpoint` (`08`). Off unless an endpoint is set.
 - **Correlation:** `requestId` on every log/trace; `actor` from `X-Lineage-Actor`.
+
+| Span | Opened by | Attributes |
+|---|---|---|
+| `<METHOD> <route>` | API middleware (server span) | `http.request.method`, `http.route`, `http.response.status_code`, `lineage.surface` |
+| `core.Resolve` | core | `lineage.model`, `lineage.version`, `lineage.cache` (hit/miss) |
+| `core.PublishVersion` | core | `lineage.model`, `lineage.version`, `lineage.artifacts` |
+| `core.Transition` | core | `lineage.stage.from`, `lineage.stage.to`, `lineage.demoted` |
+| `core.FinalizeUpload` | core | `lineage.upload.mode`, `lineage.size_bytes` |
+| `store.<Method>` | store decorator | `lineage.stage` on `SetStage` |
+
+Span names are templated routes (`/v1/models/{model}`), never concrete paths — the same
+cardinality rule as the metric labels. 5xx marks the span errored; 4xx does not.
 
 ## 5. SLOs (starting targets)
 
@@ -55,7 +67,21 @@ Readiness gates traffic during startup/migration.
 | Publish success rate | ≥ 99.5% |
 | Migration-hook success | 100% (else release aborts, `08.7`) |
 
-Error budgets drive alerting on the RED metrics above.
+Error budgets drive alerting on the RED metrics above. The chart ships these as a
+`PrometheusRule` (`observability.prometheusRule.enabled`, thresholds in values):
+
+| Alert | Fires on | Severity |
+|---|---|---|
+| `LineageResolveAvailability` | resolve 5xx share over budget | critical |
+| `LineageResolveLatencyP99` | resolve p99 over target | warning |
+| `LineagePublishSuccessRate` | publish 5xx share over budget | critical |
+| `LineageDigestMismatches` | any sustained finalize digest rejection (`05.6`) | warning |
+| `LineageProductionSingletonViolated` | >1 version in `production` (`02.4`) | critical |
+| `LineageDown` | ops port not scrapeable | critical |
+
+The duration histogram is labelled by `route`, not by cache outcome, so the p99 alert covers
+all resolves; isolating the cache-hit p99 the SLO names would need a new label (§2).
+Migration-hook success is not alertable here — a failed hook aborts the release (`08.7`).
 
 ## 6. Backup & DR
 
@@ -92,8 +118,15 @@ the metadata store loses *registry state*, not the model bytes.
   `HTTPRecorder` interface — `route` is the matched ServeMux **pattern** (templated), so label
   cardinality is bounded.
 - **Logs:** `slog` JSON on stderr; `requestId` (echoed as `X-Request-Id`) and the W3C
-  `traceparent` trace-id give correlation today. **OTLP span export** (OTel SDK) is additive and
-  ships with the chart (§08), since spans need a collector to receive them.
+  `traceparent` trace-id give correlation. With tracing on, `requestId` falls back to the live
+  span's trace id, so a request with no upstream `traceparent` still joins logs to its trace.
+- **Traces:** the OTel SDK sits behind a `domain.Tracer` port (no-op default) injected with
+  `core.WithTracer` — the same shape as `Meter`, so the core never imports the SDK (§01). The
+  `internal/observability/tracing` adapter owns the provider, the OTLP/HTTP exporter, and W3C
+  propagation. Store spans come from a decorator over the `MetadataStore` **port**, so SQLite,
+  Postgres, and memory are instrumented once and the store adapters stay telemetry-free.
+  Sampling is parent-based, so an upstream decision wins and a trace is never half-recorded.
+  With no endpoint configured the tracer is disabled and is not in the call path at all.
 - **Readiness:** `observability.Ready(StoreReady, StorageReady)` composes checks; a `Stat` on the
   default backend proves reachability (and, for signing backends, credentials).
 

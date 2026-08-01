@@ -191,7 +191,12 @@ func (s *Service) UploadContent(ctx context.Context, uploadID string, r io.Reade
 // creates the immutable artifact row (§05.6). Digest sources, in order: the digest computed
 // during a stream-through upload; the backend's Stat (x-amz-meta-sha256); else a one-time
 // verify-by-stream when the client declared a digest the backend can't attest cheaply.
-func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, uploadID, declaredDigest string, parts []domain.MultipartPart) (*domain.Artifact, error) {
+func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, uploadID, declaredDigest string, parts []domain.MultipartPart) (_ *domain.Artifact, err error) {
+	ctx, sp := s.tracer.Start(ctx, "core.FinalizeUpload")
+	defer func() { sp.RecordError(err); sp.End() }()
+	sp.SetString("lineage.model", model)
+	sp.SetString("lineage.version", version)
+
 	start := time.Now()
 	pu, err := s.takePending(uploadID, true)
 	if err != nil {
@@ -211,7 +216,7 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 			_ = b.AbortMultipart(ctx, pu.path, pu.backendUploadID)
 			return nil, domain.Invalid("multipart finalize requires the per-part ETags")
 		}
-		if _, err := b.CompleteMultipart(ctx, pu.path, pu.backendUploadID, parts); err != nil {
+		if _, err = b.CompleteMultipart(ctx, pu.path, pu.backendUploadID, parts); err != nil {
 			return nil, err
 		}
 	}
@@ -220,10 +225,13 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	var size int64
 	if pu.uploaded {
 		// Stream-through: we hashed the bytes as they passed through.
+		sp.SetString("lineage.upload.mode", "stream-through")
 		digest, size = pu.gotDigest, pu.gotSize
 	} else {
 		// Direct signed PUT: confirm the object exists and get its size.
-		info, err := b.Stat(ctx, pu.uri)
+		sp.SetString("lineage.upload.mode", uploadMode(pu.multipart))
+		var info domain.ObjectInfo
+		info, err = b.Stat(ctx, pu.uri)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +245,8 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 			digest = info.Digest
 		case declaredDigest != "" && !pu.multipart && size > 0 && size <= streamVerifyCap:
 			// Small single PUT the backend can't attest: verify once by streaming it back.
-			computed, err := streamDigest(ctx, b, pu.uri)
+			var computed string
+			computed, err = streamDigest(ctx, b, pu.uri)
 			if err != nil {
 				return nil, err
 			}
@@ -248,6 +257,7 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 		// rely on the size check below (§05.6).
 	}
 
+	sp.SetInt("lineage.size_bytes", size)
 	if declaredDigest != "" && digest != "" && declaredDigest != digest {
 		s.meter.UploadFinalized(time.Since(start).Seconds(), true)
 		return nil, domain.Unprocessable("digest mismatch: declared " + declaredDigest + " but object is " + digest)
@@ -305,6 +315,15 @@ func (s *Service) takePending(id string, remove bool) (*pendingUpload, error) {
 		delete(s.pending, id)
 	}
 	return pu, nil
+}
+
+// uploadMode labels the signed path on the finalize span (§05.6): a multipart assembly and a
+// single PUT fail for different reasons and are worth telling apart in a trace.
+func uploadMode(multipart bool) string {
+	if multipart {
+		return "multipart"
+	}
+	return "signed-put"
 }
 
 // streamDigest reads an object back through the backend to compute its sha256 — the

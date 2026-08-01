@@ -105,7 +105,23 @@ observability:
     enabled: false
     labels: {}
     interval: 30s
-  otlpEndpoint: "" # OTLP collector for traces (reserved; §09.8)
+  # OTLP/HTTP collector for traces (§09.4). Empty = tracing off: correlation IDs still work,
+  # spans need a collector. Accepts host:port (plaintext) or an http(s):// URL.
+  otlpEndpoint: ""
+  serviceName: "" # resource service.name; defaults to the release fullname
+  traceSampleRatio: 1.0 # parent-based head sampling; lower it on hot installs
+  # SLO alert rules over the RED metrics (§09.5). Needs the Prometheus operator, like
+  # serviceMonitor. Thresholds are the starting targets — tune per install.
+  prometheusRule:
+    enabled: false
+    labels: {} # e.g. release: kube-prometheus-stack, so the operator picks the rule up
+    slo:
+      resolveAvailability: 99.9 # percent of resolves that must not 5xx
+      resolveLatencyP99Seconds: 0.05 # cache-hit p99 target
+      publishSuccessRate: 99.5 # percent of publishes that must succeed
+    # Window each error-budget rule burns over before it fires.
+    window: 30m
+    for: 10m
 
 migrations:
   auto: true # run the migrate Job (pre-install/pre-upgrade) for postgres

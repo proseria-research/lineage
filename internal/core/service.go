@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ type Service struct {
 	cache     domain.ResolutionCache
 	events    domain.EventBus
 	meter     domain.Meter
+	tracer    domain.Tracer
 	signTTL   time.Duration
 	uploadTTL time.Duration
 
@@ -37,10 +39,20 @@ func WithMeter(m domain.Meter) Option {
 	}
 }
 
+// WithTracer attaches a telemetry Tracer (§09.4); nil leaves the no-op in place.
+func WithTracer(t domain.Tracer) Option {
+	return func(s *Service) {
+		if t != nil {
+			s.tracer = t
+		}
+	}
+}
+
 func New(store domain.MetadataStore, backends map[string]domain.StorageBackend, defBack string, cache domain.ResolutionCache, events domain.EventBus, opts ...Option) *Service {
 	s := &Service{
 		store: store, backends: backends, defBack: defBack, cache: cache, events: events,
-		meter: domain.NopMeter{}, signTTL: 15 * time.Minute, uploadTTL: time.Hour,
+		meter: domain.NopMeter{}, tracer: domain.NopTracer{},
+		signTTL: 15 * time.Minute, uploadTTL: time.Hour,
 		pending: map[string]*pendingUpload{},
 	}
 	for _, o := range opts {
@@ -162,7 +174,13 @@ func (s *Service) Stats(ctx context.Context) (Stats, error) {
 
 // ---- Versions ----
 
-func (s *Service) PublishVersion(ctx context.Context, actor, model string, in PublishVersionInput) (*domain.ModelVersion, []*domain.Artifact, error) {
+func (s *Service) PublishVersion(ctx context.Context, actor, model string, in PublishVersionInput) (_ *domain.ModelVersion, _ []*domain.Artifact, err error) {
+	ctx, sp := s.tracer.Start(ctx, "core.PublishVersion")
+	defer func() { sp.RecordError(err); sp.End() }()
+	sp.SetString("lineage.model", model)
+	sp.SetString("lineage.version", in.Name)
+	sp.SetInt("lineage.artifacts", int64(len(in.Artifacts)))
+
 	m, err := s.store.GetModel(ctx, model)
 	if err != nil {
 		return nil, nil, err
@@ -176,12 +194,15 @@ func (s *Service) PublishVersion(ctx context.Context, actor, model string, in Pu
 		Description: in.Description, Author: in.Author, Stage: domain.StageDraft,
 		Labels: in.Labels, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.store.CreateVersion(ctx, v); err != nil {
+	// Assign, never `:=`, inside these blocks: a shadowed err would leave the deferred
+	// RecordError above looking at a nil and marking a failed publish as a clean span.
+	if err = s.store.CreateVersion(ctx, v); err != nil {
 		return nil, nil, err
 	}
 	arts := make([]*domain.Artifact, 0, len(in.Artifacts))
 	for _, ai := range in.Artifacts {
-		a, err := s.registerArtifact(ctx, v.ID, ai)
+		var a *domain.Artifact
+		a, err = s.registerArtifact(ctx, v.ID, ai)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -234,7 +255,13 @@ func (s *Service) ListVersions(ctx context.Context, model string, o domain.ListO
 
 // Transition moves a version to `to`, enforcing the state machine and singleton
 // demotion, then audits, emits, and invalidates the resolve cache (§03.7, §02.4).
-func (s *Service) Transition(ctx context.Context, actor, model, version string, to domain.Stage, reason string) (*domain.ModelVersion, error) {
+func (s *Service) Transition(ctx context.Context, actor, model, version string, to domain.Stage, reason string) (_ *domain.ModelVersion, err error) {
+	ctx, sp := s.tracer.Start(ctx, "core.Transition")
+	defer func() { sp.RecordError(err); sp.End() }()
+	sp.SetString("lineage.model", model)
+	sp.SetString("lineage.version", version)
+	sp.SetString("lineage.stage.to", string(to))
+
 	if !domain.ValidStage(to) {
 		return nil, domain.Invalid("unknown stage '" + string(to) + "'")
 	}
@@ -242,6 +269,7 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 	if err != nil {
 		return nil, err
 	}
+	sp.SetString("lineage.stage.from", string(v.Stage))
 	if v.Stage == to {
 		return v, nil
 	}
@@ -257,9 +285,10 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 			demoted = true
 		}
 	}
-	if err := s.store.SetStage(ctx, v.ID, to, domain.IsSingleton(to)); err != nil {
+	if err = s.store.SetStage(ctx, v.ID, to, domain.IsSingleton(to)); err != nil {
 		return nil, err
 	}
+	sp.SetString("lineage.demoted", strconv.FormatBool(demoted))
 	data, _ := json.Marshal(map[string]string{"from": string(v.Stage), "to": string(to), "reason": reason})
 	s.audit(ctx, actor, "version.stage_changed", "model_version", v.ID, model+"@"+version+" → "+string(to), data)
 	s.events.Publish(domain.Event{Type: "version.stage_changed", Model: model, Version: version, Data: map[string]any{"to": to}})
