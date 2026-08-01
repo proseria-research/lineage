@@ -21,8 +21,8 @@ flowchart LR
     M5 --> M8["M8 · Observability"]
     M2 --> M9["M9 · Helm / deploy"]
     M5 --> M10["M10 · SDK & CLI"]
-    M9 --> M11["M11 · Managed service"]
-    M4 --> M11
+    M5 --> M11["M11 · Model insights"]
+    M10 --> M11
 
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
@@ -46,14 +46,15 @@ flowchart LR
 | M8 | Observability: metrics, traces, SLOs | `09` | ✅ |
 | M9 | Deployment: Helm chart + profiles | `08` | ✅ |
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ⬜ |
-| M11 | Managed service (separate repo) | `11` | 🔮 |
+| M11 | Model insights: fingerprint, footprint, evaluations | `11` | ⬜ |
 
 ---
 
 ## M0 — Architecture & Design Docs ✅
 
-Full spec set `00`–`11`, mermaid-only diagrams, decisions recorded in `00 §11`.
-**Done:** commits through `9eed5f0`.
+Full spec set `00`–`10`, mermaid-only diagrams, decisions recorded in `00 §11`.
+**Done:** commits through `9eed5f0`. `11-model-insights.md` was specced later, with **M11**
+(it replaced the managed-service doc, moved out of this OSS repo).
 
 ## M1 — Go Scaffold ✅
 
@@ -242,10 +243,85 @@ guards fail-closed; multi-stage `Dockerfile` (cgo-free static → distroless non
 - [ ] Go CLI `lineage`: model/version/resolve/pull/lineage
 - [ ] Generation + versioning pipeline
 
-## M11 — Managed Service 🔮
+## M11 — Model Insights ⬜
 
-**Goal:** monetization (§11). **Separate proprietary repo**; the OSS chart is the contract.
+**Goal:** the fact API for model composition (§11) — param counts, layer breakdown,
+framework, precision/quantization, disk vs memory footprint, evaluations, and an
+architecture fingerprint that classifies version-to-version change. The registry stores and
+queries these facts; producers outside it derive them (§11.1).
+**Acceptance:** two versions whose facts were submitted over the API yield
+`GET /v1/models/{m}/diff?from=A&to=B` with the correct §11.4.1 verdict (`reweighted` vs
+`recast` vs `rearchitected`) plus metric deltas, while the binary opens no artifact on any
+insight path — no framework code, no header parsing, no artifact reads.
+**Depends on:** M5 (Model API contract) · M2 (per-dialect store) · M6 (console panels).
+M10 is not a dependency; the SDK is one producer among several, added later.
 
-- [ ] Control plane: provisioning over the Helm chart, fleet observability, billing
-- [ ] Edge gateway: SSO/RBAC → `X-Lineage-Actor`
-- [ ] BYOC operator; export/import (no lock-in)
+### 11a — Schema & core
+
+- [ ] Tables `version_insight`, `layer_block`, `footprint`, `evaluation` (§11.3) — per-dialect
+      migrations + `MetadataStore` port methods; `ON DELETE CASCADE` from `model_version`
+- [ ] `lineage_edge.properties json?` (§11.3.6) so `derived_from` can carry `{method:"quantize"}`
+- [ ] Domain entities + enums (`source`, `param_count_method`, `dtype_dominant`); `coverage`
+      records extractability rather than substituting a value — unknown is `null` (§11.2)
+- [ ] Per-field provenance: `field_sources` + `reporter_*`, so independent producers coexist
+      without clobbering each other (§11.2, §11.6.1)
+- [ ] Store conformance suite extended (`storetest`) → green on memory + SQLite + Postgres
+
+### 11b — Fingerprint & diff
+
+All of this computes over stored facts only — the same posture as lineage traversal (§07).
+
+- [ ] Canonical arch-doc normalization spec (sorted tensor names, normalized op names,
+      collapsed repeats), published so independent producers hash identically; the registry
+      validates the shape, producers compute the hashes
+- [ ] Verdict classifier over the stored four-hash ladder, from the §11.4.1 lookup table
+      (not a heuristic) + per-tensor merkle partial diff → changed-name patterns (detects a
+      LoRA merge, §11.4.2)
+- [ ] Partial facts: missing `weights_hash` ⇒ a narrowed verdict naming the missing inputs;
+      no facts ⇒ `verdict:"unknown"` rather than an inference (§11.4.3, §11.6.2)
+- [ ] Metric delta join over (`suite`,`metric`,`split`,`harness_version`) with
+      `higher_is_better` applied; empty intersection ⇒ `comparable:false`, never a bogus delta
+- [ ] Tests: each verdict row, partial/unknown verdicts, ordering stability of the
+      canonical form, non-comparable metric pairs
+
+### 11c — API
+
+- [ ] `PATCH …/insight` merges per field (absent = unchanged, explicit `null` = clear),
+      recording `field_sources` per merged field — the default write (§11.6.1)
+- [ ] `PUT …/insight` full replace (single-owner case); `POST`/`GET …/evaluations` (append-only);
+      `PUT`/`GET …/footprints[/{scenario}]` (upsert by scenario); `GET …/insight?include=layers,sources`
+- [ ] `GET /v1/models/{m}/diff?from=&to=` + cross-model `GET /v1/diff?from=a@1&to=b@2`
+- [ ] Versioned JSON Schema: payload declares `schemaVersion`; unknown version ⇒ `400`;
+      unknown fields rejected rather than dropped; no partial writes
+- [ ] Governance (§11.7): audit-in-transaction; **`weights_hash` conflict ⇒ `409`** unless
+      `?force=true`; evaluations append-only
+- [ ] `resolve ?include=insight` compact block (`paramCount`,`dtype`,`diskBytes`,
+      `minDeviceMemoryBytes`) — gated so the hot cached path stays small (§04, axiom 8)
+- [ ] OpenAPI updated; scalar filters on both engines, `arch_doc` JSONB predicates
+      Postgres-only (§02.7)
+- [ ] Tests: multi-producer merge (three writers, disjoint fields, no clobber), schema-version
+      rejection, `409` on fingerprint contradiction, idempotent replay
+
+### 11d — Producer contract (published, not implemented here)
+
+The registry ships no extractor (§11.5, §11.9); it owes producers a contract stable enough
+to build against.
+
+- [ ] JSON Schema published + served alongside the OpenAPI document, versioned independently
+- [ ] Golden fixture set (one per format family) + a conformance test any producer can run
+- [ ] Canonical arch-doc normalization documented precisely enough that two producers agree
+      on the same hash for the same model
+- [ ] Worked producer examples in the docs (curl + SDK), incl. the `declared`-only path for a
+      format that reveals nothing
+
+### 11e — Console (§11.8)
+
+- [ ] Version detail Insights panel: params, framework, precision, disk vs memory, layer
+      breakdown (repeats collapsed); every value labelled with its `source` and reporter
+- [ ] Compare view: verdict, hash ladder, changed-tensor summary, metric deltas
+- [ ] Estimated footprints rendered with their basis, not as a bare byte count
+- [ ] Absent facts render as "not reported", distinct from a zero or an empty value
+
+**Non-goals** (§11.9): the registry derives no fact from an artifact (weights, headers, or
+config); no scanner ships in this repo; no eval orchestration; no verification of accuracy
+claims; no determination of why weights changed.

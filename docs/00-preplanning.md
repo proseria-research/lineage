@@ -232,7 +232,7 @@ The chart is a product surface.
 | `08-deployment-helm.md` | chart structure, values, profiles, migration |
 | `09-observability-and-ops.md` | metrics, logs, traces, SLOs, runbooks |
 | `10-sdk-and-cli.md` | client ergonomics |
-| `11-managed-service.md` | monetization via managed/hosted service; control plane over per-tenant OSS instances; self-host stays fully open |
+| `11-model-insights.md` | model composition as queryable metadata: params, layers, framework, precision/quantization, disk vs memory footprint, evaluations, architecture fingerprint + version diff |
 | `ADRs/` | one numbered file per significant decision |
 
 ## 11. Decisions

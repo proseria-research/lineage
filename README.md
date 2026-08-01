@@ -305,14 +305,14 @@ Design documents live in [`docs/`](docs/), numbered in reading order:
 | [`08`](docs/08-deployment-helm.md) | Deployment & Helm |
 | [`09`](docs/09-observability-and-ops.md) | Observability & ops |
 | [`10`](docs/10-sdk-and-cli.md) | SDK & CLI |
-| [`11`](docs/11-managed-service.md) | Managed service |
+| [`11`](docs/11-model-insights.md) | Model insights & architecture diff |
 
 ## Project status
 
 Actively developed. Milestones **M0–M9 are complete** — architecture, persistence, storage,
 delivery, the full `/v1` API, the admin console, the lineage graph, observability, and the
-Helm chart. Remaining: an OpenAPI-generated **Python SDK and CLI** (M10) and a **managed
-service** (M11, a separate repository). Progress is tracked in
+Helm chart. Remaining: an OpenAPI-generated **Python SDK and CLI** (M10) and **model
+insights** — fingerprint, footprint, evaluations (M11). Progress is tracked in
 [`MILESTONES.md`](MILESTONES.md).
 
 ## License
