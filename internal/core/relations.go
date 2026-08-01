@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/proseria-research/lineage/internal/domain"
 )
@@ -18,6 +19,11 @@ type LineageInput struct {
 		Version string `json:"version"` // another version of the same model
 		URI     string `json:"uri"`     // external artifact/dataset reference
 	} `json:"to"`
+	// Properties records how the relation came about, e.g.
+	// {"method":"quantize","from_dtype":"fp16"} on a derived_from edge. This is what lets a
+	// diff verdict be corroborated by declared intent without growing the relation enum
+	// (§11.3.6) — the hashes can prove the shape is unchanged, but not why.
+	Properties json.RawMessage `json:"properties"`
 }
 
 var validRelations = map[domain.LineageRelation]bool{
@@ -38,7 +44,7 @@ func (s *Service) AddLineage(ctx context.Context, actor, model, version string, 
 	}
 	e := &domain.LineageEdge{
 		ID: domain.NewID(), SrcType: "model_version", SrcID: v.ID,
-		Relation: in.Relation, CreatedAt: domain.NowMillis(),
+		Relation: in.Relation, Properties: in.Properties, CreatedAt: domain.NowMillis(),
 	}
 	if in.To.Version != "" {
 		target, err := s.store.GetVersion(ctx, model, in.To.Version)

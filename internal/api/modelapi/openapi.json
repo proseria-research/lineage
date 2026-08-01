@@ -8,7 +8,9 @@
   "servers": [{ "url": "/", "description": "Model API port (:8081)" }],
   "tags": [
     { "name": "models" }, { "name": "versions" }, { "name": "artifacts" },
-    { "name": "delivery" }, { "name": "lineage" }, { "name": "deployments" }, { "name": "audit" }
+    { "name": "delivery" }, { "name": "lineage" }, { "name": "deployments" },
+    { "name": "insights", "description": "Composition facts submitted by producers. The registry stores and queries them; it never derives them from an artifact." },
+    { "name": "audit" }
   ],
   "paths": {
     "/v1/models": {
@@ -118,6 +120,69 @@
       "patch": { "operationId": "patchDeployment", "tags": ["deployments"], "summary": "Update a deployment", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentPatch" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Deployment" } } } } } },
       "delete": { "operationId": "deleteDeployment", "tags": ["deployments"], "summary": "Delete a deployment", "responses": { "204": { "description": "Deleted" } } }
     },
+    "/v1/models/{model}/versions/{version}/insight": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": {
+        "operationId": "getInsight", "tags": ["insights"], "summary": "Get recorded composition facts for a version",
+        "description": "Returns only what producers submitted. A version nobody has reported on is a 404, not an empty record.",
+        "parameters": [{ "name": "include", "in": "query", "description": "Comma-separated: layers, sources", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Insight", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionInsight" } } } }, "404": { "$ref": "#/components/responses/Problem" } }
+      },
+      "patch": {
+        "operationId": "patchInsight", "tags": ["insights"], "summary": "Merge composition facts (the default write)",
+        "description": "Merges per field: an absent key is left unchanged, an explicit null clears. Several independent producers report on one version, so merging is what keeps them from clobbering each other. Unknown fields are rejected rather than dropped.",
+        "parameters": [{ "$ref": "#/components/parameters/force" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InsightWrite" } } } },
+        "responses": { "200": { "description": "Merged", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionInsight" } } } }, "400": { "$ref": "#/components/responses/Problem" }, "409": { "$ref": "#/components/responses/Problem" } }
+      },
+      "put": {
+        "operationId": "putInsight", "tags": ["insights"], "summary": "Replace the whole insight document",
+        "description": "Appropriate only where one producer owns every field; otherwise use PATCH.",
+        "parameters": [{ "$ref": "#/components/parameters/force" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InsightWrite" } } } },
+        "responses": { "200": { "description": "Replaced", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionInsight" } } } }, "400": { "$ref": "#/components/responses/Problem" }, "409": { "$ref": "#/components/responses/Problem" } }
+      }
+    },
+    "/v1/models/{model}/versions/{version}/evaluations": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": { "operationId": "listEvaluations", "tags": ["insights"], "summary": "List evaluation results", "responses": { "200": { "description": "Evaluations", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Evaluation" } } } } } } } } },
+      "post": {
+        "operationId": "addEvaluation", "tags": ["insights"], "summary": "Append an evaluation result",
+        "description": "Append-only: a re-run is a new row with its own runAt and harness version, so regressions stay visible.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EvaluationInput" } } } },
+        "responses": { "201": { "description": "Recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Evaluation" } } } }, "400": { "$ref": "#/components/responses/Problem" } }
+      }
+    },
+    "/v1/models/{model}/versions/{version}/footprints": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }],
+      "get": { "operationId": "listFootprints", "tags": ["insights"], "summary": "List memory-footprint scenarios", "responses": { "200": { "description": "Footprints", "content": { "application/json": { "schema": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Footprint" } } } } } } } } }
+    },
+    "/v1/models/{model}/versions/{version}/footprints/{scenario}": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }, { "$ref": "#/components/parameters/version" }, { "name": "scenario", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "put": {
+        "operationId": "putFootprint", "tags": ["insights"], "summary": "Upsert one memory-footprint scenario",
+        "description": "In-memory size is a function of dtype, batch, sequence length, KV cache, and framework overhead, so each scenario carries the assumptions behind it. An estimated footprint requires a basis.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FootprintInput" } } } },
+        "responses": { "200": { "description": "Recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Footprint" } } } }, "400": { "$ref": "#/components/responses/Problem" } }
+      }
+    },
+    "/v1/models/{model}/diff": {
+      "parameters": [{ "$ref": "#/components/parameters/model" }],
+      "get": {
+        "operationId": "diffVersions", "tags": ["insights"], "summary": "Compare two versions of a model",
+        "description": "Computed entirely over stored facts; no artifact is read. Where the required facts were never submitted the verdict is `unknown` with the missing inputs named.",
+        "parameters": [{ "name": "from", "in": "query", "required": true, "schema": { "type": "string" } }, { "name": "to", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Diff", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InsightDiff" } } } }, "400": { "$ref": "#/components/responses/Problem" } }
+      }
+    },
+    "/v1/diff": {
+      "get": {
+        "operationId": "diffAcrossModels", "tags": ["insights"], "summary": "Compare two versions across models",
+        "description": "Takes model@version references, e.g. ?from=teacher@2&to=student@1.",
+        "parameters": [{ "name": "from", "in": "query", "required": true, "schema": { "type": "string" } }, { "name": "to", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Diff", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InsightDiff" } } } }, "400": { "$ref": "#/components/responses/Problem" } }
+      }
+    },
     "/v1/audit": {
       "get": { "operationId": "auditFeed", "tags": ["audit"], "summary": "Global audit feed", "parameters": [{ "name": "subjectType", "in": "query", "schema": { "type": "string" } }, { "name": "subjectId", "in": "query", "schema": { "type": "string" } }, { "$ref": "#/components/parameters/pageSize" }, { "$ref": "#/components/parameters/pageToken" }], "responses": { "200": { "description": "Page of audit events", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuditPage" } } } } } }
     },
@@ -185,9 +250,9 @@
       "MultipartPart": { "type": "object", "properties": { "partNumber": { "type": "integer" }, "url": { "type": "string" }, "etag": { "type": "string" } } },
       "UploadTicket": { "type": "object", "properties": { "uploadId": { "type": "string" }, "url": { "type": "string" }, "method": { "type": "string" }, "headers": { "type": "object", "additionalProperties": { "type": "string" } }, "streamThrough": { "type": "boolean" }, "contentUrl": { "type": "string" }, "multipart": { "type": "boolean" }, "partSize": { "type": "integer", "format": "int64" }, "parts": { "type": "array", "items": { "$ref": "#/components/schemas/MultipartPart" } }, "expiresAt": { "type": "integer", "format": "int64" } } },
       "ResolvedArtifact": { "type": "object", "properties": { "name": { "type": "string" }, "kind": { "type": "string" }, "storageUri": { "type": "string" }, "signedUrl": { "type": "string" }, "signedUrlExpiresAt": { "type": "integer", "format": "int64" }, "sizeBytes": { "type": "integer", "format": "int64" }, "digest": { "type": "string" }, "mediaType": { "type": "string" }, "serviceAccount": { "type": "string" } } },
-      "Resolution": { "type": "object", "properties": { "model": { "type": "string" }, "versionId": { "type": "string" }, "version": { "type": "string" }, "stage": { "type": "string" }, "digest": { "type": "string" }, "modelFormat": { "$ref": "#/components/schemas/ModelFormat" }, "artifacts": { "type": "array", "items": { "$ref": "#/components/schemas/ResolvedArtifact" } }, "resolvedAt": { "type": "integer", "format": "int64" } } },
-      "LineageEdge": { "type": "object", "properties": { "id": { "type": "string" }, "srcType": { "type": "string" }, "srcId": { "type": "string" }, "relation": { "type": "string", "enum": ["derived_from", "trained_on", "produced_by", "deployed_as"] }, "dstType": { "type": "string" }, "dstId": { "type": "string" }, "dstRef": { "type": "string" }, "createdAt": { "type": "integer", "format": "int64" } } },
-      "LineageInput": { "type": "object", "required": ["relation", "to"], "properties": { "relation": { "type": "string", "enum": ["derived_from", "trained_on", "produced_by", "deployed_as"] }, "to": { "type": "object", "properties": { "version": { "type": "string" }, "uri": { "type": "string" } } } } },
+      "Resolution": { "type": "object", "properties": { "model": { "type": "string" }, "versionId": { "type": "string" }, "version": { "type": "string" }, "stage": { "type": "string" }, "digest": { "type": "string" }, "modelFormat": { "$ref": "#/components/schemas/ModelFormat" }, "artifacts": { "type": "array", "items": { "$ref": "#/components/schemas/ResolvedArtifact" } }, "insight": { "$ref": "#/components/schemas/ResolvedInsight" }, "resolvedAt": { "type": "integer", "format": "int64" } } },
+      "LineageEdge": { "type": "object", "properties": { "id": { "type": "string" }, "srcType": { "type": "string" }, "srcId": { "type": "string" }, "relation": { "type": "string", "enum": ["derived_from", "trained_on", "produced_by", "deployed_as"] }, "dstType": { "type": "string" }, "dstId": { "type": "string" }, "dstRef": { "type": "string" }, "properties": { "type": "object", "description": "How the relation came about, e.g. {\"method\":\"quantize\",\"from_dtype\":\"fp16\"} on a derived_from edge." }, "createdAt": { "type": "integer", "format": "int64" } } },
+      "LineageInput": { "type": "object", "required": ["relation", "to"], "properties": { "relation": { "type": "string", "enum": ["derived_from", "trained_on", "produced_by", "deployed_as"] }, "to": { "type": "object", "properties": { "version": { "type": "string" }, "uri": { "type": "string" } } }, "properties": { "type": "object", "description": "Optional detail about how the relation came about, e.g. {\"method\":\"quantize\"}." } } },
       "LineageNode": { "type": "object", "properties": { "type": { "type": "string", "enum": ["model_version", "external"] }, "id": { "type": "string" }, "ref": { "type": "string" }, "model": { "type": "string" }, "version": { "type": "string" }, "stage": { "type": "string" }, "label": { "type": "string" }, "depth": { "type": "integer" } } },
       "LineageGraph": { "type": "object", "properties": { "root": { "type": "string" }, "direction": { "type": "string" }, "nodes": { "type": "array", "items": { "$ref": "#/components/schemas/LineageNode" } }, "edges": { "type": "array", "items": { "$ref": "#/components/schemas/LineageEdge" } } } },
       "Deployment": { "type": "object", "properties": { "id": { "type": "string" }, "versionId": { "type": "string" }, "environment": { "type": "string" }, "endpointUri": { "type": "string" }, "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] }, "externalRef": { "type": "string" }, "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" } } },
@@ -197,7 +262,134 @@
       "ModelPage": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/Model" } }, "nextPageToken": { "type": "string" } } },
       "VersionPage": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/ModelVersion" } }, "nextPageToken": { "type": "string" } } },
       "AuditPage": { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/AuditEvent" } }, "nextPageToken": { "type": "string" } } },
-      "Problem": { "type": "object", "properties": { "type": { "type": "string" }, "title": { "type": "string" }, "status": { "type": "integer" }, "code": { "type": "string" }, "detail": { "type": "string" }, "instance": { "type": "string" }, "details": { "type": "object" } } }
+      "Problem": { "type": "object", "properties": { "type": { "type": "string" }, "title": { "type": "string" }, "status": { "type": "integer" }, "code": { "type": "string" }, "detail": { "type": "string" }, "instance": { "type": "string" }, "details": { "type": "object" } } },
+
+      "FactSource": { "type": "string", "enum": ["declared", "derived", "measured"], "description": "How a value was obtained. declared = asserted by the publisher (attributed, not verified); derived = computed by a producer from the model; measured = reported by a runtime or harness, valid within its stated basis." },
+      "NameVersion": { "type": "object", "properties": { "name": { "type": "string" }, "version": { "type": "string" } } },
+      "Hashes": {
+        "type": "object", "description": "The four-level architecture fingerprint. Separating the levels makes the diff verdict a table lookup rather than a heuristic. weights is optional: a producer that only read file headers submits the first three.",
+        "properties": { "topology": { "type": "string" }, "shape": { "type": "string" }, "dtype": { "type": "string" }, "weights": { "type": "string" } }
+      },
+      "FieldSource": { "type": "object", "description": "Attribution for one field. Provenance is per field, not per record, because independent producers supply different facts.", "properties": { "source": { "$ref": "#/components/schemas/FactSource" }, "reporter": { "type": "string" }, "reporterVersion": { "type": "string" }, "at": { "type": "integer", "format": "int64" } } },
+      "LayerBlock": {
+        "type": "object", "description": "One distinct block of the architecture, collapsed over repeats: an 80-layer decoder contributes one row with repeatCount=80. paramCount and bytes are per single instance.",
+        "properties": { "ordinal": { "type": "integer", "format": "int64" }, "path": { "type": "string" }, "opType": { "type": "string" }, "repeatCount": { "type": "integer", "format": "int64" }, "shapeSignature": { "type": "string" }, "dtype": { "type": "string" }, "paramCount": { "type": ["integer", "null"], "format": "int64" }, "bytes": { "type": ["integer", "null"], "format": "int64" } },
+        "required": ["path"]
+      },
+      "VersionInsight": {
+        "type": "object",
+        "properties": {
+          "versionId": { "type": "string" },
+          "framework": { "$ref": "#/components/schemas/NameVersion" },
+          "producer": { "$ref": "#/components/schemas/NameVersion" },
+          "paramCountTotal": { "type": ["integer", "null"], "format": "int64" },
+          "paramCountTrainable": { "type": ["integer", "null"], "format": "int64" },
+          "paramCountMethod": { "type": "string", "enum": ["from_tensors", "from_config", "declared"] },
+          "tensorCount": { "type": ["integer", "null"], "format": "int64" },
+          "dtypeDominant": { "type": "string", "enum": ["fp32", "fp16", "bf16", "int8", "int4", "mixed"] },
+          "quantMethod": { "type": "string" },
+          "quantScope": { "type": "object" },
+          "diskBytes": { "type": ["integer", "null"], "format": "int64" },
+          "weightsBytes": { "type": ["integer", "null"], "format": "int64", "description": "Sum of tensor nbytes; differs from diskBytes under sharding, zip, or compression." },
+          "hashes": { "$ref": "#/components/schemas/Hashes" },
+          "archDoc": { "type": "object", "description": "Canonical normalized graph summary the hashes were computed over. The registry reads only the per-tensor digest list from it, for the partial diff." },
+          "source": { "$ref": "#/components/schemas/FactSource" },
+          "fieldSources": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/FieldSource" }, "description": "Returned only with ?include=sources." },
+          "reporterName": { "type": "string" }, "reporterVersion": { "type": "string" },
+          "coverage": { "type": "object", "additionalProperties": { "type": "string", "enum": ["filled", "unavailable_for_format", "not_attempted"] }, "description": "Why a field was or was not supplied; distinguishes 'the format does not expose this' from 'not attempted'." },
+          "layers": { "type": "array", "items": { "$ref": "#/components/schemas/LayerBlock" }, "description": "Returned only with ?include=layers." },
+          "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "InsightWrite": {
+        "type": "object",
+        "description": "A fact submission. Everything under `facts` is a mergeable field; the rest describes the write, and its attribution is stamped onto every field the write touched.",
+        "properties": {
+          "schemaVersion": { "type": "string", "description": "The payload contract the producer built against. An unrecognised value is rejected with 400 rather than partially applied." },
+          "source": { "$ref": "#/components/schemas/FactSource" },
+          "reporter": { "type": "string", "description": "The tool writing this record, distinct from `producer` which is the library that wrote the model files." },
+          "reporterVersion": { "type": "string" },
+          "facts": {
+            "type": "object",
+            "description": "Mergeable fields: framework, producer, paramCountTotal, paramCountTrainable, paramCountMethod, tensorCount, dtypeDominant, quantMethod, quantScope, diskBytes, weightsBytes, hashes, archDoc, coverage. An explicit null clears a field; an absent key leaves it unchanged. `hashes` and `coverage` merge per sub-key.",
+            "additionalProperties": true
+          },
+          "layers": { "type": ["array", "null"], "items": { "$ref": "#/components/schemas/LayerBlock" }, "description": "Absent leaves the breakdown alone; an explicit (even empty) array replaces the whole set." }
+        },
+        "required": ["schemaVersion", "source"]
+      },
+      "Footprint": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "scenario": { "type": "string" }, "deviceClass": { "type": "string" },
+          "batch": { "type": ["integer", "null"], "format": "int64" }, "seqLen": { "type": ["integer", "null"], "format": "int64" },
+          "weightsBytes": { "type": ["integer", "null"], "format": "int64" }, "kvCacheBytes": { "type": ["integer", "null"], "format": "int64" },
+          "activationBytes": { "type": ["integer", "null"], "format": "int64" }, "runtimeOverheadBytes": { "type": ["integer", "null"], "format": "int64" },
+          "totalBytes": { "type": ["integer", "null"], "format": "int64" },
+          "source": { "type": "string", "enum": ["estimated", "measured"] },
+          "basis": { "type": "object", "description": "The assumptions behind the numbers (kv dtype, paged attention, runtime + version). Required when source is estimated." },
+          "createdAt": { "type": "integer", "format": "int64" }, "updatedAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "FootprintInput": {
+        "type": "object",
+        "properties": {
+          "deviceClass": { "type": "string" }, "batch": { "type": "integer", "format": "int64" }, "seqLen": { "type": "integer", "format": "int64" },
+          "weightsBytes": { "type": "integer", "format": "int64" }, "kvCacheBytes": { "type": "integer", "format": "int64" },
+          "activationBytes": { "type": "integer", "format": "int64" }, "runtimeOverheadBytes": { "type": "integer", "format": "int64" },
+          "totalBytes": { "type": "integer", "format": "int64" },
+          "source": { "type": "string", "enum": ["estimated", "measured"], "default": "estimated" },
+          "basis": { "type": "object" }
+        }
+      },
+      "Evaluation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "suite": { "type": "string" }, "metric": { "type": "string" }, "split": { "type": "string" },
+          "value": { "type": "number" }, "higherIsBetter": { "type": "boolean" },
+          "nSamples": { "type": ["integer", "null"], "format": "int64" },
+          "harnessName": { "type": "string" }, "harnessVersion": { "type": "string" },
+          "params": { "type": "object" },
+          "evidenceArtifactId": { "type": "string", "description": "An artifact of kind METRICS holding the verbatim report." },
+          "source": { "$ref": "#/components/schemas/FactSource" },
+          "runAt": { "type": "integer", "format": "int64" }, "createdAt": { "type": "integer", "format": "int64" }
+        }
+      },
+      "EvaluationInput": {
+        "type": "object",
+        "properties": {
+          "suite": { "type": "string" }, "metric": { "type": "string" }, "split": { "type": "string" },
+          "value": { "type": "number" },
+          "higherIsBetter": { "type": "boolean", "description": "Required: the sign of a delta cannot be inferred from the metric name." },
+          "nSamples": { "type": "integer", "format": "int64" },
+          "harnessName": { "type": "string" }, "harnessVersion": { "type": "string" },
+          "params": { "type": "object" }, "evidenceArtifactId": { "type": "string" },
+          "source": { "$ref": "#/components/schemas/FactSource" },
+          "runAt": { "type": "integer", "format": "int64" }
+        },
+        "required": ["suite", "metric", "value", "higherIsBetter"]
+      },
+      "HashCmp": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" }, "changed": { "type": ["boolean", "null"] }, "present": { "type": "boolean", "description": "Both sides supplied this level. Distinguishes 'reported and equal' from 'never reported'." } } },
+      "InsightDiff": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "object", "properties": { "model": { "type": "string" }, "version": { "type": "string" } } },
+          "to": { "type": "object", "properties": { "model": { "type": "string" }, "version": { "type": "string" } } },
+          "verdict": { "type": "string", "enum": ["identical", "reweighted", "recast", "rescaled", "rearchitected", "unknown"] },
+          "candidates": { "type": "array", "items": { "type": "string" }, "description": "When the facts narrow the answer without settling it, the surviving verdicts." },
+          "missing": { "type": "array", "items": { "type": "string" }, "description": "Hash levels the verdict needed but nobody submitted." },
+          "hashes": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/HashCmp" } },
+          "tensors": { "type": "object", "description": "Per-tensor summary from the digests in archDoc; changedPatterns collapses repeated block indices, which is what distinguishes a merged LoRA adapter from a full fine-tune.", "properties": { "unchanged": { "type": "integer" }, "changed": { "type": "integer" }, "added": { "type": "integer" }, "removed": { "type": "integer" }, "changedPatterns": { "type": "array", "items": { "type": "string" } } } },
+          "params": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "from": { "type": ["integer", "null"], "format": "int64" }, "to": { "type": ["integer", "null"], "format": "int64" }, "delta": { "type": ["integer", "null"], "format": "int64" }, "fromSource": { "type": "string" }, "toSource": { "type": "string" } } } },
+          "footprints": { "type": "array", "items": { "type": "object", "properties": { "scenario": { "type": "string" }, "fromTotalBytes": { "type": ["integer", "null"], "format": "int64" }, "toTotalBytes": { "type": ["integer", "null"], "format": "int64" }, "delta": { "type": ["integer", "null"], "format": "int64" }, "fromSource": { "type": "string" }, "toSource": { "type": "string" }, "comparable": { "type": "boolean" } } } },
+          "metrics": { "type": "array", "items": { "type": "object", "properties": { "suite": { "type": "string" }, "metric": { "type": "string" }, "split": { "type": "string" }, "harnessVersion": { "type": "string" }, "from": { "type": ["number", "null"] }, "to": { "type": ["number", "null"] }, "delta": { "type": ["number", "null"] }, "direction": { "type": "string", "enum": ["better", "worse", "same"] }, "comparable": { "type": "boolean" }, "reason": { "type": "string" } } }, "description": "Only results sharing suite, metric, split and harness version are comparable; anything else is returned with comparable=false rather than differenced." },
+          "basis": { "type": "object", "description": "Which facts each side actually supplied, so a partial verdict is identifiable as partial.", "properties": { "fromHasInsight": { "type": "boolean" }, "toHasInsight": { "type": "boolean" }, "fromHashes": { "type": "array", "items": { "type": "string" } }, "toHashes": { "type": "array", "items": { "type": "string" } }, "tensorDigests": { "type": "boolean" } } }
+        }
+      },
+      "ResolvedInsight": {
+        "type": "object", "description": "Compact composition block on a resolution (?include=insight), so a scheduler can pick a device class in one call.",
+        "properties": { "paramCount": { "type": ["integer", "null"], "format": "int64" }, "dtype": { "type": "string" }, "diskBytes": { "type": ["integer", "null"], "format": "int64" }, "minDeviceMemoryBytes": { "type": ["integer", "null"], "format": "int64", "description": "Smallest recorded scenario total; the scenario is named alongside it because a footprint without its basis is not actionable." }, "minDeviceMemoryScenario": { "type": "string" }, "source": { "$ref": "#/components/schemas/FactSource" } }
+      }
     }
   }
 }

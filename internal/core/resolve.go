@@ -21,6 +21,20 @@ type ResolvedArtifact struct {
 	ServiceAccount   string              `json:"serviceAccount,omitempty"`
 }
 
+// ResolvedInsight is the compact composition block a scheduler needs to pick a device
+// class in one call (§11.6.3). It is opt-in so the hot cached path stays small.
+type ResolvedInsight struct {
+	ParamCount *int64       `json:"paramCount,omitempty"`
+	Dtype      domain.Dtype `json:"dtype,omitempty"`
+	DiskBytes  *int64       `json:"diskBytes,omitempty"`
+	// MinDeviceMemoryBytes is the smallest recorded scenario total — the least memory the
+	// model has been reported to run in. The scenario is named alongside it, because a
+	// footprint without its basis is not actionable (§11.3.3).
+	MinDeviceMemoryBytes    *int64            `json:"minDeviceMemoryBytes,omitempty"`
+	MinDeviceMemoryScenario string            `json:"minDeviceMemoryScenario,omitempty"`
+	Source                  domain.FactSource `json:"source,omitempty"`
+}
+
 // Resolution is the one-call answer for consumers (§04.2).
 type Resolution struct {
 	Model       string              `json:"model"`
@@ -30,13 +44,30 @@ type Resolution struct {
 	Digest      string              `json:"digest,omitempty"`
 	ModelFormat *domain.ModelFormat `json:"modelFormat,omitempty"`
 	Artifacts   []ResolvedArtifact  `json:"artifacts"`
+	Insight     *ResolvedInsight    `json:"insight,omitempty"`
 	ResolvedAt  int64               `json:"resolvedAt"`
 }
 
+// ResolveOption toggles optional blocks on a resolution.
+type ResolveOption func(*resolveOpts)
+
+type resolveOpts struct{ insight bool }
+
+// WithInsight includes the compact insight block (§11.6.3).
+func WithInsight() ResolveOption { return func(o *resolveOpts) { o.insight = true } }
+
 // Resolve returns the version matching sel plus signed artifact refs, using the
 // resolve cache with event-driven invalidation (§04.2, §04.4).
-func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector) (*Resolution, error) {
+func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector, opts ...ResolveOption) (*Resolution, error) {
+	var ro resolveOpts
+	for _, o := range opts {
+		o(&ro)
+	}
+	// The included blocks are part of the cached shape, so they belong in the key.
 	key := model + "|" + cacheKey(sel)
+	if ro.insight {
+		key += "|+insight"
+	}
 	if cached, ok := s.cache.Get(key); ok {
 		var r Resolution
 		if json.Unmarshal(cached, &r) == nil {
@@ -67,12 +98,39 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 			Digest: a.Digest, MediaType: a.MediaType, ServiceAccount: a.ServiceAccount,
 		})
 	}
+	if ro.insight {
+		r.Insight = s.compactInsight(ctx, v.ID)
+	}
 	// Cache the selection (without signed URLs), then sign for this response.
 	if b, err := json.Marshal(r); err == nil {
 		s.cache.Set(key, b, 60_000_000_000) // 60s backstop TTL
 	}
 	s.signRefs(ctx, r)
 	return r, nil
+}
+
+// compactInsight assembles the resolve-time block from stored facts. A version nobody has
+// reported on simply has no block — the field is omitted rather than zero-filled (§11.2).
+func (s *Service) compactInsight(ctx context.Context, versionID string) *ResolvedInsight {
+	in, err := s.store.GetInsight(ctx, versionID)
+	if err != nil {
+		return nil
+	}
+	ri := &ResolvedInsight{
+		ParamCount: in.ParamCountTotal, Dtype: in.DtypeDominant,
+		DiskBytes: in.DiskBytes, Source: in.Source,
+	}
+	if fps, err := s.store.ListFootprints(ctx, versionID); err == nil {
+		for _, f := range fps {
+			if f.TotalBytes == nil {
+				continue
+			}
+			if ri.MinDeviceMemoryBytes == nil || *f.TotalBytes < *ri.MinDeviceMemoryBytes {
+				ri.MinDeviceMemoryBytes, ri.MinDeviceMemoryScenario = f.TotalBytes, f.Scenario
+			}
+		}
+	}
+	return ri
 }
 
 // signRefs mints fresh signed URLs where the backend supports signing; otherwise the

@@ -163,6 +163,8 @@ func Run(t *testing.T, store domain.MetadataStore) {
 		t.Fatalf("CountVersionsInStage production: %v n=%d", err, n)
 	}
 
+	runInsights(t, store, v15.ID)
+
 	// Delete a draft version, then the model (cascade).
 	v16 := mkVersion(m.ID, "1.6.0")
 	mustCreateVersion(t, store, v16)

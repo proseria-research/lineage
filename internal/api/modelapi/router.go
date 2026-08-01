@@ -74,8 +74,21 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/models/{model}/versions/{version}/deployments/{id}", r.patchDeployment)
 	mux.HandleFunc("DELETE /v1/models/{model}/versions/{version}/deployments/{id}", r.deleteDeployment)
 
-	// Global audit feed + OpenAPI contract
+	// Insights (§11): producers write facts, consumers and the console read them.
+	// PATCH is the default write — several producers report on one version, so merging per
+	// field is what keeps them from clobbering each other (§11.6.1).
+	mux.HandleFunc("PATCH /v1/models/{model}/versions/{version}/insight", r.writeInsight(false))
+	mux.HandleFunc("PUT /v1/models/{model}/versions/{version}/insight", r.writeInsight(true))
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/insight", r.getInsight)
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/evaluations", r.addEvaluation)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/evaluations", r.listEvaluations)
+	mux.HandleFunc("PUT /v1/models/{model}/versions/{version}/footprints/{scenario}", r.putFootprint)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/footprints", r.listFootprints)
+	mux.HandleFunc("GET /v1/models/{model}/diff", r.modelDiff)
+
+	// Global audit feed, cross-model diff, OpenAPI contract
 	mux.HandleFunc("GET /v1/audit", r.auditFeed)
+	mux.HandleFunc("GET /v1/diff", r.globalDiff)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
 	return mux
 }
@@ -247,7 +260,13 @@ func (r *Router) resolve(w http.ResponseWriter, req *http.Request) {
 			sel.LabelKey, sel.LabelValue = strings.TrimPrefix(k, "label."), vs[0]
 		}
 	}
-	res, err := r.svc.Resolve(req.Context(), req.PathValue("model"), sel)
+	// ?include=insight adds the compact composition block so a scheduler can pick a device
+	// class in one call (§11.6.3). Opt-in, to keep the cached hot path small.
+	var opts []core.ResolveOption
+	if includeSet(req)["insight"] {
+		opts = append(opts, core.WithInsight())
+	}
+	res, err := r.svc.Resolve(req.Context(), req.PathValue("model"), sel, opts...)
 	if err != nil {
 		api.WriteError(w, err)
 		return
