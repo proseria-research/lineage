@@ -1,10 +1,12 @@
 @import "tailwindcss";
 
 /* Lineage console design system — monochrome, thin 1px lines, sharp (0-radius) borders.
-   Every token is grayscale with one deliberate exception: --portrait, a low-chroma slate used
-   only by the version portrait diagram (§12.3). It is not an accent and nothing else may use
-   it — the chart is the one surface where a drawn network needs to separate from the 1px
-   furniture around it. Auto light/dark via prefers-color-scheme. */
+   Every UI token is grayscale. The only colour lives in the two generated version marks
+   (§12): --portrait for the structure diagram, and --fp-* for the four fingerprint rings.
+   None of these is an accent, and no other surface may use them — a drawn diagram needs to
+   separate from the 1px furniture around it, and four nested rings need to be told apart.
+   In both marks colour is redundant with position and with a text label, never the sole
+   carrier of meaning. Auto light/dark via prefers-color-scheme. */
 
 :root {
   --radius: 0px;
@@ -28,6 +30,12 @@
   --input: oklch(0.9 0 0);
   --ring: oklch(0.16 0 0);
   --portrait: oklch(0.53 0.045 245);
+  /* Fingerprint rings, outermost to innermost. Low chroma and matched lightness so no ring
+     dominates; hues far enough apart to name a ring without counting inward (§12.4). */
+  --fp-topology: oklch(0.52 0.07 255);
+  --fp-shape: oklch(0.54 0.07 165);
+  --fp-dtype: oklch(0.56 0.075 75);
+  --fp-weights: oklch(0.53 0.08 25);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -52,6 +60,10 @@
     --input: oklch(0.3 0 0);
     --ring: oklch(0.8 0 0);
     --portrait: oklch(0.72 0.05 245);
+    --fp-topology: oklch(0.72 0.075 255);
+    --fp-shape: oklch(0.74 0.075 165);
+    --fp-dtype: oklch(0.78 0.08 75);
+    --fp-weights: oklch(0.72 0.085 25);
   }
 }
 
@@ -76,6 +88,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-portrait: var(--portrait);
+  --color-fp-topology: var(--fp-topology);
+  --color-fp-shape: var(--fp-shape);
+  --color-fp-dtype: var(--fp-dtype);
+  --color-fp-weights: var(--fp-weights);
   --radius-sm: 0px;
   --radius-md: 0px;
   --radius-lg: 0px;
