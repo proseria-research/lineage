@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import type { Evaluation, FactSource, FieldSource, Footprint, VersionInsight } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
+import { TensorInfo } from "@/components/TensorInfo";
 import { Empty } from "@/components/State";
 import { fmtBytesOrUnreported, fmtCount, NOT_REPORTED } from "@/lib/utils";
 
@@ -30,7 +32,7 @@ function Fact({
   attribution,
   mono,
 }: {
-  label: string;
+  label: ReactNode;
   value?: string | null;
   attribution?: FieldSource;
   mono?: boolean;
@@ -121,7 +123,7 @@ export function InsightPanel({
             <Fact label="Framework" value={framework} attribution={fs("framework")} />
             <Fact label="Precision" value={precision} attribution={fs("dtypeDominant")} />
             <Fact
-              label="Tensors"
+              label={<span className="flex items-center gap-1">Tensors <TensorInfo /></span>}
               value={insight?.tensorCount === null || insight?.tensorCount === undefined ? null : fmtCount(insight.tensorCount)}
               attribution={fs("tensorCount")}
             />

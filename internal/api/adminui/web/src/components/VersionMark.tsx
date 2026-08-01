@@ -22,7 +22,9 @@ export function hasPortrait(insight?: VersionInsight | null): boolean {
   return !!insight?.layers && insight.layers.length > 0;
 }
 
-export function hasFingerprint(insight?: VersionInsight | null): boolean {
+type FingerprintData = Pick<VersionInsight, "hashes">;
+
+export function hasFingerprint(insight?: FingerprintData | null): boolean {
   return !!insight?.hashes && RING_ORDER.some((r) => insight.hashes?.[r]);
 }
 
@@ -432,7 +434,7 @@ export function FingerprintMark({
   emphasis,
   className,
 }: {
-  insight?: VersionInsight | null;
+  insight?: FingerprintData | null;
   size?: number;
   reduced?: boolean;
   /** Rings mapped false are drawn muted, for a side-by-side delta. */

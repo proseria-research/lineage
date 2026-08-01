@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
+import { FingerprintMark, type RingName } from "@/components/VersionMark";
+import { TensorInfo } from "@/components/TensorInfo";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtCount, fmtDeltaBytes, fmtBytesOrUnreported } from "@/lib/utils";
 
@@ -34,6 +36,15 @@ export default function Compare() {
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
+
+  const fingerprint = (side: "from" | "to") => ({
+    hashes: Object.fromEntries(HASH_LEVELS.map((level) => [level, data.hashes?.[level]?.[side]])),
+  });
+  const changedLevels = Object.fromEntries(
+    HASH_LEVELS.map((level) => [level, data.hashes?.[level]?.changed === true]),
+  ) as Partial<Record<RingName, boolean>>;
+  const hasChangedLevel = HASH_LEVELS.some((level) => changedLevels[level]);
+  const hasFingerprint = HASH_LEVELS.some((level) => data.hashes?.[level]?.from || data.hashes?.[level]?.to);
 
   return (
     <div>
@@ -77,12 +88,46 @@ export default function Compare() {
         </CardContent>
       </Card>
 
-      {/* Hash ladder */}
+      {/* A visual reading of the hash ladder: changed rings stay coloured; matched rings recede. */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Fingerprint</CardTitle>
+          <CardTitle>Fingerprint diff</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="border-b px-4 py-4">
+            {hasFingerprint ? (
+              <div className="flex items-center justify-center gap-8 sm:gap-14">
+                <div className="flex flex-col items-center gap-2">
+                  <FingerprintMark
+                    insight={fingerprint("from")}
+                    size={96}
+                    emphasis={hasChangedLevel ? changedLevels : undefined}
+                  />
+                  <Tooltip content={from}>
+                    <span className="max-w-32 truncate font-mono text-xs">{from}</span>
+                  </Tooltip>
+                </div>
+                <span className="text-muted-foreground" aria-hidden="true">→</span>
+                <div className="flex flex-col items-center gap-2">
+                  <FingerprintMark
+                    insight={fingerprint("to")}
+                    size={96}
+                    emphasis={hasChangedLevel ? changedLevels : undefined}
+                  />
+                  <Tooltip content={to} align="end">
+                    <span className="max-w-32 truncate font-mono text-xs">{to}</span>
+                  </Tooltip>
+                </div>
+              </div>
+            ) : (
+              <Empty>No fingerprint hashes were reported for either version.</Empty>
+            )}
+            {hasFingerprint && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                {hasChangedLevel ? "Coloured rings changed; muted rings match." : "The reported rings match."} Dotted rings were not reported.
+              </p>
+            )}
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -126,7 +171,10 @@ export default function Compare() {
         {/* Tensor-level diff: what separates a merged LoRA from a full fine-tune */}
         <Card>
           <CardHeader>
-            <CardTitle>Tensors</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Tensors</CardTitle>
+              <TensorInfo />
+            </div>
           </CardHeader>
           <CardContent>
             {!data.tensors ? (
