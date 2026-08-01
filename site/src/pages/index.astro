@@ -192,6 +192,27 @@ const sections = [
 	title="Lineage — the self-hostable model registry"
 	description="Lineage is the system of record for ML/AI models: registry, lifecycle governance, typed provenance, and one-call delivery to your serving stack. Self-hosted, in a single Go binary."
 >
+	{/* Runs during parse, before anything below the fold is painted, so a revealed
+	    section never flashes in at full opacity first. */}
+	<script is:inline>
+		if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			document.documentElement.dataset.revealReady = '';
+			addEventListener('DOMContentLoaded', () => {
+				const observer = new IntersectionObserver(
+					(entries) => {
+						for (const entry of entries) {
+							if (!entry.isIntersecting) continue;
+							entry.target.classList.add('is-revealed');
+							observer.unobserve(entry.target);
+						}
+					},
+					{ rootMargin: '0px 0px -10% 0px', threshold: 0.12 },
+				);
+				for (const el of document.querySelectorAll('[data-reveal]')) observer.observe(el);
+			});
+		}
+	</script>
+
 	<section class="hero">
 		<div class="shell hero__inner">
 			<div class="hero__copy">
@@ -224,7 +245,7 @@ const sections = [
 	</section>
 
 	<section class="band">
-		<div class="shell split">
+		<div class="shell split" data-reveal>
 			<div class="split__copy">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>delivery</p>
 				<h2 class="section__title">Serving systems resolve in one call.</h2>
@@ -272,7 +293,7 @@ const sections = [
 	</section>
 
 	<section class="band band--sunk">
-		<div class="shell">
+		<div class="shell" data-reveal>
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>provenance</p>
 				<h2 class="section__title">Trace what produced a model, and what depends on it.</h2>
@@ -328,7 +349,7 @@ const sections = [
 	</section>
 
 	<section class="band">
-		<div class="shell split">
+		<div class="shell split" data-reveal>
 			<div class="split__copy">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>fingerprint</p>
 				<h2 class="section__title">See exactly what changed between two versions.</h2>
@@ -357,16 +378,18 @@ const sections = [
 				<div class="fp__disc">
 					<svg width={DISC} height={DISC} viewBox={`0 0 ${DISC} ${DISC}`} fill="none" aria-hidden="true">
 						{
-							rings.map((ring) =>
-								ring.arcs.map((d) => (
-									<path
-										d={d}
-										class={`fp__ring fp__ring--${ring.name}`}
-										stroke="currentColor"
-										fill="none"
-									/>
-								)),
-							)
+							rings.map((ring, index) => (
+								<g class="fp__ring-group" style={`--ring-index: ${index}`}>
+									{ring.arcs.map((d) => (
+										<path
+											d={d}
+											class={`fp__ring fp__ring--${ring.name}`}
+											stroke="currentColor"
+											fill="none"
+										/>
+									))}
+								</g>
+							))
 						}
 					</svg>
 				</div>
@@ -395,7 +418,7 @@ const sections = [
 	</section>
 
 	<section class="band band--sunk">
-		<div class="shell">
+		<div class="shell" data-reveal>
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hosted</p>
 				<h2 class="section__title">Runs entirely on your own infrastructure.</h2>
@@ -421,7 +444,7 @@ const sections = [
 	</section>
 
 	<section class="band">
-		<div class="shell">
+		<div class="shell" data-reveal>
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>guides</p>
 				<h2 class="section__title">Documentation</h2>
@@ -448,7 +471,7 @@ const sections = [
 	</section>
 
 	<section class="closer">
-		<div class="shell closer__inner">
+		<div class="shell closer__inner" data-reveal>
 			<h2 class="closer__title">Get started</h2>
 			<p class="closer__lede">
 				Run Lineage locally in about a minute, or install the Helm chart into a cluster and point it
