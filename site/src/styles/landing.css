@@ -274,16 +274,59 @@ code {
 	margin-top: 1.9rem;
 }
 
+/* The box holds the copy button still; the lines scroll inside it. Putting the
+   overflow on the box itself would carry the button out of view with them. */
 .terminal {
-	display: grid;
-	gap: 0.3rem;
+	position: relative;
 	margin-top: 2.25rem;
 	padding: 1rem 1.1rem;
 	border: var(--ln-frame) solid var(--ln-rule);
 	background: var(--ln-paper-raised);
 	font-family: var(--ln-mono);
 	font-size: 0.78rem;
+}
+.terminal__body {
+	display: grid;
+	gap: 0.3rem;
 	overflow-x: auto;
+}
+.terminal__copy {
+	position: absolute;
+	top: 0.55rem;
+	right: 0.55rem;
+	z-index: 1;
+	border: 1.5px solid var(--ln-rule);
+	background: var(--ln-paper-raised);
+	color: var(--ln-ink-faint);
+	padding: 0.25rem 0.5rem;
+	font-family: var(--ln-mono);
+	font-size: 0.64rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	cursor: pointer;
+	opacity: 0;
+	transition:
+		opacity 0.16s ease,
+		color 0.16s ease,
+		border-color 0.16s ease;
+}
+/* Revealed on hover or keyboard focus, so it is reachable without a pointer. */
+.terminal:hover .terminal__copy,
+.terminal__copy:focus-visible,
+.terminal__copy[data-state] {
+	opacity: 1;
+}
+.terminal__copy:hover {
+	color: var(--ln-ink);
+	border-color: var(--ln-ink);
+}
+.terminal__copy[data-state='copied'] {
+	color: var(--ln-production);
+	border-color: var(--ln-production);
+}
+.terminal__copy[data-state='failed'] {
+	color: var(--ln-staging);
+	border-color: var(--ln-staging);
 }
 .terminal__line {
 	white-space: nowrap;
@@ -619,6 +662,44 @@ code {
 	fill: var(--ln-ink-faint);
 }
 
+/* Hovering any part of an edge lights the whole edge and drops the others back.
+   The information is all on screen already — this only helps a reader follow one
+   relation through the graph, so it is hover-only by design. */
+.map__hit {
+	fill: none;
+	stroke: transparent;
+	stroke-width: 22;
+	pointer-events: stroke;
+}
+.map__edge {
+	transition: opacity 0.2s ease;
+}
+.map svg:has(.map__edge:hover) .map__edge:not(:hover) {
+	opacity: 0.28;
+}
+.map__edge:hover .map__branch {
+	stroke: var(--ln-production);
+	marker-end: url(#map-arrow-lit);
+}
+.map__edge:hover .map__node {
+	stroke: var(--ln-production);
+}
+.map__edge:hover .map__relation,
+.map__edge:hover .map__kind {
+	fill: var(--ln-production);
+}
+.map__branch,
+.map__node,
+.map__relation,
+.map__kind {
+	transition:
+		stroke 0.16s ease,
+		fill 0.16s ease;
+}
+.map__arrow--lit {
+	fill: var(--ln-production);
+}
+
 .map__foot {
 	margin-top: 1.75rem;
 }
@@ -738,6 +819,30 @@ code {
 /* The level that moved is the one that decides the verdict, so it takes the accent. */
 .fp__level[data-changed='true'] .fp__state {
 	color: var(--ln-staging);
+}
+
+/* Hovering a level in the roll-call isolates its ring, which is what turns the
+   legend from four labels into a way of reading the disc. */
+.fp__ring-group {
+	transition: opacity 0.2s ease;
+}
+.fp__level {
+	transition: background 0.2s ease;
+}
+.fp__level:hover {
+	background: var(--ln-paper);
+}
+.fp:has(.fp__level[data-ring='topology']:hover) .fp__ring-group:not([data-ring='topology']) {
+	opacity: 0.18;
+}
+.fp:has(.fp__level[data-ring='shape']:hover) .fp__ring-group:not([data-ring='shape']) {
+	opacity: 0.18;
+}
+.fp:has(.fp__level[data-ring='dtype']:hover) .fp__ring-group:not([data-ring='dtype']) {
+	opacity: 0.18;
+}
+.fp:has(.fp__level[data-ring='weights']:hover) .fp__ring-group:not([data-ring='weights']) {
+	opacity: 0.18;
 }
 
 .fp__verdict {
@@ -983,15 +1088,21 @@ html[data-reveal-ready] [data-reveal] .map__branch {
 html[data-reveal-ready] [data-reveal].is-revealed .map__branch {
 	clip-path: inset(0 -2% 0 0);
 }
+
+/* Everything that also responds to hover reveals with an animation rather than a
+   transition. A transition would own the `transition` property on that element for
+   good, and the hover state needs it — an element cannot both settle in over 0.9s
+   and dim in 0.2s on the same declaration. `backwards` fill holds the start state
+   through the stagger delay, and nothing is left pinned once the animation ends. */
 html[data-reveal-ready] [data-reveal] .map__relation,
 html[data-reveal-ready] [data-reveal] .map__node-group {
 	opacity: 0;
-	transition: opacity 0.5s ease;
-	transition-delay: calc(500ms + var(--n, 0) * 90ms);
 }
 html[data-reveal-ready] [data-reveal].is-revealed .map__relation,
 html[data-reveal-ready] [data-reveal].is-revealed .map__node-group {
 	opacity: 1;
+	animation: ln-fade 0.5s ease backwards;
+	animation-delay: calc(500ms + var(--n, 0) * 90ms);
 }
 
 /* The fingerprint settles ring by ring, outermost first — the order the levels are
@@ -1001,14 +1112,25 @@ html[data-reveal-ready] [data-reveal] .fp__ring-group {
 	transform: rotate(-14deg) scale(0.94);
 	transform-box: view-box;
 	transform-origin: center;
-	transition:
-		opacity 0.6s ease,
-		transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
-	transition-delay: calc(220ms + var(--ring-index) * 110ms);
 }
 html[data-reveal-ready] [data-reveal].is-revealed .fp__ring-group {
 	opacity: 1;
 	transform: none;
+	animation: fp-ring-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+	animation-delay: calc(220ms + var(--ring-index) * 110ms);
+}
+
+@keyframes ln-fade {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes fp-ring-in {
+	from {
+		opacity: 0;
+		transform: rotate(-14deg) scale(0.94);
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

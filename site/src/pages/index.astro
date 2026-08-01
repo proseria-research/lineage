@@ -220,14 +220,19 @@ const sections = [
 				</div>
 
 				<div class="terminal">
-					<span class="terminal__line"
-						><span class="terminal__prompt">$</span> git clone
-						https://github.com/proseria-research/lineage</span
-					>
-					<span class="terminal__line"
-						><span class="terminal__prompt">$</span> cd lineage && make run</span
-					>
-					<span class="terminal__note">SQLite, local filesystem storage, no other dependencies.</span>
+					<button class="terminal__copy" type="button" data-copy aria-label="Copy the commands">
+						<span data-copy-label>Copy</span>
+					</button>
+					<div class="terminal__body">
+						<span class="terminal__line"
+							><span class="terminal__prompt">$</span> git clone
+							https://github.com/proseria-research/lineage</span
+						>
+						<span class="terminal__line"
+							><span class="terminal__prompt">$</span> cd lineage && make run</span
+						>
+						<span class="terminal__note">SQLite, local filesystem storage, no other dependencies.</span>
+					</div>
 				</div>
 			</div>
 
@@ -334,7 +339,7 @@ const sections = [
 					<svg width={DISC} height={DISC} viewBox={`0 0 ${DISC} ${DISC}`} fill="none" aria-hidden="true">
 						{
 							rings.map((ring, index) => (
-								<g class="fp__ring-group" style={`--ring-index: ${index}`}>
+								<g class="fp__ring-group" data-ring={ring.name} style={`--ring-index: ${index}`}>
 									{ring.arcs.map((d) => (
 										<path
 											d={d}
@@ -352,7 +357,7 @@ const sections = [
 				<ol class="fp__rollcall">
 					{
 						rings.map((ring) => (
-							<li class="fp__level" data-changed={String(ring.changed)}>
+							<li class="fp__level" data-ring={ring.name} data-changed={String(ring.changed)}>
 								<i class={`fp__swatch fp__swatch--${ring.name}`} aria-hidden="true" />
 								<span class="fp__name">{ring.name}</span>
 								<span class="fp__state">{ring.changed ? 'differs' : 'matches'}</span>
@@ -439,3 +444,29 @@ const sections = [
 		</div>
 	</section>
 </Marketing>
+
+<script>
+	// The two commands the terminal shows, without the prompts.
+	const COMMANDS = 'git clone https://github.com/proseria-research/lineage\ncd lineage && make run';
+
+	const button = document.querySelector<HTMLButtonElement>('[data-copy]');
+	const label = document.querySelector<HTMLElement>('[data-copy-label]');
+	let restore: number | undefined;
+
+	button?.addEventListener('click', async () => {
+		try {
+			await navigator.clipboard.writeText(COMMANDS);
+			button.dataset.state = 'copied';
+			if (label) label.textContent = 'Copied';
+		} catch {
+			// Clipboard access can be refused outright; say so rather than claiming success.
+			button.dataset.state = 'failed';
+			if (label) label.textContent = 'Press \u2318C';
+		}
+		window.clearTimeout(restore);
+		restore = window.setTimeout(() => {
+			delete button.dataset.state;
+			if (label) label.textContent = 'Copy';
+		}, 2000);
+	});
+</script>
