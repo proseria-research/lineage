@@ -190,6 +190,18 @@ export type RingName = (typeof RING_ORDER)[number];
 
 const RING_R = [44, 34, 24, 14]; // radii in a 96px box
 
+/**
+ * One low-chroma hue per level, so a ring can be named without counting inward. Colour is
+ * never the only signal: the radius is fixed and the roll-call under the disc repeats each
+ * level as text, so the mark still reads with colour vision loss or in print (§12.7).
+ */
+export const RING_TONE: Record<RingName, { text: string; bg: string; border: string }> = {
+  topology: { text: "text-fp-topology", bg: "bg-fp-topology", border: "border-fp-topology" },
+  shape: { text: "text-fp-shape", bg: "bg-fp-shape", border: "border-fp-shape" },
+  dtype: { text: "text-fp-dtype", bg: "bg-fp-dtype", border: "border-fp-dtype" },
+  weights: { text: "text-fp-weights", bg: "bg-fp-weights", border: "border-fp-weights" },
+};
+
 function arcPath(cx: number, cy: number, r: number, a0: number, a1: number): string {
   const p0x = cx + r * Math.cos(a0);
   const p0y = cy + r * Math.sin(a0);
@@ -256,7 +268,9 @@ function Fingerprint({
         <path
           key={`${name}${seg}`}
           d={arcPath(cx, cy, r, rot + seg * step + gap / 2, rot + (seg + 1) * step - gap / 2)}
-          className={emphasis && !emphasis[name] ? "text-muted-foreground" : undefined}
+          // In a delta pair, rings that did not change drop to muted so the ones that did
+          // carry their colour alone (§12.4).
+          className={emphasis && !emphasis[name] ? "text-muted-foreground" : RING_TONE[name].text}
           stroke="currentColor"
           strokeWidth={1}
           fill="none"

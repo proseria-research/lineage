@@ -80,12 +80,11 @@ columns.
 | Dashed node | The fact is missing | `paramCount` null or shape unparseable → dashed node ring, edges at 9% |
 
 Drawn in `--portrait`, a low-chroma slate (`oklch(0.53 0.045 245)` light, `oklch(0.72 0.05 245)`
-dark). **This is the only non-grayscale token in the console** and nothing else may use it.
-The console's rule is monochrome because its surface is 1px furniture — rules, borders,
+dark). The console's UI is monochrome because its surface is 1px furniture — rules, borders,
 tables — and a drawn network sitting inside that furniture needs to read as a different kind
-of object, not as more of it. The fingerprint stays ink: structure is coloured, identity is
-not, which is one more way the two families do not blend. Below 24px the colour is dropped
-with the nodes and edges (§6.2) — at tick size it would read as a stray highlight.
+of object, not as more of it. One hue for the whole network is enough: the portrait has no
+categories to separate, only a stack to follow. Below 24px the colour drops with the nodes
+and edges (§6.2) — at tick size it would read as a stray highlight.
 
 Two choices carry the design:
 
@@ -119,7 +118,7 @@ widths, not magnitudes, and the exact counts are in the layer table directly bel
 
 Drawn from `insight.hashes`. Four concentric rings, outermost first:
 
-| Ring | Hash | Radius (96px box) |
+| Ring | Hash | Radius (per 96px of box) |
 |---|---|---|
 | 1 | `topology` | 44 |
 | 2 | `shape` | 34 |
@@ -130,6 +129,35 @@ Each ring is 24 arc segments over 360° with a 2° gap. Segment `k` is stroked i
 the seeded stream (§5) is set; ring `i` is rotated `7.5° · i` so rings never align into
 spokes. **A hash that is absent is drawn as a `1 3` dotted full circle in the muted tone** —
 present-but-different and absent-entirely must not look alike.
+
+### 4.1 Ring colour
+
+Four nested rings of identical stroke are hard to name without counting inward, so each level
+carries its own hue:
+
+| Ring | Token | Light | Dark |
+|---|---|---|---|
+| `topology` | `--fp-topology` | `oklch(0.52 0.07 255)` | `oklch(0.72 0.075 255)` |
+| `shape` | `--fp-shape` | `oklch(0.54 0.07 165)` | `oklch(0.74 0.075 165)` |
+| `dtype` | `--fp-dtype` | `oklch(0.56 0.075 75)` | `oklch(0.78 0.08 75)` |
+| `weights` | `--fp-weights` | `oklch(0.53 0.08 25)` | `oklch(0.72 0.085 25)` |
+
+Chroma stays low and lightness is matched across the four, so no ring dominates and the disc
+still reads as one object rather than four competing arcs.
+
+Three rules hold the colour honest:
+
+1. **Colour means reported.** An absent level stays muted grey and dotted; it never borrows a
+   hue. Absence must not be able to pass as a category.
+2. **Colour is never the only signal.** Each ring is at a fixed radius, and the roll-call
+   under the disc repeats every level as a coloured marker *and* its name in text. The mark
+   is fully readable in greyscale, in print, and with colour vision loss — the hues are an
+   accelerator, not the channel.
+3. **Nothing else may use these tokens.** They name the four fingerprint levels and only
+   those.
+
+In a side-by-side delta (§4 table), rings that did not change drop to muted so the ones that
+did carry their colour alone.
 
 This makes the `11.4.1` verdict readable directly off two marks placed side by side:
 
@@ -145,6 +173,17 @@ This makes the `11.4.1` verdict readable directly off two marks placed side by s
 The last row is the one that earns the design. `demand-forecast` `0.4.0` → `0.4.1` is a
 weekly retrain whose producer never hashed weights: three identical rings and a dotted
 core, which is precisely `11.4.3`'s "narrows to two candidates and names what is missing".
+
+Under the disc the section repeats the four levels as a roll-call — a marker in the level's
+own colour for a reported hash, a hollow dashed grey one for an absent hash — so the disc can
+be read without counting rings, and so both the colour and the absence have a second, textual
+form. The hash strings themselves are not repeated here; they are in the Composition panel
+below.
+
+What the coverage means for a diff ("all four levels reported — a diff can name exactly what
+moved", or "*n* of 4 … a diff can only narrow to where the hashes reach") sits behind an info
+icon in the card header. It is an aside about diffing, not a fact about this version, so it
+does not spend a line of a card that has to stay square beside Lifecycle.
 
 ## 5. Determinism
 
@@ -222,11 +261,17 @@ takes `size`. Both default `reduced` on below 24px.
 ## 7. Accessibility
 
 - The mark is `aria-hidden`; every fact in it is already text on the same page.
-- `title` carries a one-line plain reading (`"portrait · 14 layers from 4 blocks"`).
+- `title` carries a one-line plain reading (`"portrait · 14 layers from 4 blocks"`,
+  `"fingerprint · 3 of 4 hashes reported"`).
 - Static. The header cube (`Cube.tsx`) keeps its rotation and stays the brand mark; the
   portrait does not animate, so `prefers-reduced-motion` needs no branch.
-- 1px `currentColor` strokes only — inherits the theme and flips light/dark like everything
-  else in the monochrome system.
+- 1px `currentColor` strokes only — both marks inherit the theme and flip light/dark like
+  everything else. Every colour is a token with light and dark values (§3, §4.1), never a
+  fixed value, and never the sole carrier of meaning: the portrait states each channel as
+  text in the legend beneath, and each fingerprint ring is identified by a fixed radius and a
+  named marker as well as a hue. Both marks are fully readable in greyscale.
+- The header info icon carries its text in `title` and `aria-label`, so the same sentence
+  reaches a pointer, a screen reader, and a keyboard user.
 
 ## 8. Empty States
 

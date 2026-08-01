@@ -1,7 +1,8 @@
 import type { VersionInsight } from "@/lib/api";
+import { Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty } from "@/components/State";
-import { FingerprintMark, RING_ORDER, hasFingerprint } from "@/components/VersionMark";
+import { FingerprintMark, RING_ORDER, RING_TONE, hasFingerprint } from "@/components/VersionMark";
 import { NOT_REPORTED } from "@/lib/utils";
 
 // The identity section (§12.4): four concentric rings, one per fingerprint hash, sized to
@@ -15,10 +16,29 @@ import { NOT_REPORTED } from "@/lib/utils";
 export function VersionFingerprint({ insight }: { insight: VersionInsight | null }) {
   const present = RING_ORDER.filter((r) => insight?.hashes?.[r]);
 
+  // What the coverage means for a diff. It is an aside, not a fact about this version, so it
+  // lives behind an info icon in the header rather than spending a line of the card.
+  const reach =
+    present.length === 4
+      ? "All four levels reported — a diff against another version can name exactly what moved."
+      : `${present.length} of 4 levels reported. A diff can only narrow to where the hashes reach.`;
+
   return (
     <Card className="flex flex-col">
       <CardHeader>
-        <CardTitle>Fingerprint</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>Fingerprint</CardTitle>
+          {present.length > 0 && (
+            <span
+              className="shrink-0 cursor-help text-muted-foreground"
+              title={reach}
+              aria-label={reach}
+              role="note"
+            >
+              <Info size={13} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
         {!hasFingerprint(insight) ? (
@@ -34,10 +54,14 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
               title={`fingerprint · ${present.length} of 4 hashes reported`}
             />
 
-            {/* Outermost ring first, matching the drawing: topology → shape → dtype → weights. */}
+            {/* Outermost ring first, matching the drawing: topology → shape → dtype → weights.
+                Each marker carries its ring's colour, which is what turns the hues in the disc
+                from decoration into a legend. An absent level stays grey and dashed — colour
+                means "reported", so absence cannot borrow one. */}
             <div className="grid w-full grid-cols-2 gap-x-4 gap-y-1">
               {RING_ORDER.map((ring) => {
                 const reported = !!insight?.hashes?.[ring];
+                const tone = RING_TONE[ring];
                 return (
                   <div
                     key={ring}
@@ -46,8 +70,10 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
                   >
                     <span
                       className={[
-                        "h-1.5 w-1.5 shrink-0 border border-foreground",
-                        reported ? "bg-foreground" : "border-dashed bg-transparent opacity-50",
+                        "h-2 w-2 shrink-0 border",
+                        reported
+                          ? `${tone.bg} ${tone.border}`
+                          : "border-dashed border-muted-foreground bg-transparent opacity-50",
                       ].join(" ")}
                     />
                     <span className={["label-caps truncate", reported ? "" : "opacity-60"].join(" ")}>{ring}</span>
@@ -56,11 +82,6 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
               })}
             </div>
 
-            <p className="text-center text-xs text-muted-foreground">
-              {present.length === 4
-                ? "All four levels reported — a diff against another version can name exactly what moved."
-                : `${present.length} of 4 levels reported. A diff can only narrow to where the hashes reach.`}
-            </p>
           </>
         )}
       </CardContent>
