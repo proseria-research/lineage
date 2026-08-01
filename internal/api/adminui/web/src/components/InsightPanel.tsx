@@ -2,6 +2,7 @@ import type { Evaluation, FactSource, FieldSource, Footprint, VersionInsight } f
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Empty } from "@/components/State";
 import { fmtBytesOrUnreported, fmtCount, NOT_REPORTED } from "@/lib/utils";
 
@@ -15,14 +16,11 @@ const sourceVariant: Record<FactSource, "solid" | "outline" | "muted" | "dashed"
   declared: "dashed", // a claim: attributed, not verified
 };
 
-function SourceTag({ source, title }: { source?: FactSource | string; title?: string }) {
+function SourceTag({ source, help }: { source?: FactSource | string; help?: string }) {
   if (!source) return null;
   const v = sourceVariant[source as FactSource] ?? "muted";
-  return (
-    <Badge variant={v} title={title}>
-      {source}
-    </Badge>
-  );
+  const badge = <Badge variant={v}>{source}</Badge>;
+  return help ? <Tooltip content={help} align="end">{badge}</Tooltip> : badge;
 }
 
 /** One labelled fact. `value` is null/undefined when nobody reported it. */
@@ -55,7 +53,7 @@ function Fact({
           <span className="flex shrink-0 items-center gap-1.5">
             <SourceTag
               source={attribution.source}
-              title={
+              help={
                 attribution.reporter
                   ? `reported by ${attribution.reporter}${attribution.reporterVersion ? " " + attribution.reporterVersion : ""}`
                   : undefined
@@ -150,15 +148,14 @@ export function InsightPanel({
                 {(["topology", "shape", "dtype", "weights"] as const).map((level) => (
                   <div key={level}>
                     <div className="label-caps">{level}</div>
-                    <div
-                      className={[
+                    <Tooltip content={insight.hashes?.[level] ?? NOT_REPORTED}>
+                      <span className={[
                         "truncate font-mono text-xs",
                         insight.hashes?.[level] ? "" : "italic text-muted-foreground",
-                      ].join(" ")}
-                      title={insight.hashes?.[level] ?? NOT_REPORTED}
-                    >
-                      {insight.hashes?.[level] ?? NOT_REPORTED}
-                    </div>
+                      ].join(" ")}>
+                        {insight.hashes?.[level] ?? NOT_REPORTED}
+                      </span>
+                    </Tooltip>
                   </div>
                 ))}
               </div>
