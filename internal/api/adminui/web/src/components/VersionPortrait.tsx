@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 import type { VersionInsight } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty } from "@/components/State";
+import { Dimensions } from "@/components/Dimensions";
 import { PortraitMark, columnsOf, hasPortrait, portraitTone } from "@/components/VersionMark";
 import { fmtCount, NOT_REPORTED } from "@/lib/utils";
 
@@ -24,11 +25,31 @@ function Chan({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
 }
 
 /** A compact fact in the selected-layer summary. */
-function LayerFact({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+function LayerFact({ label, value, muted }: { label: string; value: ReactNode; muted?: boolean }) {
   return (
     <div className="min-w-0">
       <div className="label-caps text-muted-foreground">{label}</div>
-      <div className={[(muted ? "italic text-muted-foreground" : "font-mono"), "mt-1 truncate text-xs"].join(" ")} title={value}>{value}</div>
+      <div className={[(muted ? "italic text-muted-foreground" : "font-mono"), "mt-1 min-w-0 text-xs"].join(" ")}>{value}</div>
+    </div>
+  );
+}
+
+function PortraitStat({ label, value, help }: { label: string; value: string; help: string }) {
+  return (
+    <div className="px-3 py-2 first:border-r last:border-l">
+      <div className="flex items-center gap-1 label-caps text-muted-foreground">
+        {label}
+        <span className="group/stat relative inline-flex cursor-help" aria-label={`${label}: ${help}`} role="note">
+          <Info size={11} strokeWidth={1.5} aria-hidden="true" />
+          <span
+            role="tooltip"
+            className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-56 border bg-popover px-2 py-1.5 text-left text-xs normal-case leading-relaxed text-popover-foreground opacity-0 shadow-sm transition-none group-hover/stat:opacity-100"
+          >
+            {help}
+          </span>
+        </span>
+      </div>
+      <div className="mt-1 font-mono text-sm tabular-nums">{value}</div>
     </div>
   );
 }
@@ -57,13 +78,6 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
   const columns = columnsOf(layers);
   const deepest = layers.reduce((m, l) => Math.max(m, l.repeatCount || 1), 1);
   const incomplete = layers.filter((l) => l.paramCount == null || !l.shapeSignature).length;
-  // The widest layer by output width — the dimension the node counts are drawn from.
-  const widest = layers.reduce<{ sig?: string; o: number }>((best, l) => {
-    const nums = l.shapeSignature?.match(/\d+/g);
-    const o = nums?.length ? Number(nums[nums.length - 1]) : 0;
-    return o > best.o ? { sig: l.shapeSignature, o } : best;
-  }, { o: 0 });
-
   const reporter = insight?.reporterName
     ? `${insight.reporterName}${insight.reporterVersion ? " " + insight.reporterVersion : ""}`
     : null;
@@ -109,19 +123,20 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
             </div>
             <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
               <LayerFact label="Type" value={selected.opType ?? NOT_REPORTED} muted={!selected.opType} />
-              <LayerFact label="Output" value={selected.shapeSignature ?? NOT_REPORTED} muted={!selected.shapeSignature} />
+              <LayerFact label="Output" value={<Dimensions value={selected.shapeSignature} />} muted={!selected.shapeSignature} />
               <LayerFact label="Repeats" value={`×${selected.repeatCount || 1}`} />
               <LayerFact label="Parameters" value={selected.paramCount == null ? NOT_REPORTED : fmtCount(selected.paramCount)} muted={selected.paramCount == null} />
             </div>
           </div>
         )}
 
-        <div className="mt-5 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-          <Chan
-            k="Layers shown"
-            v={`${columns.length} layers · ${layers.length} blocks${deepest > 1 ? ` · max ×${deepest}` : ""}`}
-          />
-          <Chan k="Width shown" v={widest.sig ? `output width · max ${widest.sig}` : NOT_REPORTED} muted={!widest.sig} />
+        <div className="mt-5 grid grid-cols-3 border">
+          <PortraitStat label="Layers" value={String(columns.length)} help="The total number of layers drawn. A repeated block contributes one layer for each repetition." />
+          <PortraitStat label="Blocks" value={String(layers.length)} help="The number of distinct building blocks reported for this model. One block can be repeated across several layers." />
+          <PortraitStat label="Max repeat" value={`×${deepest}`} help="The longest run of the same building block in the model." />
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
           <Chan k="Connections" v="adjacent layers · schematic" muted />
           <Chan
             k="Total parameters"
