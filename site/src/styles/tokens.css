@@ -26,6 +26,13 @@
 	--ln-slate: #334155;
 	--ln-slate-wash: #e7e8e6;
 
+	/* Fingerprint rings, outermost to innermost. The same four hues the admin console
+	   uses (docs/12 §4.1), so a disc reads the same on the site and in the product. */
+	--fp-topology: oklch(0.52 0.07 255);
+	--fp-shape: oklch(0.54 0.07 165);
+	--fp-dtype: oklch(0.56 0.075 75);
+	--fp-weights: oklch(0.53 0.08 25);
+
 	/* Type */
 	--ln-display: 'Bricolage Grotesque Variable', 'Public Sans Variable', system-ui, sans-serif;
 	--ln-body: 'Public Sans Variable', system-ui, -apple-system, sans-serif;
@@ -53,6 +60,11 @@
 	--ln-staging-wash: #2a1e10;
 	--ln-slate: #8b98ab;
 	--ln-slate-wash: #1a1e24;
+
+	--fp-topology: oklch(0.72 0.075 255);
+	--fp-shape: oklch(0.74 0.075 165);
+	--fp-dtype: oklch(0.78 0.08 75);
+	--fp-weights: oklch(0.72 0.085 25);
 }
 
 /* ---- Starlight theme mapping --------------------------------------------

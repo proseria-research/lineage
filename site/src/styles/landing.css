@@ -629,6 +629,146 @@ code {
 	}
 }
 
+/* ---- Fingerprint disc ----------------------------------------------------- */
+
+/* One mark: four concentric rings, one per hash level, each at a fixed radius and in
+   its own hue. The pattern is a deterministic function of the hash, so two versions
+   that share a level draw that ring identically. */
+/* Narrower than its grid column, pushed to the outer edge: the disc is a square object
+   and a full-width card left it swimming. */
+.fp {
+	margin: 0 0 0 auto;
+	max-width: 27rem;
+	width: 100%;
+	border: var(--ln-frame) solid var(--ln-rule-strong);
+	background: var(--ln-paper-raised);
+}
+.fp__head {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.85rem 1rem;
+	border-bottom: var(--ln-frame) solid var(--ln-rule-strong);
+	font-family: var(--ln-mono);
+	font-size: 0.78rem;
+	overflow-x: auto;
+}
+.fp__head code {
+	white-space: nowrap;
+}
+
+.fp__disc {
+	display: grid;
+	justify-items: center;
+	padding: clamp(1.75rem, 4vw, 2.75rem) 1rem;
+}
+.fp__disc svg {
+	display: block;
+	width: clamp(11rem, 30vw, 16rem);
+	height: auto;
+}
+/* Heavier than the console's 1px hairline: this disc is display type, not a table cell. */
+.fp__ring {
+	stroke-width: 3;
+	stroke-linecap: round;
+}
+.fp__ring--topology {
+	color: var(--fp-topology);
+}
+.fp__ring--shape {
+	color: var(--fp-shape);
+}
+.fp__ring--dtype {
+	color: var(--fp-dtype);
+}
+.fp__ring--weights {
+	color: var(--fp-weights);
+}
+
+/* The roll-call repeats every level as text, so the disc reads without counting rings
+   and the colour is an accelerator rather than the only channel. */
+.fp__rollcall {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	border-top: 1.5px solid var(--ln-rule);
+}
+.fp__level {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.7rem 1rem;
+	border-bottom: 1.5px solid var(--ln-rule);
+	font-family: var(--ln-mono);
+	font-size: 0.72rem;
+}
+.fp__level:nth-child(odd) {
+	border-right: 1.5px solid var(--ln-rule);
+}
+.fp__swatch {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border: 1.5px solid currentColor;
+	background: currentColor;
+}
+.fp__swatch--topology {
+	color: var(--fp-topology);
+}
+.fp__swatch--shape {
+	color: var(--fp-shape);
+}
+.fp__swatch--dtype {
+	color: var(--fp-dtype);
+}
+.fp__swatch--weights {
+	color: var(--fp-weights);
+}
+.fp__name {
+	font-weight: 600;
+}
+.fp__state {
+	margin-left: auto;
+	color: var(--ln-ink-faint);
+	font-size: 0.68rem;
+}
+/* The level that moved is the one that decides the verdict, so it takes the accent. */
+.fp__level[data-changed='true'] .fp__state {
+	color: var(--ln-staging);
+}
+
+.fp__verdict {
+	display: grid;
+	gap: 0.3rem;
+	margin: 0;
+	padding: 1.1rem 1rem;
+}
+.fp__verdict .eyebrow {
+	margin: 0;
+	color: var(--ln-production);
+}
+.fp__value {
+	font-family: var(--ln-display);
+	font-weight: 600;
+	font-size: clamp(1.4rem, 3vw, 2rem);
+	letter-spacing: -0.02em;
+}
+.fp__gloss {
+	font-size: 0.85rem;
+	color: var(--ln-ink-muted);
+}
+
+@media (max-width: 520px) {
+	.fp__rollcall {
+		grid-template-columns: 1fr;
+	}
+	.fp__level:nth-child(odd) {
+		border-right: 0;
+	}
+}
+
 /* ---- Ownership tiles ----------------------------------------------------- */
 
 /* Grid lines are the container's background showing through the gaps, so the
