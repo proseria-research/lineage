@@ -28,8 +28,7 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M9,M10,M11,M12 done;
-    class M8 active;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12 done;
 ```
 
 ## Status Summary
@@ -44,14 +43,14 @@ flowchart LR
 | M5 | Model API completeness + OpenAPI | `03` | ✅ |
 | M6 | Admin UI: BFF + web console | `06` | ✅ |
 | M7 | Lineage & provenance graph | `07` | ✅ |
-| M8 | Observability: metrics, traces, SLOs | `09` | 🚧 |
+| M8 | Observability: metrics, traces, SLOs | `09` | ✅ |
 | M9 | Deployment: Helm chart + profiles | `08` | ✅ |
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ✅ |
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
 | M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
 
-**Open work:** M8 only — OTLP span export and the SLO alert rules. Both were deferred to M9
-(they need a collector / the chart) and M9 shipped without them.
+**Open work:** none. The only remaining `[ ]` is M3's OCI/ORAS driver, a locked v1-out
+decision (§00.11.4) rather than a gap.
 
 ---
 
@@ -199,13 +198,13 @@ Model API and rendered in the console; verified end-to-end + unit-tested.
 - [x] SDK auto-capture (`produced_by`, `derived_from`) — delivered in **M10**
       (`sdk/python/lineage/client.py`: run + `git://<sha>` provenance, `derived_from` parents)
 
-## M8 — Observability 🚧
+## M8 — Observability ✅
 
 **Goal:** production ops (§09).
 **Done:** a hand-rolled, dependency-free Prometheus registry + `/metrics`, real readiness, and
-structured JSON access logs with correlation IDs — all verified live.
-**Open:** the two trace/alert items below. Metrics, health, and logs are complete; what is
-missing is span *export* (correlation IDs already flow) and rules over the RED metrics.
+structured JSON access logs with correlation IDs — all verified live. Tracing and the SLO rules
+landed after M9: spans export over OTLP from the running binary (API → core → store, verified
+against a stub collector), and the six alert rules render and pass `promtool check rules`.
 
 - [x] **Prometheus registry** (`observability/metrics`, hand-rolled counters/gauges/histograms
       with labels + text exposition — no `client_golang` dep): RED (`surface`/**templated**
@@ -221,11 +220,21 @@ missing is span *export* (correlation IDs already flow) and rules over the RED m
 - [x] Real **`/readyz`**: composed store + default-storage `Stat` checks gate traffic; `/healthz` liveness
 - [x] Tests: registry (counter/gauge/histogram cumulative buckets, scrape hooks, label escaping),
       ops handler (health/ready/metrics + failure gating), meter hooks fire from the core
-- [ ] **OTLP span export** (OTel SDK, API→core→store spans) — correlation IDs are in place;
-      `observability.otlpEndpoint` is rendered by the chart but still `# reserved` and unread
-      by the binary (§09.8)
-- [ ] SLO dashboards/alert rules — the four §09.5 targets as a `PrometheusRule` chart asset
-      over the existing RED metrics; `ServiceMonitor` (scrape) ships, alerting does not
+- [x] **OTLP span export** (OTel SDK): a `domain.Tracer` port with a no-op default, injected via
+      `core.WithTracer` — the core never imports the SDK, mirroring `Meter` (§01). The
+      `observability/tracing` adapter owns the provider, OTLP/HTTP exporter, and W3C propagation;
+      store spans come from a decorator over the `MetadataStore` **port**, so SQLite/Postgres/
+      memory are covered once and the store adapters stay telemetry-free
+- [x] Server spans carry the **templated** route (renamed after the mux matches), so span names
+      stay bounded like the metric labels; 5xx marks the span errored, 4xx does not; `requestId`
+      falls back to the live span's trace id so logs and traces join
+- [x] Tracing is **off unless `otlpEndpoint` is set** — disabled means the decorator is not in
+      the call path at all; the chart renders the env, sampling is parent-based
+- [x] SLO alert rules (§09.5) as a `PrometheusRule` chart asset over the existing RED metrics:
+      resolve availability + p99, publish success, digest mismatch, singleton violation, down
+- [x] Tests: real OTLP export to a stub collector, upstream `traceparent` adoption, disabled-path
+      identity, store-decorator spans + error marking, middleware route templating and 4xx/5xx;
+      live binary → collector round-trip; `helm lint`/`template` both profiles + `promtool`
 
 ## M9 — Deployment (Helm) ✅
 

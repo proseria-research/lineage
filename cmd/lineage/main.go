@@ -31,6 +31,7 @@ import (
 	"github.com/proseria-research/lineage/internal/domain"
 	"github.com/proseria-research/lineage/internal/observability"
 	"github.com/proseria-research/lineage/internal/observability/metrics"
+	"github.com/proseria-research/lineage/internal/observability/tracing"
 )
 
 // version is set at build time via -ldflags "-X main.version=…".
@@ -78,10 +79,29 @@ func main() {
 	log.Printf("resolution cache: %s", cfg.Cache.Engine)
 	bus := events.New()
 
-	// Telemetry (§09.2): the metric registry is a Meter for the core and a RED recorder for
-	// the API middleware; domain + DB gauges are refreshed at scrape time.
+	// Telemetry (§09.2, §09.4): the metric registry is a Meter for the core and a RED recorder
+	// for the API middleware; domain + DB gauges are refreshed at scrape time. Tracing is off
+	// unless a collector endpoint is configured.
 	m := metrics.NewApp()
-	svc := core.New(store, backends, backend.Name(), cache, bus, core.WithMeter(m))
+	tracer, flushTraces, err := tracing.Start(context.Background(), tracing.Config{
+		Endpoint:    cfg.Tracing.Endpoint,
+		ServiceName: cfg.Tracing.ServiceName,
+		Version:     version,
+		SampleRatio: cfg.Tracing.SampleRatio,
+	})
+	if err != nil {
+		// A missing collector must not stop the registry from serving; run untraced and say so.
+		log.Printf("tracing disabled: %v", err)
+	}
+	if tracer.Enabled() {
+		log.Printf("tracing: OTLP → %s (sample=%.2f)", cfg.Tracing.Endpoint, cfg.Tracing.SampleRatio)
+	}
+
+	// Spans wrap the store through the port, so SQLite/Postgres/memory are all covered and the
+	// adapters stay telemetry-free. Readiness keeps the undecorated store: probing every few
+	// seconds is not worth a span each time.
+	svc := core.New(tracing.Store(store, tracer), backends, backend.Name(), cache, bus,
+		core.WithMeter(m), core.WithTracer(tracer))
 	m.BindDomainGauges(func(ctx context.Context) metrics.DomainStats {
 		st, _ := svc.Stats(ctx)
 		return metrics.DomainStats{
@@ -108,8 +128,8 @@ func main() {
 
 	ready := observability.Ready(observability.StoreReady(store), observability.StorageReady(backend))
 	servers := []*http.Server{
-		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
-		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, cfg.ActorHeader, adminui.New(svc).Handler())},
+		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, tracer, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
+		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc).Handler())},
 		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready)},
 	}
 	names := []string{"model-api " + cfg.ModelAPIAddr, "admin-ui " + cfg.AdminAddr, "ops " + cfg.MetricsAddr}
@@ -133,6 +153,11 @@ func main() {
 	defer cancel()
 	for _, s := range servers {
 		_ = s.Shutdown(ctx)
+	}
+	// Flush buffered spans last: the batch processor holds the final requests' spans, and
+	// dropping them would lose exactly the traces from a shutdown worth investigating.
+	if err := flushTraces(ctx); err != nil {
+		log.Printf("tracing flush: %v", err)
 	}
 }
 

@@ -130,6 +130,14 @@ env (Postgres DSN, S3 keys) is added separately via secretKeyRef.
   value: {{ .Values.storage.gc.prefix | quote }}
 - name: LINEAGE_ACTOR_HEADER
   value: {{ .Values.actorHeader | quote }}
+{{- if .Values.observability.otlpEndpoint }}
+- name: LINEAGE_OTLP_ENDPOINT
+  value: {{ .Values.observability.otlpEndpoint | quote }}
+- name: LINEAGE_SERVICE_NAME
+  value: {{ .Values.observability.serviceName | default (include "lineage.fullname" .) | quote }}
+- name: LINEAGE_TRACE_SAMPLE_RATIO
+  value: {{ .Values.observability.traceSampleRatio | quote }}
+{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
 {{- end }}

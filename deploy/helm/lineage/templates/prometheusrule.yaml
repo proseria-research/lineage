@@ -1,0 +1,113 @@
+{{- if and .Values.observability.metrics .Values.observability.prometheusRule.enabled }}
+{{- $rule := .Values.observability.prometheusRule }}
+{{- $slo := $rule.slo }}
+{{- $w := $rule.window }}
+{{/*
+  PromQL braces sit next to Helm's, so every selector is interpolated with a space after the
+  opening brace: `{ {{ $sel }} , ... }`. PromQL ignores the whitespace.
+*/}}
+{{- $sel := printf "namespace=%q,service=%q" .Release.Namespace (include "lineage.fullname" .) }}
+{{- $resolve := printf "%s,route=\"/v1/models/{model}/resolve\"" $sel }}
+{{- $publish := printf "%s,route=\"/v1/models/{model}/versions\",method=\"POST\"" $sel }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "lineage.fullname" . }}
+  labels: {{- include "lineage.labels" . | nindent 4 }}
+    {{- with $rule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: lineage.slo
+      rules:
+        # §09.5 — Resolve availability. Resolve is the path inference systems sit on (axiom 8),
+        # so its error budget is the tightest one here.
+        - alert: LineageResolveAvailability
+          expr: >-
+            (
+            sum(rate(lineage_http_requests_total{ {{ $resolve }},status=~"5.." }[{{ $w }}]))
+            /
+            sum(rate(lineage_http_requests_total{ {{ $resolve }} }[{{ $w }}]))
+            ) > {{ divf (subf 100.0 $slo.resolveAvailability) 100.0 }}
+          for: {{ $rule.for }}
+          labels:
+            severity: critical
+          annotations:
+            summary: Resolve is burning its error budget
+            description: >-
+              The 5xx share of resolve requests over {{ $w }} exceeds the
+              {{ $slo.resolveAvailability }}% availability target. Runbook §09.7: check the cache
+              hit ratio and DB latency, then replica lag.
+
+        # §09.5 — Resolve p99. The duration histogram is labelled by route, not by cache outcome,
+        # so this is p99 over all resolves; a cache-hit-only series would need a new label
+        # (§09.2). A breach still means the hit path is not what the SLO assumes.
+        - alert: LineageResolveLatencyP99
+          expr: >-
+            histogram_quantile(0.99, sum by (le) (
+            rate(lineage_http_request_duration_seconds_bucket{ {{ $resolve }} }[{{ $w }}])
+            )) > {{ $slo.resolveLatencyP99Seconds }}
+          for: {{ $rule.for }}
+          labels:
+            severity: warning
+          annotations:
+            summary: Resolve p99 above the SLO
+            description: >-
+              p99 resolve latency over {{ $w }} exceeds {{ $slo.resolveLatencyP99Seconds }}s.
+              Runbook §09.7: cache hit ratio first, then DB latency.
+
+        # §09.5 — Publish success rate. A failing publish blocks a release pipeline, so this
+        # fires on the write path despite being far lower volume than resolve.
+        - alert: LineagePublishSuccessRate
+          expr: >-
+            (
+            sum(rate(lineage_http_requests_total{ {{ $publish }},status=~"5.." }[{{ $w }}]))
+            /
+            sum(rate(lineage_http_requests_total{ {{ $publish }} }[{{ $w }}]))
+            ) > {{ divf (subf 100.0 $slo.publishSuccessRate) 100.0 }}
+          for: {{ $rule.for }}
+          labels:
+            severity: critical
+          annotations:
+            summary: Publishes are failing
+            description: >-
+              The 5xx share of publish requests over {{ $w }} exceeds the
+              {{ $slo.publishSuccessRate }}% success target. Note a 422 on finalize is a
+              digest/size mismatch, is the client's to fix, and is not counted here.
+
+        # Integrity signal rather than an SLO: finalize rejected bytes whose hash did not match.
+        # Never expected in steady state (§05.6), so a sustained rate is worth paging on.
+        - alert: LineageDigestMismatches
+          expr: sum(rate(lineage_digest_mismatch_total{ {{ $sel }} }[{{ $w }}])) > 0
+          for: {{ $rule.for }}
+          labels:
+            severity: warning
+          annotations:
+            summary: Artifact uploads are failing digest verification
+            description: >-
+              Finalize is rejecting uploads on digest mismatch. Runbook §09.7: client re-hash and
+              re-upload, then verify the backend write path.
+
+        # The singleton invariant (§02.4) is enforced in-transaction; two versions in production
+        # means a demote failed. Cheap to check, and no other signal surfaces it.
+        - alert: LineageProductionSingletonViolated
+          expr: max(lineage_versions_by_stage{ {{ $sel }},stage="production" }) > 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: More than one version is in production
+            description: >-
+              The singleton stage invariant is violated. Runbook §09.7: re-run the transition and
+              inspect audit_event for the failed demote.
+
+        - alert: LineageDown
+          expr: up{ {{ $sel }} } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Lineage ops endpoint is not scrapeable
+            description: The registry is down or /metrics is unreachable.
+{{- end }}

@@ -4,17 +4,27 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/proseria-research/lineage/internal/domain"
 )
 
 // HTTPRecorder is the metrics sink the middleware feeds (implemented by metrics.App). Kept as
 // a local interface so the api package doesn't depend on the metrics package (§01).
 type HTTPRecorder interface {
 	RecordHTTP(surface, route, method, status string, seconds float64)
+}
+
+// ServerTracer starts the span for an inbound request, continuing any upstream W3C trace
+// (implemented by tracing.Tracer). Local interface for the same reason as HTTPRecorder — the
+// api package sees the port, never the OTel SDK.
+type ServerTracer interface {
+	StartHTTP(r *http.Request, name string) (context.Context, domain.Span)
 }
 
 type ctxKey int
@@ -27,15 +37,25 @@ func RequestID(ctx context.Context) string {
 	return id
 }
 
-// Telemetry wraps a handler with correlation ids, RED metrics, and a structured JSON access
-// log (§09.4). surface is "model-api" | "admin-ui". Secrets, signed URLs, and bytes are never
-// logged. rec may be nil (metrics disabled).
-func Telemetry(surface string, rec HTTPRecorder, actorHeader string, next http.Handler) http.Handler {
+// Telemetry wraps a handler with correlation ids, RED metrics, a server span, and a structured
+// JSON access log (§09.4). surface is "model-api" | "admin-ui". Secrets, signed URLs, and bytes
+// are never logged or put on a span. rec may be nil (metrics disabled) and tr may be nil
+// (tracing disabled) — the two are independent.
+func Telemetry(surface string, rec HTTPRecorder, tr ServerTracer, actorHeader string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		reqID := requestID(r)
+
+		// The span opens before the mux has matched, so it starts under the method and is
+		// renamed to the templated route below — span names stay bounded, like the metric labels.
+		ctx, sp := r.Context(), domain.Span(domain.NopSpan{})
+		if tr != nil {
+			ctx, sp = tr.StartHTTP(r, r.Method)
+		}
+		defer sp.End()
+
+		reqID := requestIDFor(r, sp)
 		w.Header().Set("X-Request-Id", reqID)
-		r2 := r.WithContext(context.WithValue(r.Context(), requestIDKey, reqID))
+		r2 := r.WithContext(context.WithValue(ctx, requestIDKey, reqID))
 
 		sw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r2)
@@ -45,6 +65,18 @@ func Telemetry(surface string, rec HTTPRecorder, actorHeader string, next http.H
 		if rec != nil {
 			rec.RecordHTTP(surface, route, r.Method, strconv.Itoa(sw.status), dur.Seconds())
 		}
+
+		sp.SetName(r.Method + " " + route)
+		sp.SetString("http.request.method", r.Method)
+		sp.SetString("http.route", route)
+		sp.SetString("lineage.surface", surface)
+		sp.SetInt("http.response.status_code", int64(sw.status))
+		if sw.status >= 500 {
+			// The handler already turned the cause into a problem document; the span carries the
+			// fact of failure so a trace search on errors finds it.
+			sp.RecordError(fmt.Errorf("%s %s responded %d", r.Method, route, sw.status))
+		}
+
 		slog.Info("request",
 			"surface", surface,
 			"method", r.Method,
@@ -54,7 +86,7 @@ func Telemetry(surface string, rec HTTPRecorder, actorHeader string, next http.H
 			"latencyMs", dur.Milliseconds(),
 			"requestId", reqID,
 			"actor", r.Header.Get(actorHeader),
-			"traceId", traceID(r),
+			"traceId", traceIDFor(r, sp),
 		)
 	})
 }
@@ -71,12 +103,12 @@ func routeLabel(pattern string) string {
 	return pattern
 }
 
-// requestID reuses an inbound X-Request-Id or the traceparent trace-id, else mints one.
-func requestID(r *http.Request) string {
+// requestIDFor reuses an inbound X-Request-Id, else the trace id, else mints one.
+func requestIDFor(r *http.Request, sp domain.Span) string {
 	if id := r.Header.Get("X-Request-Id"); id != "" {
 		return id
 	}
-	if tid := traceID(r); tid != "" {
+	if tid := traceIDFor(r, sp); tid != "" {
 		return tid
 	}
 	var b [16]byte
@@ -84,8 +116,19 @@ func requestID(r *http.Request) string {
 	return hex.EncodeToString(b[:])
 }
 
-// traceID extracts the 32-hex trace-id from a W3C traceparent header (00-<trace>-<span>-<flags>).
-func traceID(r *http.Request) string {
+// traceIDFor prefers the live span's trace id — with tracing on it is authoritative, since a
+// request with no upstream traceparent still gets a freshly minted trace. It falls back to the
+// inbound header so correlation keeps working with tracing disabled (§09.8).
+func traceIDFor(r *http.Request, sp domain.Span) string {
+	if tid := sp.TraceID(); tid != "" {
+		return tid
+	}
+	return traceparentID(r)
+}
+
+// traceparentID extracts the 32-hex trace-id from a W3C traceparent header
+// (00-<trace>-<span>-<flags>).
+func traceparentID(r *http.Request) string {
 	tp := r.Header.Get("traceparent")
 	parts := strings.Split(tp, "-")
 	if len(parts) == 4 && len(parts[1]) == 32 {
