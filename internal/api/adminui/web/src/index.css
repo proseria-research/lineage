@@ -1,13 +1,21 @@
 @import "tailwindcss";
 
-/* Lineage console design system — monochrome, thin 1px lines, sharp (0-radius) borders.
-   Every UI token is grayscale. The only colour lives in the two generated version marks
-   (§12): --portrait for structural edges, --portrait-block-* for individual layer blocks,
-   and --fp-* for the four fingerprint rings.
-   None of these is an accent, and no other surface may use them — a drawn diagram needs to
-   separate from the 1px furniture around it, and four nested rings need to be told apart.
-   In both marks colour is redundant with position and with a text label, never the sole
-   carrier of meaning. Auto light/dark via prefers-color-scheme. */
+/* Lineage console design system — near-monochrome, thin 1px lines, sharp (0-radius) borders.
+   Every general-purpose UI token is grayscale. Colour is admitted in exactly three places,
+   and nowhere else:
+
+   1. The two generated version marks (§12): --portrait for structural edges,
+      --portrait-block-* for individual layer blocks, and --fp-* for the four fingerprint
+      rings. A drawn diagram needs to separate from the 1px furniture around it, and four
+      nested rings need to be told apart.
+   2. --production, the one lifecycle stage with an invariant attached to it (§02.4: at most
+      one version per model). It matches the green the website uses for the same stage, so
+      the console and the public stage board agree on what production looks like.
+
+   In every case colour is redundant with position and with a text label, never the sole
+   carrier of meaning — a stage is named by its column and its heading before it is tinted.
+   No token here is a general accent; buttons, links, and furniture stay grayscale.
+   Auto light/dark via prefers-color-scheme. */
 
 :root {
   --radius: 0px;
@@ -30,6 +38,9 @@
   --border: oklch(0.9 0 0);
   --input: oklch(0.9 0 0);
   --ring: oklch(0.16 0 0);
+  /* The website's production green (#1f7a3d). Backgrounds derive from it by alpha rather
+     than as a second token, so the tint tracks the theme automatically. */
+  --production: oklch(0.5 0.12 148);
   --portrait: oklch(0.53 0.045 245);
   /* Portrait blocks cycle through four low-chroma hues. The colour follows the reported
      block ordinal, so every expanded repeat has the same hue; it separates groups but does
@@ -67,6 +78,8 @@
     --border: oklch(0.28 0 0);
     --input: oklch(0.3 0 0);
     --ring: oklch(0.8 0 0);
+    /* Lifted for contrast on the dark card, matching the site's dark-theme production green. */
+    --production: oklch(0.72 0.12 152);
     --portrait: oklch(0.72 0.05 245);
     --portrait-block-1: oklch(0.72 0.075 255);
     --portrait-block-2: oklch(0.74 0.075 165);
@@ -99,6 +112,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-production: var(--production);
   --color-portrait: var(--portrait);
   --color-portrait-block-1: var(--portrait-block-1);
   --color-portrait-block-2: var(--portrait-block-2);
