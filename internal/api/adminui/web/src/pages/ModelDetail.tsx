@@ -1,11 +1,9 @@
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
-import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StageBadge } from "@/components/StageBadge";
+import { VersionBoard } from "@/components/VersionBoard";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
-import { fmtTime, relTime } from "@/lib/utils";
+import { fmtTime } from "@/lib/utils";
 
 export default function ModelDetail() {
   const { model = "" } = useParams();
@@ -56,52 +54,7 @@ export default function ModelDetail() {
       {data.versions.length === 0 ? (
         <Empty>No versions published.</Empty>
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Version</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Author</TableHead>
-                <TableHead className="text-right">Created</TableHead>
-                <TableHead className="text-right">Compare</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.versions.map((v, i) => {
-                // Adjacent rows answer the usual question — what changed in this release?
-                // Any other pair is reachable by editing the compare URL.
-                const neighbour = data.versions[i + 1];
-                return (
-                  <TableRow key={v.id}>
-                    <TableCell className="font-mono font-medium">
-                      <Link to={`/models/${model}/versions/${v.name}`} className="hover:underline underline-offset-4">
-                        {v.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <StageBadge stage={v.stage} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{v.author || "—"}</TableCell>
-                    <TableCell className="text-right label-caps">{relTime(v.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      {neighbour ? (
-                        <Link
-                          to={`/models/${model}/compare?from=${encodeURIComponent(neighbour.name)}&to=${encodeURIComponent(v.name)}`}
-                          className="label-caps hover:underline underline-offset-4"
-                        >
-                          vs {neighbour.name}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+        <VersionBoard model={model} versions={data.versions} />
       )}
     </div>
   );
