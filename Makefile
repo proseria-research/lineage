@@ -1,4 +1,4 @@
-.PHONY: build run seed test test-console fmt vet tidy clean web web-dev docker helm-lint
+.PHONY: build run seed test test-console fmt vet tidy clean web web-dev docker helm-lint sdk sdk-check cli
 
 BIN := bin/lineage
 WEB := internal/api/adminui/web
@@ -50,6 +50,16 @@ docker:
 helm-lint:
 	helm lint $(CHART) -f $(CHART)/values-dev.yaml
 	helm lint $(CHART) -f $(CHART)/values-prod.yaml --set database.postgres.dsnSecret.name=x
+
+# sdk regenerates the low-level OpenAPI manifest consumed by the Python ergonomic layer.
+sdk:
+	python3 sdk/generate.py
+
+sdk-check: sdk
+	python3 -m py_compile sdk/python/lineage/*.py
+
+cli:
+	go build -o $(BIN) ./cmd/lineage-cli
 
 clean:
 	rm -rf bin data lineage.db

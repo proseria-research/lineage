@@ -27,8 +27,7 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M11 done;
-    class M10 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11 done;
 ```
 
 ## Status Summary
@@ -45,7 +44,7 @@ flowchart LR
 | M7 | Lineage & provenance graph | `07` | ✅ |
 | M8 | Observability: metrics, traces, SLOs | `09` | ✅ |
 | M9 | Deployment: Helm chart + profiles | `08` | ✅ |
-| M10 | SDK & CLI (OpenAPI-generated) | `10` | ⬜ |
+| M10 | SDK & CLI (OpenAPI-generated) | `10` | ✅ |
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
 
 ---
@@ -235,13 +234,20 @@ guards fail-closed; multi-stage `Dockerfile` (cgo-free static → distroless non
 - [x] `Dockerfile` (node build console → cgo-free static Go binary → distroless nonroot) + `make docker`
 - [x] Validated: `helm lint`/`template` both profiles, guard failures, `lineage migrate` smoke
 
-## M10 — SDK & CLI ⬜
+## M10 — SDK & CLI ✅
 
 **Goal:** client ergonomics (§10). Generated from OpenAPI (needs M5).
 
-- [ ] Python SDK: `publish`, `transition`, `resolve`, `download`, lineage helpers
-- [ ] Go CLI `lineage`: model/version/resolve/pull/lineage
-- [ ] Generation + versioning pipeline
+- [x] Python SDK: `publish`, `transition`, `resolve`, `download`, lineage helpers; all three
+      upload modes (signed direct, multipart, stream-through) with streamed bodies; SHA-256
+      verification on upload and download; optional git/run lineage capture
+- [x] Go CLI `lineage`: model list, version publish/promote, resolve, pull, lineage traversal;
+      multipart upload and multi-artifact pull
+- [x] Generation + versioning pipeline: `sdk/generate.py` derives an operation → path manifest
+      from the served OpenAPI source and the SDK routes every request through it;
+      `make sdk-check` regenerates and compiles it
+- [x] Validated end-to-end on both storage tiers: `fs` (stream-through) and S3/MinIO
+      (signed direct + 70 MiB multipart), plus `go test ./cmd/lineage-cli`
 
 ## M11 — Model Insights ✅
 
