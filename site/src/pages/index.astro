@@ -13,25 +13,119 @@ const downstream = [
 	{ type: 'derived_from', target: 'fraud-detector-lite 0.1.0' },
 ];
 
+/*
+ * The fingerprint disc, ported from the admin console's FingerprintMark (docs/12 §4) so the
+ * site draws the same mark the product does: four concentric rings, one per hash level,
+ * outermost first. Segment k of a ring is stroked iff bit k of a stream seeded by that
+ * hash is set, which makes the pattern a deterministic function of the hash alone — the
+ * same facts draw the same pixels here, in the console, and on every machine.
+ */
+
+const RING_ORDER = ['topology', 'shape', 'dtype', 'weights'] as const;
+type RingName = (typeof RING_ORDER)[number];
+
+const RING_R = [44, 34, 24, 14]; // radii in a 96px box
+// The console packs 24 segments into every ring. Here the strokes are heavier and round-
+// capped, so segment counts fall with the radius to keep the arc length — and the gap
+// between arcs — roughly even from the outer ring to the core.
+const RING_SEGMENTS = [24, 19, 14, 9];
+const GAP_DEG = 5;
+const DISC = 168;
+
+const fnv1a32 = (s: string): number => {
+	let h = 0x811c9dc5;
+	const bytes = new TextEncoder().encode(s);
+	for (let i = 0; i < bytes.length; i++) {
+		h ^= bytes[i];
+		h = Math.imul(h, 0x01000193) >>> 0;
+	}
+	return h >>> 0;
+};
+
+/** Successive xorshift32 words, seeded by fnv1a32 of the source string. */
+const stream = (seed: string): (() => number) => {
+	let x = fnv1a32(seed) || 0x9e3779b9;
+	return () => {
+		x ^= x << 13;
+		x >>>= 0;
+		x ^= x >>> 17;
+		x ^= x << 5;
+		x >>>= 0;
+		return x;
+	};
+};
+
+const arcPath = (cx: number, cy: number, r: number, a0: number, a1: number): string => {
+	const p0x = cx + r * Math.cos(a0);
+	const p0y = cy + r * Math.sin(a0);
+	const p1x = cx + r * Math.cos(a1);
+	const p1y = cy + r * Math.sin(a1);
+	const sweep = a1 - a0 > Math.PI ? 1 : 0;
+	return `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 ${sweep} 1 ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
+};
+
+/** The stroked arcs of one ring. Ring i is rotated 7.5°·i so rings never align into spokes. */
+const ringArcs = (hash: string, index: number): string[] => {
+	const k = DISC / 96;
+	const c = DISC / 2;
+	const r = RING_R[index] * k;
+	const segments = RING_SEGMENTS[index];
+	const next = stream(hash);
+	const rot = (7.5 * index * Math.PI) / 180;
+	const step = (2 * Math.PI) / segments;
+	const gap = (GAP_DEG * Math.PI) / 180;
+
+	const arcs: string[] = [];
+	let word = next();
+	let bit = 0;
+	for (let seg = 0; seg < segments; seg++) {
+		if (bit >= 30) {
+			word = next();
+			bit = 0;
+		}
+		const on = (word >>> bit) & 1;
+		bit++;
+		if (on) arcs.push(arcPath(c, c, r, rot + seg * step + gap / 2, rot + (seg + 1) * step - gap / 2));
+	}
+	return arcs;
+};
+
+const hashes: Record<RingName, string> = {
+	topology: 'sha256:11ab3f7c9d02e4a6b8c1d5f70392ae64bb17c2d9f04e6a8b1c3d5e7f90a2b4c6',
+	shape: 'sha256:4c72e15a83b6d0f29e4c7a1b5d8f0326ae91c4d7b0e3f6a9c2d5e8b1f4a7c0d3',
+	dtype: 'sha256:9e01d4b7a2c5f80e3b6d9a1c4f70e2b5d8a1c3f6b9e2d5a8c1f4b7e0d3a6c9f2',
+	weights: 'sha256:90ef6b3d0a7c4e19f2b5d8a1c4e7f0b3d6a9c2e5f8b1d4a7c0e3f6b9d2a5c8e1',
+};
+
+// Diffed against 1.3.0: the producer rehashed all four levels and only the weights root
+// moved, which is the `reweighted` verdict — a retrain on an untouched architecture.
+const changedLevels: RingName[] = ['weights'];
+
+const rings = RING_ORDER.map((name, index) => ({
+	name,
+	changed: changedLevels.includes(name),
+	arcs: ringArcs(hashes[name], index),
+}));
+
 const ownership = [
 	{
 		title: 'One binary',
-		body: 'A single Go process serves the admin console on :8080 and the machine API on :8081. There is no metadata service to deploy, operate, and secure beside it.',
+		body: 'A single Go process serves the admin console on :8080 and the machine API on :8081. There is no separate metadata service to deploy and operate alongside it.',
 		note: 'distroless · non-root · statically linked',
 	},
 	{
 		title: 'Your database',
-		body: 'SQLite on a laptop or at the edge; Postgres with row locking and JSONB filtering in production. Per-dialect adapters behind one port — the same image, the same behaviour.',
+		body: 'SQLite for local development and edge installs; Postgres with row locking and JSONB filtering in production. Per-dialect adapters sit behind one port, so the same image behaves identically on both.',
 		note: 'sqlite · postgres',
 	},
 	{
 		title: 'Your bucket',
-		body: 'Artifact bytes live in your object store and move directly between storage and consumer. Lineage holds pointers, digests, and sizes — never the payload.',
-		note: 'filesystem · s3 · minio · r2 · ceph',
+		body: 'Artifact bytes stay in your object store and move directly between storage and consumer. Lineage records pointers, digests, and sizes, and never handles the payload itself.',
+		note: 'filesystem · s3 · rustfs · r2 · ceph',
 	},
 	{
 		title: 'Your perimeter',
-		body: 'Authentication stays with your ingress, gateway, or mesh. Lineage trusts an already-authenticated request and records the actor header against every change.',
+		body: 'Authentication remains with your ingress, gateway, or mesh. Lineage trusts an already-authenticated request and records the actor header against every change.',
 		note: 'X-Lineage-Actor',
 	},
 ];
@@ -39,7 +133,7 @@ const ownership = [
 const sections = [
 	{
 		title: 'Start here',
-		blurb: 'Get a registry running and publish something real.',
+		blurb: 'Get a registry running and publish your first model.',
 		links: [
 			{ label: 'Quickstart', href: '/start/quickstart/' },
 			{ label: 'Core concepts', href: '/start/concepts/' },
@@ -57,7 +151,7 @@ const sections = [
 	},
 	{
 		title: 'Delivery',
-		blurb: 'How serving systems find and fetch the right bytes.',
+		blurb: 'How serving systems locate and fetch the right artifacts.',
 		links: [
 			{ label: 'Resolving a model', href: '/delivery/resolve/' },
 			{ label: 'KServe', href: '/delivery/kserve/' },
@@ -75,7 +169,7 @@ const sections = [
 	},
 	{
 		title: 'Operations',
-		blurb: 'Configuration, storage, metrics, and keeping it healthy.',
+		blurb: 'Configuration, storage, metrics, and routine maintenance.',
 		links: [
 			{ label: 'Configuration', href: '/operate/configuration/' },
 			{ label: 'Storage backends', href: '/operate/storage-backends/' },
@@ -84,7 +178,7 @@ const sections = [
 	},
 	{
 		title: 'Deployment',
-		blurb: 'From a laptop to a highly available cluster.',
+		blurb: 'From a local machine to a highly available cluster.',
 		links: [
 			{ label: 'Deploy with Helm', href: '/deploy/helm/' },
 			{ label: 'Production checklist', href: '/deploy/production-checklist/' },
@@ -102,11 +196,10 @@ const sections = [
 		<div class="shell hero__inner">
 			<div class="hero__copy">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hostable model registry</p>
-				<h1 class="hero__title">Exactly one version is in production.</h1>
+				<h1 class="hero__title">Ship models like you ship code.</h1>
 				<p class="hero__lede">
-					Lineage is the system of record for the models you ship. Promote a version and the
-					incumbent is archived in the same transaction, the audit trail records who did it, and
-					every serving system picks up the change on its next resolve — no redeploy, no glue code.
+					Versioned, staged, promoted, and auditable. Lineage is the registry of record for every
+					model your teams run, hosted on your own infrastructure.
 				</p>
 
 				<div class="hero__actions">
@@ -134,15 +227,16 @@ const sections = [
 		<div class="shell split">
 			<div class="split__copy">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>delivery</p>
-				<h2 class="section__title">One call, and it is serving.</h2>
+				<h2 class="section__title">Serving systems resolve in one call.</h2>
 				<p>
-					Serving systems do not need to know how your registry is laid out. They ask for a model at
-					a stage and get back everything required to pull it: a native storage URI, a freshly
-					signed URL, the digest to verify against, the size, and the model format.
+					Serving systems never need to know how your registry is laid out. They ask for a model at
+					a stage and get back everything needed to pull it: a native storage URI, a freshly signed
+					URL, the digest, the size, and the model format.
 				</p>
 				<p>
-					Responses carry an <code>ETag</code>, so a poller that has not missed anything gets a
-					<code>304</code>. Promotions invalidate the cache by event, not by expiry.
+					Responses carry an <code>ETag</code>, so a client that polls without missing an update
+					receives a <code>304</code>. Cache entries are invalidated when a promotion occurs rather
+					than when a timer expires.
 				</p>
 				<p class="split__link">
 					<a href="/delivery/resolve/">How resolution works →</a>
@@ -170,8 +264,8 @@ const sections = [
   ]
 }`}</code></pre>
 				<p class="exchange__foot">
-					Or hand KServe <code>lineage://fraud-detector/production</code> once and let the
-					storage-initializer resolve it at pull time.
+					Alternatively, configure KServe with <code>lineage://fraud-detector/production</code> once
+					and let the storage initializer resolve it at pull time.
 				</p>
 			</div>
 		</div>
@@ -181,11 +275,11 @@ const sections = [
 		<div class="shell">
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>provenance</p>
-				<h2 class="section__title">Ask what produced it. Ask what it breaks.</h2>
+				<h2 class="section__title">Trace what produced a model, and what depends on it.</h2>
 				<p class="section__lede">
-					Provenance is recorded as typed edges, not as a free-text tag. Walk upstream to explain a
-					model, or downstream from a bad dataset to find every version and deployment that
-					inherited the problem.
+					Provenance is recorded as typed edges rather than free-text tags. Trace upstream to
+					explain how a model was built, or downstream from a bad dataset to find every version and
+					deployment affected by it.
 				</p>
 			</div>
 
@@ -234,14 +328,81 @@ const sections = [
 	</section>
 
 	<section class="band">
+		<div class="shell split">
+			<div class="split__copy">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>fingerprint</p>
+				<h2 class="section__title">See exactly what changed between two versions.</h2>
+				<p>
+					Every version carries an architecture fingerprint: four separable hashes over a canonical
+					form of the model's structure. Topology covers the ordered op graph, shape adds every
+					tensor shape, dtype adds the precision vector, and weights is a merkle root over
+					per-tensor digests.
+				</p>
+				<p>
+					Because the levels are separable, a diff resolves to a verdict by table lookup rather than
+					by judgement. Producers that submit only the cheap header-derived hashes still get an
+					answer: the diff narrows the candidates and names the level it was missing.
+				</p>
+				<p class="split__link">
+					<a href="/guides/version-diff/">How version diff works →</a>
+				</p>
+			</div>
+
+			<figure class="fp">
+				<figcaption class="fp__head">
+					<span class="tag tag--verb">FINGERPRINT</span>
+					<code>fraud-detector 1.4.0</code>
+				</figcaption>
+
+				<div class="fp__disc">
+					<svg width={DISC} height={DISC} viewBox={`0 0 ${DISC} ${DISC}`} fill="none" aria-hidden="true">
+						{
+							rings.map((ring) =>
+								ring.arcs.map((d) => (
+									<path
+										d={d}
+										class={`fp__ring fp__ring--${ring.name}`}
+										stroke="currentColor"
+										fill="none"
+									/>
+								)),
+							)
+						}
+					</svg>
+				</div>
+
+				<ol class="fp__rollcall">
+					{
+						rings.map((ring) => (
+							<li class="fp__level" data-changed={String(ring.changed)}>
+								<i class={`fp__swatch fp__swatch--${ring.name}`} aria-hidden="true" />
+								<span class="fp__name">{ring.name}</span>
+								<span class="fp__state">{ring.changed ? 'differs' : 'matches'}</span>
+							</li>
+						))
+					}
+				</ol>
+
+				<p class="fp__verdict">
+					<span class="eyebrow">diff against 1.3.0</span>
+					<span class="fp__value">reweighted</span>
+					<span class="fp__gloss">
+						topology, shape, and dtype all match; only the weights hash moved
+					</span>
+				</p>
+			</figure>
+		</div>
+	</section>
+
+	<section class="band band--sunk">
 		<div class="shell">
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hosted</p>
-				<h2 class="section__title">Own the whole thing.</h2>
+				<h2 class="section__title">Runs entirely on your own infrastructure.</h2>
 				<p class="section__lede">
-					Self-hosting is the primary way to run Lineage, not a stripped-down tier of it. Your
-					metadata sits in your database, your weights sit in your bucket, and both stay portable —
-					plain relational tables and native object-store URIs.
+					Self-hosting is the primary way to run Lineage rather than a reduced tier of it. Metadata
+					sits in your database, weights sit in your bucket, and both stay portable: standard
+					relational tables and native object-store URIs.
 				</p>
 			</div>
 
@@ -259,11 +420,11 @@ const sections = [
 		</div>
 	</section>
 
-	<section class="band band--sunk">
+	<section class="band">
 		<div class="shell">
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>guides</p>
-				<h2 class="section__title">Everything, written down.</h2>
+				<h2 class="section__title">Documentation</h2>
 			</div>
 
 			<ul class="cards">
@@ -288,10 +449,10 @@ const sections = [
 
 	<section class="closer">
 		<div class="shell closer__inner">
-			<h2 class="closer__title">Put it on the record.</h2>
+			<h2 class="closer__title">Get started</h2>
 			<p class="closer__lede">
-				Run it locally in a minute, or install the chart into a cluster and point it at your Postgres
-				and your bucket.
+				Run Lineage locally in about a minute, or install the Helm chart into a cluster and point it
+				at your Postgres instance and your object store.
 			</p>
 			<div class="hero__actions">
 				<a class="button button--solid" href="/start/quickstart/">Quickstart</a>
