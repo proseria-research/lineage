@@ -202,39 +202,31 @@ code {
 	align-items: center;
 	gap: 1rem;
 }
-.masthead__repo {
-	font-family: var(--ln-mono);
-	font-size: 0.78rem;
-	text-decoration: none;
-	color: var(--ln-ink);
-	border-bottom: 2px solid var(--ln-production);
-	padding-bottom: 0.15rem;
-}
-.theme-switch {
+.icon-button {
 	display: inline-flex;
-	align-items: baseline;
-	gap: 0.4rem;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	padding: 0;
 	background: none;
 	border: 0;
-	padding: 0;
 	cursor: pointer;
-	font-family: var(--ln-mono);
-	font-size: 0.72rem;
 	color: var(--ln-ink-faint);
+	transition: color 0.16s ease;
 }
-.theme-switch:hover {
-	color: var(--ln-ink);
-}
-.theme-switch__label {
-	text-transform: uppercase;
-	letter-spacing: 0.12em;
-}
-.theme-switch__value {
+.icon-button:hover {
 	color: var(--ln-production);
 }
 
+/* Dark theme flips the filled half, so the glyph shows the mode you would
+   switch to rather than the one you are already in. */
+:root[data-theme='dark'] [data-theme-toggle] svg {
+	transform: scaleX(-1);
+}
+
 /* Narrow screens keep the two most useful destinations rather than dropping
-   navigation altogether. */
+   navigation altogether. The icons stay — they cost almost no width. */
 @media (max-width: 860px) {
 	.masthead__inner {
 		gap: 1rem;
@@ -246,9 +238,8 @@ code {
 	.masthead__nav a:nth-child(4) {
 		display: none;
 	}
-	.theme-switch__label,
-	.masthead__repo {
-		display: none;
+	.masthead__end {
+		gap: 0.25rem;
 	}
 }
 

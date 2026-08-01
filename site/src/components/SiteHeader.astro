@@ -17,22 +17,48 @@ import Mark from './Mark.astro';
 		</nav>
 
 		<div class="masthead__end">
-			<button class="theme-switch" type="button" data-theme-toggle aria-live="polite">
-				<span class="theme-switch__label">Theme</span>
-				<span class="theme-switch__value" data-theme-label>system</span>
+			{/* The glyph is the mark, half filled — the same square the logo uses.
+			    It flips horizontally with the theme. */}
+			<button class="icon-button" type="button" data-theme-toggle aria-label="Switch theme">
+				<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+					<rect
+						x="4"
+						y="4"
+						width="16"
+						height="16"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.5"></rect>
+					<path d="M5.25 5.25 H12 V18.75 H5.25 Z" fill="currentColor"></path>
+				</svg>
 			</button>
-			<a class="masthead__repo" href="https://github.com/proseria-research/lineage">GitHub</a>
+
+			<a
+				class="icon-button"
+				href="https://github.com/proseria-research/lineage"
+				aria-label="Lineage on GitHub"
+			>
+				<svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+					<path
+						fill="currentColor"
+						d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+					></path>
+				</svg>
+			</a>
 		</div>
 	</div>
 </header>
 
 <script>
 	const root = document.documentElement;
-	const label = document.querySelector<HTMLElement>('[data-theme-label]');
-	const button = document.querySelector<HTMLElement>('[data-theme-toggle]');
+	const button = document.querySelector<HTMLButtonElement>('[data-theme-toggle]');
 
+	// The label names the action, not the current state — that is what a screen
+	// reader user needs before pressing it.
 	const paint = () => {
-		if (label) label.textContent = root.dataset.theme === 'light' ? 'light' : 'dark';
+		const dark = root.dataset.theme !== 'light';
+		button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+		button?.setAttribute('title', dark ? 'Switch to light theme' : 'Switch to dark theme');
 	};
 
 	button?.addEventListener('click', () => {
