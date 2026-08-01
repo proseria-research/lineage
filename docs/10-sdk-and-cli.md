@@ -1,7 +1,9 @@
 # 10 — SDK & CLI
 
-> Status: **Draft**. Client ergonomics over the Model API (`/v1`). Python SDK first, then
-> a Go CLI, both generated from the OpenAPI contract (§00.11.6). APIs are `03`/`04`.
+> Status: **Implemented**. Client ergonomics over the Model API (`/v1`). The Python SDK
+> provides the ergonomic producer/consumer layer; the Go CLI covers common terminal and CI
+> flows. `sdk/generate.py` derives their shared operation manifest from the OpenAPI contract.
+> APIs are `03`/`04`.
 
 ## 1. Principles
 
@@ -37,11 +39,14 @@ lin.transition("fraud-detector", "1.4.0", to="production")   # §03.7
 # consume — §04
 r = lin.resolve("fraud-detector", stage="production")
 print(r.storage_uri, r.signed_url, r.digest, r.model_format)
-path = lin.download("fraud-detector", stage="production", dest="./model")  # Modal/Baseten
+paths = lin.download("fraud-detector", stage="production", dest="./model")  # Modal/Baseten
 ```
 
 - `publish` picks upload vs register per artifact, handles multipart + digesting, records
-  lineage edges (`07`).
+  lineage edges (`07`), and returns the version with every artifact it created.
+- `download` writes every `MODEL` artifact of the resolution and returns their paths — the
+  same selection the `lineage://` initializer makes (`04.5`). Pass `artifact="name"` for one
+  file, or `kind=None` to include `DOC` artifacts too.
 - `resolve`/`download` wrap the resolution contract (`04.2`).
 - **Auto-capture:** in a detectable training context, the SDK fills `produced_by`
   (git SHA / run id) and `derived_from` automatically (`07.4`).
@@ -63,13 +68,52 @@ lineage lineage fraud-detector@1.4.0 --direction upstream            # §07
 - `pull` performs the same resolve→fetch the KServe initializer does (`04.5`), for local
   and CI use.
 
-## 4. Versioning & Compat
+## 4. Build & Contract Check
+
+```bash
+make sdk-check                 # regenerate and validate the Python SDK manifest
+make cli                       # builds bin/lineage (the Go CLI)
+```
+
+`sdk/generate.py` emits `lineage/_openapi.py`: `API_VERSION` plus a `PATHS` table mapping
+every `operationId` to its `(method, path template)`. The ergonomic layer builds **every**
+URL through `PATHS`, so the manifest is load-bearing rather than advisory — an operation or
+path that moves in the contract fails at generation time instead of surfacing as a runtime
+404. Generation also fails if the contract drops an operation the SDK depends on.
+
+### 4.1 Upload modes
+
+`initiateUpload` returns one of three ticket shapes, and clients must handle all three
+(§05.6):
+
+| Ticket | Condition | Client action |
+|---|---|---|
+| `url` + `method` | signing backend, `< 64 MiB` | PUT the file to the signed URL |
+| `multipart` + `parts` + `partSize` | signing backend, `≥ 64 MiB` | PUT each part, finalize with per-part ETags |
+| `streamThrough` + `contentUrl` | non-signing backend (e.g. `fs`) | PUT the bytes to `contentUrl` |
+
+`contentUrl` is **server-relative** and must be resolved against the Model API origin; the
+other two are absolute. Both clients stream file bodies rather than buffering them.
+
+### 4.2 Artifact selection
+
+`download` (SDK), `pull` (CLI) and `lineage-init` (§04.5) make the **same** selection: every
+`MODEL` artifact of the resolved version, `DOC` excluded. Taking only the first artifact
+breaks sharded models; including `DOC` puts model cards in a serving directory.
+
+```bash
+lineage pull fraud-detector --dest ./model                      # all MODEL artifacts
+lineage pull fraud-detector --dest ./model --artifact model.onnx  # one by name
+lineage pull fraud-detector --dest ./model --kind ""              # everything
+```
+
+## 5. Versioning & Compat
 
 - Clients are versioned with the API; generated code is regenerated per release.
 - Backward-compatible `/v1` changes are additive; breaking changes ⇒ `/v2` (clients
   target a major).
 
-## 5. See Also
+## 6. See Also
 
 | For | Doc |
 |---|---|

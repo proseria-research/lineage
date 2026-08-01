@@ -10,3 +10,9 @@ node_modules/
 internal/api/adminui/web/dist/
 .vite/
 *.tsbuildinfo
+# Python SDK build/bytecode artifacts (sdk/python).
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
