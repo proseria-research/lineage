@@ -539,94 +539,95 @@ code {
 	color: var(--ln-ink-muted);
 }
 
-/* ---- Provenance ---------------------------------------------------------- */
+/* ---- Provenance mindmap --------------------------------------------------- */
 
-.graph {
-	display: grid;
-}
-.graph__group,
-.graph__subject {
-	border-left: var(--ln-frame) solid var(--ln-rule);
-	padding: 1.25rem 0 1.25rem clamp(1rem, 3vw, 2rem);
-}
-.graph__group .eyebrow {
-	margin-bottom: 0.9rem;
-}
-.edges {
-	list-style: none;
+/* The version sits at the centre and every recorded edge is a branch off it. The
+   viewBox is fixed and the figure scrolls on narrow screens: SVG text that scales
+   with the container stops being readable long before the layout breaks. */
+.map {
 	margin: 0;
-	padding: 0;
-	display: grid;
-	gap: 0.6rem;
+	overflow-x: auto;
+	overscroll-behavior-x: contain;
 }
-.edge {
-	display: grid;
-	grid-template-columns: auto minmax(1.5rem, 4rem) 1fr;
-	align-items: center;
-	gap: 0.8rem;
+.map svg {
+	display: block;
+	width: 100%;
+	min-width: 46rem;
+	height: auto;
 }
-.edge__type {
-	border: 1.5px solid var(--ln-rule);
-	padding: 0.15rem 0.5rem;
+
+/* Round caps on zero-length dashes draw true dots rather than short dashes, so the
+   branch reads as a traced path instead of a drawn pipe. */
+.map__branch {
+	fill: none;
+	stroke: var(--ln-rule-strong);
+	stroke-width: 2.5;
+	stroke-linecap: round;
+	stroke-dasharray: 0 9;
+}
+.map__arrow {
+	fill: var(--ln-rule-strong);
+}
+/* The label sits on its branch, so it is painted with a halo of the band background
+   first — the dots break around the word instead of running through it. */
+.map__relation {
 	font-family: var(--ln-mono);
-	font-size: 0.68rem;
-	color: var(--ln-ink-muted);
-	white-space: nowrap;
-}
-.edge__wire {
-	height: 2px;
-	background: repeating-linear-gradient(
-		90deg,
-		var(--ln-rule) 0 6px,
-		transparent 6px 12px
-	);
-}
-.edge__target {
-	font-family: var(--ln-mono);
-	font-size: 0.78rem;
-	overflow-wrap: anywhere;
-}
-.graph__subject {
-	border-left-color: var(--ln-production);
-	display: grid;
-	gap: 0.3rem;
-}
-.graph__badge {
-	font-family: var(--ln-mono);
-	font-size: 0.66rem;
+	font-size: 11px;
+	letter-spacing: 0.1em;
 	text-transform: uppercase;
-	letter-spacing: 0.16em;
-	color: var(--ln-production);
+	fill: var(--ln-ink-faint);
+	paint-order: stroke;
+	stroke: var(--ln-paper-sunk);
+	stroke-width: 7px;
+	stroke-linejoin: round;
 }
-.graph__name {
-	font-family: var(--ln-display);
-	font-weight: 600;
-	font-size: clamp(1.4rem, 3vw, 2rem);
-	letter-spacing: -0.02em;
+
+.map__node {
+	fill: var(--ln-paper-raised);
+	stroke: var(--ln-rule-strong);
+	stroke-width: 2;
 }
-.graph__meta {
+.map__node--subject {
+	fill: var(--ln-production-wash);
+	stroke: var(--ln-production);
+}
+.map__kind {
 	font-family: var(--ln-mono);
-	font-size: 0.72rem;
-	color: var(--ln-ink-faint);
+	font-size: 9.5px;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	fill: var(--ln-ink-faint);
 }
-.graph__foot {
+.map__kind--subject {
+	fill: var(--ln-production);
+}
+.map__name {
+	font-family: var(--ln-mono);
+	font-size: 12px;
+	fill: var(--ln-ink);
+}
+.map__subject-name {
+	font-family: var(--ln-display);
+	font-size: 19px;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	fill: var(--ln-ink);
+}
+.map__meta {
+	font-family: var(--ln-mono);
+	font-size: 10.5px;
+	fill: var(--ln-ink-faint);
+}
+
+.map__foot {
 	margin-top: 1.75rem;
 }
-.graph__foot a {
+.map__foot a {
 	font-family: var(--ln-mono);
 	font-size: 0.8rem;
 	text-decoration: none;
 	border-bottom: 2px solid var(--ln-production);
 	padding-bottom: 0.1rem;
-}
-
-@media (max-width: 620px) {
-	.edge {
-		grid-template-columns: auto 1fr;
-	}
-	.edge__wire {
-		display: none;
-	}
 }
 
 /* ---- Fingerprint disc ----------------------------------------------------- */
@@ -972,14 +973,25 @@ html[data-reveal-ready] [data-reveal].is-revealed > *:nth-child(3) {
 	transition-delay: 180ms;
 }
 
-/* The provenance wires draw outward from the node they hang off. */
-html[data-reveal-ready] [data-reveal] .edge__wire {
-	transform: scaleX(0);
-	transform-origin: left center;
-	transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s;
+/* Branches wipe in left to right, which is the direction every one of them flows.
+   A dotted stroke cannot draw itself with stroke-dashoffset — the dash pattern is
+   already spoken for — so the reveal is a clip instead. */
+html[data-reveal-ready] [data-reveal] .map__branch {
+	clip-path: inset(0 100% 0 0);
+	transition: clip-path 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
 }
-html[data-reveal-ready] [data-reveal].is-revealed .edge__wire {
-	transform: none;
+html[data-reveal-ready] [data-reveal].is-revealed .map__branch {
+	clip-path: inset(0 -2% 0 0);
+}
+html[data-reveal-ready] [data-reveal] .map__relation,
+html[data-reveal-ready] [data-reveal] .map__node-group {
+	opacity: 0;
+	transition: opacity 0.5s ease;
+	transition-delay: calc(500ms + var(--n, 0) * 90ms);
+}
+html[data-reveal-ready] [data-reveal].is-revealed .map__relation,
+html[data-reveal-ready] [data-reveal].is-revealed .map__node-group {
+	opacity: 1;
 }
 
 /* The fingerprint settles ring by ring, outermost first — the order the levels are

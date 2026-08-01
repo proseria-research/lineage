@@ -1,0 +1,136 @@
+---
+/**
+ * The provenance neighbourhood of one version, drawn as a mindmap: the version at the
+ * centre, every recorded edge a branch radiating off it, the relation named on the branch.
+ *
+ * Ancestry runs left, impact runs right, and the arrows follow the flow — which is the
+ * convention docs/guides/lineage-graph.md already draws these five edges in, even though
+ * every relation is stored version → target.
+ *
+ * Geometry is a fixed viewBox; the figure scrolls rather than shrinking on narrow screens,
+ * because SVG text that scales down stops being readable long before the layout breaks.
+ */
+
+const W = 1120;
+const H = 470;
+
+const CENTRE = { x: 440, y: 195, w: 240, h: 80 };
+const CY = CENTRE.y + CENTRE.h / 2; // 235
+const LEAF = { w: 250, h: 62 };
+const LEFT_X = 40;
+const RIGHT_X = 830;
+
+type Leaf = { kind: string; name: string; relation: string; cy: number };
+
+// cy values are hand-placed so the branch labels, which sit at each curve's midpoint,
+// clear one another vertically.
+const ancestry: Leaf[] = [
+	{ kind: 'dataset', name: 's3://data/transactions-2026-q1', relation: 'trained_on', cy: 75 },
+	{ kind: 'pipeline run', name: 'kfp://runs/8b21c4de', relation: 'produced_by', cy: 235 },
+	{ kind: 'model version', name: 'fraud-detector 1.2.0', relation: 'derived_from', cy: 395 },
+];
+
+const impact: Leaf[] = [
+	{ kind: 'deployment', name: 'kserve · prod-eu-1', relation: 'deployed_as', cy: 145 },
+	{ kind: 'model version', name: 'fraud-detector-lite 0.1.0', relation: 'derived_from', cy: 325 },
+];
+
+/**
+ * A branch, drawn from the leaf into the centre (ancestry) or centre out to it (impact).
+ * Branches meet the subject fanned rather than stacked on one point, so three arrowheads
+ * do not land on top of each other.
+ */
+const branch = (leaf: Leaf, side: 'left' | 'right', fan: number) =>
+	side === 'left'
+		? `M ${LEFT_X + LEAF.w} ${leaf.cy} C ${LEFT_X + LEAF.w + 60} ${leaf.cy} ${CENTRE.x - 60} ${CY + fan} ${CENTRE.x} ${CY + fan}`
+		: `M ${CENTRE.x + CENTRE.w} ${CY + fan} C ${CENTRE.x + CENTRE.w + 60} ${CY + fan} ${RIGHT_X - 60} ${leaf.cy} ${RIGHT_X} ${leaf.cy}`;
+
+/** Both curves are symmetric, so the midpoint is the average of the two ends. */
+const labelAt = (leaf: Leaf, side: 'left' | 'right') => ({
+	x: side === 'left' ? 365 : 755,
+	y: (leaf.cy + CY) / 2 - 9,
+});
+
+const leafX = (side: 'left' | 'right') => (side === 'left' ? LEFT_X : RIGHT_X);
+
+// Fan offsets spread the branch ends across the subject's edge instead of stacking
+// every arrowhead on one point.
+const nodes = [
+	...ancestry.map((leaf, i) => ({ leaf, side: 'left' as const, fan: (i - 1) * 18 })),
+	...impact.map((leaf, i) => ({ leaf, side: 'right' as const, fan: i === 0 ? -14 : 14 })),
+];
+---
+
+<figure class="map" data-map>
+	<svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="map-title map-desc">
+		<title id="map-title">Provenance of fraud-detector 1.4.0</title>
+		<desc id="map-desc">
+			Trained on s3://data/transactions-2026-q1, produced by kfp://runs/8b21c4de, and derived
+			from fraud-detector 1.2.0. Deployed as kserve · prod-eu-1, and fraud-detector-lite 0.1.0
+			is derived from it.
+		</desc>
+
+		<defs>
+			<marker
+				id="map-arrow"
+				viewBox="0 0 10 10"
+				refX="9"
+				refY="5"
+				markerWidth="5"
+				markerHeight="5"
+				orient="auto-start-reverse"
+			>
+				<path class="map__arrow" d="M 0 0 L 10 5 L 0 10 z"></path>
+			</marker>
+		</defs>
+
+		{
+			nodes.map(({ leaf, side, fan }) => (
+				<path class="map__branch" d={branch(leaf, side, fan)} marker-end="url(#map-arrow)" />
+			))
+		}
+
+		{
+			nodes.map(({ leaf, side }) => {
+				const at = labelAt(leaf, side);
+				return (
+					<text class="map__relation" x={at.x} y={at.y} text-anchor="middle">
+						{leaf.relation}
+					</text>
+				);
+			})
+		}
+
+		{/* The subject sits on top of the branch ends, so it is drawn after them. */}
+		<g class="map__node-group" style="--n: 0">
+			<rect
+				class="map__node map__node--subject"
+				x={CENTRE.x}
+				y={CENTRE.y}
+				width={CENTRE.w}
+				height={CENTRE.h}
+			/>
+			<text class="map__kind map__kind--subject" x={CENTRE.x + 16} y={CENTRE.y + 22}>version</text>
+			<text class="map__subject-name" x={CENTRE.x + 16} y={CENTRE.y + 48}>fraud-detector 1.4.0</text>
+			<text class="map__meta" x={CENTRE.x + 16} y={CENTRE.y + 67}>production · sha256:9f2c4a10</text>
+		</g>
+
+		{
+			nodes.map(({ leaf, side }, index) => {
+				const x = leafX(side);
+				const y = leaf.cy - LEAF.h / 2;
+				return (
+					<g class="map__node-group" style={`--n: ${index + 1}`}>
+						<rect class="map__node" x={x} y={y} width={LEAF.w} height={LEAF.h} />
+						<text class="map__kind" x={x + 14} y={y + 22}>
+							{leaf.kind}
+						</text>
+						<text class="map__name" x={x + 14} y={y + 43}>
+							{leaf.name}
+						</text>
+					</g>
+				);
+			})
+		}
+	</svg>
+</figure>

@@ -1,17 +1,8 @@
 ---
 import Marketing from '../layouts/Marketing.astro';
 import StageBoard from '../components/StageBoard.astro';
+import LineageMap from '../components/LineageMap.astro';
 
-const upstream = [
-	{ type: 'trained_on', target: 's3://data/transactions-2026-q1/' },
-	{ type: 'produced_by', target: 'kfp://runs/8b21c4de' },
-	{ type: 'derived_from', target: 'fraud-detector 1.2.0' },
-];
-
-const downstream = [
-	{ type: 'deployed_as', target: 'kserve · prod-eu-1' },
-	{ type: 'derived_from', target: 'fraud-detector-lite 0.1.0' },
-];
 
 /*
  * The fingerprint disc, ported from the admin console's FingerprintMark (docs/12 §4) so the
@@ -304,45 +295,9 @@ const sections = [
 				</p>
 			</div>
 
-			<div class="graph">
-				<div class="graph__group">
-					<h3 class="eyebrow">upstream · what produced it</h3>
-					<ul class="edges">
-						{
-							upstream.map((edge) => (
-								<li class="edge">
-									<span class="edge__type">{edge.type}</span>
-									<span class="edge__wire" aria-hidden="true" />
-									<span class="edge__target">{edge.target}</span>
-								</li>
-							))
-						}
-					</ul>
-				</div>
+			<LineageMap />
 
-				<div class="graph__subject">
-					<span class="graph__badge">version</span>
-					<span class="graph__name">fraud-detector 1.4.0</span>
-					<span class="graph__meta">production · sha256:9f2c4a10 · onnx</span>
-				</div>
-
-				<div class="graph__group">
-					<h3 class="eyebrow">downstream · what depends on it</h3>
-					<ul class="edges">
-						{
-							downstream.map((edge) => (
-								<li class="edge">
-									<span class="edge__type">{edge.type}</span>
-									<span class="edge__wire" aria-hidden="true" />
-									<span class="edge__target">{edge.target}</span>
-								</li>
-							))
-						}
-					</ul>
-				</div>
-			</div>
-
-			<p class="graph__foot">
+			<p class="map__foot">
 				<a href="/guides/lineage-graph/">Recording and traversing edges →</a>
 			</p>
 		</div>
