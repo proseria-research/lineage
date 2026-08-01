@@ -79,12 +79,14 @@ columns.
 | Edges | Adjacency, not wiring | Every node to every node in the next column, at 18% opacity |
 | Dashed node | The fact is missing | `paramCount` null or shape unparseable → dashed node ring, edges at 9% |
 
-Drawn in `--portrait`, a low-chroma slate (`oklch(0.53 0.045 245)` light, `oklch(0.72 0.05 245)`
-dark). The console's UI is monochrome because its surface is 1px furniture — rules, borders,
-tables — and a drawn network sitting inside that furniture needs to read as a different kind
-of object, not as more of it. One hue for the whole network is enough: the portrait has no
-categories to separate, only a stack to follow. Below 24px the colour drops with the nodes
-and edges (§6.2) — at tick size it would read as a stray highlight.
+Edges are drawn in `--portrait`, a low-chroma slate (`oklch(0.53 0.045 245)` light,
+`oklch(0.72 0.05 245)` dark). Nodes cycle through four matched low-chroma
+`--portrait-block-*` tones by reported block ordinal; every expanded repeat keeps its source
+block's tone. The hue is a stable visual discriminator only, not an encoding of a reported
+model fact. The console's UI is monochrome because its surface is 1px furniture — rules,
+borders, tables — and a drawn network sitting inside that furniture needs to read as a
+different kind of object, not as more of it. Below 24px the colour drops with the nodes and
+edges (§6.2) — at tick size it would read as a stray highlight.
 
 Two choices carry the design:
 
