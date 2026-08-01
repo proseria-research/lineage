@@ -1,0 +1,125 @@
+name: images
+
+# Builds the two container images and publishes them to GHCR.
+#
+#   ghcr.io/<owner>/lineage       the registry itself (Dockerfile)
+#   ghcr.io/<owner>/lineage-init  the KServe storage-initializer (Dockerfile.init)
+#
+# Pull requests build both images but never push, so a change to a Dockerfile is verified
+# before it can reach the registry.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile.init'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/images.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# A newer push to the same ref supersedes this run. Tag builds are never cancelled — a
+# half-published release is worse than a slow one.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  # Nothing is published that has not passed the suite. The default build tag compiles a stub
+  # console, so this needs no Node; the tests bring up their own Postgres and Redis in-process.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - run: go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: lineage
+            dockerfile: Dockerfile
+          - name: lineage-init
+            dockerfile: Dockerfile.init
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR rejects an uppercase path, and an owner login may legitimately contain one.
+      - name: Resolve image name
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # No QEMU: both Dockerfiles pin their build stages to $BUILDPLATFORM and cross-compile
+      # via GOARCH, and the runtime stages only COPY. Nothing foreign-arch is ever executed.
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.ref }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.title=${{ matrix.name }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          # Supply-chain attestations, attached to the image in the registry.
+          #
+          #   provenance  SLSA record of what built this — repo, commit, workflow, base
+          #               images, build args. mode=max keeps the full material list.
+          #   sbom        Package inventory. The generator reads the Go module table out of
+          #               the binary, so a scanner sees the real go.mod dependency set even
+          #               though the runtime layer is distroless and has no package manager.
+          #
+          # These add manifests carrying the platform unknown/unknown to the image index.
+          # containerd, GHCR and KServe ignore them correctly; a tool that enumerates
+          # platforms naively will list them. Verify with:
+          #
+          #   docker buildx imagetools inspect ghcr.io/<owner>/lineage:latest \
+          #     --format '{{ json .Provenance }}'
+          provenance: mode=max
+          sbom: true

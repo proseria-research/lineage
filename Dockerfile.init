@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+#
+# The KServe storage-initializer for lineage:// URIs (§04.5). It runs as the init container
+# of an InferenceService, resolves the model against the Model API, and downloads the
+# version's MODEL artifacts into the destination directory.
+#
+#   lineage-init lineage://fraud-detector/production /mnt/models
+#
+# Registered cluster-wide by a ClusterStorageContainer; see docs and the KServe guide.
+
+# Cross-compiled from the build platform: the binary is cgo-free, so targeting another
+# architecture is a native compile rather than an emulated one.
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ARG VERSION=dev
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/lineage-init ./cmd/lineage-init
+
+# The initializer writes into a volume KServe mounts for it, so it needs no shell and no
+# package manager — same distroless, non-root runtime as the registry.
+FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.source="https://github.com/proseria-research/lineage"
+LABEL org.opencontainers.image.title="lineage-init"
+LABEL org.opencontainers.image.description="KServe storage-initializer for lineage:// model URIs"
+COPY --from=build /out/lineage-init /usr/local/bin/lineage-init
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/lineage-init"]
