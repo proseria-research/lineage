@@ -43,7 +43,7 @@ flowchart LR
     class M13,M14,M15,M16 todo;
 ```
 
-**Next up:** M13 → M14 (phases 1–3 of `15.7`) is the shippable near-term slice — it answers
+**Next up:** M13 → M14 (phases 1–3 of `15.6`) is the shippable near-term slice — it answers
 the GPAI obligation that has been in force since Aug 2025. M15 follows, because a retention
 story is what makes an evidence bundle credible rather than decorative.
 
@@ -404,8 +404,8 @@ given a milestone row until now.
 
 # Next — Compliance & Evidence (M13–M16)
 
-Specced in `15`–`19` (`ddf4654`). `15` is posture only and ships no code; the four
-milestones below are the four capabilities it governs.
+Specced in `15`–`19` (`ddf4654`). `15` is the regime landscape and framing; it ships no
+code. The four milestones below are the four capabilities it governs.
 
 **The stance, which constrains every task here:** Lineage is an *evidence substrate*, not a
 compliance product. It emits stored facts in a regulation's structure and **names every
@@ -413,7 +413,7 @@ heading it cannot fill**. It never decides a risk class, never asserts a modific
 substantial in law, and never implies its audit log satisfies the Act's runtime logging
 articles (§15.3). A task that would blur one of those lines is out of scope, not behind.
 
-**Sequencing** follows `15.7`. Phase numbers are annotated per task, since the phases
+**Sequencing** follows `15.6`. Phase numbers are annotated per task, since the phases
 interleave across docs while the milestones stay doc-aligned.
 
 ## M13 — EU Risk Classification & Drift ⬜
@@ -558,7 +558,7 @@ recording a review closes it; a client-supplied `verdictAtReview` is rejected.
 - [ ] Tests: each queue condition; `unknown` queued; latest-row-per-pair; frozen verdict
       survives a later hash write
 
-**Non-goals across M13–M16** (`15.6`): determining a risk class; asserting substantial
+**Non-goals across M13–M16** (`15.5`): determining a risk class; asserting substantial
 modification; conformity assessment, CE marking, or EU database submission; Art. 12/19 runtime
 inference logging; risk management, human oversight, or cybersecurity (named as bundle gaps,
 not built); advising on retention periods.

@@ -3,7 +3,7 @@
 > **Regime: neutral.** Deliberately *not* marked EU. Legal hold and retention floors are
 > jurisdiction-neutral — the term comes from US litigation practice, and every framework that
 > asks for records asks for them to still exist. Only the **default values** (3650 days, §4)
-> cite Art. 18, and those are config, not schema. Rule in `15.2.1`.
+> cite Art. 18, and those are config, not schema. Rule in `15.4.3`.
 >
 > Status: **Proposed**. Both decisions resolved — `00.11.13` ✅ deletion **refuses**;
 > `00.11.14` ✅ tamper-evidence by **Merkle epoch sealing**, on by default. Makes evidence

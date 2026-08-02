@@ -3,7 +3,7 @@
 > **Regime: neutral.** Deliberately *not* marked EU. The mechanism is a **profile** — a
 > mapping from stored facts to one document structure (§2) — and both shipped profiles happen
 > to be EU. A NIST AI RMF or ISO/IEC 42001 profile is a mapping table and a fixture set
-> (§11), not a second subsystem, so the doc name must not imply otherwise. Rule in `15.2.1`.
+> (§11), not a second subsystem, so the doc name must not imply otherwise. Rule in `15.4.3`.
 >
 > Status: **Proposed**. One call produces the dossier a regulator asks for, from facts `02`–`11`
 > already hold — and names every heading it cannot fill. Posture and boundary rules are `15`;
@@ -24,8 +24,8 @@ ship partial, and both say so.
 
 | Profile | Serves | Coverage | Ships |
 |---|---|---|---|
-| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | near-complete | **first** — the obligation binds now (`15.4`) |
-| `annex_iv` | High-risk technical documentation (Art. 11) | 2 of 10 headings | with phase 6 (`15.7`) |
+| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | near-complete | **first** — the obligation binds now (`15.4.1`) |
+| `annex_iv` | High-risk technical documentation (Art. 11) | 2 of 10 headings | with phase 6 (`15.6`) |
 
 The profile is the extension seam. A third profile is a mapping table and a fixture set, not
 a new subsystem.
