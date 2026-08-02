@@ -50,8 +50,56 @@ jobs:
       - run: go test ./...
       - run: go test -tags=e2e ./tests/e2e -count=1 -timeout=5m -v
 
+  # The hermetic job above proves SQLite + filesystem. This job exercises the same real
+  # binary through the production adapter wiring: Postgres metadata and direct-to-S3 uploads.
+  e2e-backends:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lineage
+          POSTGRES_PASSWORD: lineage
+          POSTGRES_DB: lineage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lineage -d lineage"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Start MinIO and create the test bucket
+        run: |
+          docker run -d --name lineage-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio server /data
+          for attempt in {1..30}; do
+            curl -fsS http://127.0.0.1:9000/minio/health/ready && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:9000/minio/health/ready
+          docker run --rm --network host --entrypoint /bin/sh minio/mc -c \
+            'mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb --ignore-existing local/lineage-e2e'
+      - name: Run Postgres and S3 process E2E
+        env:
+          LINEAGE_E2E_POSTGRES_DSN: postgres://lineage:lineage@127.0.0.1:5432/lineage?sslmode=disable
+          LINEAGE_E2E_S3_ENDPOINT: http://127.0.0.1:9000
+          LINEAGE_E2E_S3_BUCKET: lineage-e2e
+          LINEAGE_E2E_S3_REGION: us-east-1
+          LINEAGE_E2E_S3_KEY: minioadmin
+          LINEAGE_E2E_S3_SECRET: minioadmin
+          LINEAGE_E2E_S3_PATH_STYLE: "true"
+        run: go test -tags=e2e ./tests/e2e -run '^TestPostgresS3ProcessWorkflow$' -count=1 -timeout=5m -v
+
   build:
-    needs: test
+    needs: [test, e2e-backends]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
