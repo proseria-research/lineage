@@ -57,11 +57,33 @@ Running Lineage without ever paying yields a complete and correct registry, not 
 | | Why it is not core |
 |---|---|
 | **Identity & RBAC** — SSO, per-model authorisation | `00.2.4` puts authN/authZ on the infrastructure by design. Core trusts an infra-supplied actor header and always will; this adds the infrastructure, it does not remove the default |
-| **Profile library + scheduled bundles** | a recurring regulatory obligation, per framework — see `18.2`, `21`, `22` |
+| **Profile library + scheduled bundles** | a recurring regulatory obligation, per framework — see `18.2`, `21`. This is the *shaping* of facts into one regulator's document, never the facts themselves (§4.1) |
 | **Bundle signing with a managed key** | key custody is a service. The sealing and self-digest it builds on are core (`18.7`, `19.5`) |
 
 Each is **additive**. Remove the commercial program and you are left with exactly what §2
 describes, behaving exactly as these docs specify.
+
+### 4.1 The compliance docs, specifically
+
+The regulatory work in `15`–`22` is **mostly core.** The line does not run between documents;
+it runs between *holding a fact* and *shaping it into a regulator's document*:
+
+> **If it needs a column, it is core. If it turns stored facts into paperwork, it is
+> commercial.**
+
+| Doc | Core | Commercial |
+|---|---|---|
+| `15` regulatory landscape | all — it is a map, no schema | — |
+| `16` EU risk classification | the fields, the drift predicate, the inventory query | — |
+| `17` EU modification review | the review queue | — |
+| `19` retention, hold, audit sealing | all of it (`00.11.14`) | — |
+| `20` model risk management | `mrm_tier`, `validation` records, unmonitored-in-production detection | the `mrm` bundle profile |
+| `22` change control plans | the `change_plan` table and the conformance predicate | the `pccp` bundle profile |
+| `18` evidence export | the bundle mechanism, gap reporting, one self-serve profile | the profile library, scheduling |
+| `21` assurance profiles | — it declares **zero schema** | all of it — it is nothing but profiles |
+
+So: **knowing** you have nine stale high-risk models is free, and always will be. **Producing
+the filing** for them, across a library of frameworks, on a schedule, signed, is the product.
 
 ## 5. Standing Commitments
 
