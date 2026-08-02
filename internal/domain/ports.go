@@ -104,11 +104,16 @@ type MetadataStore interface {
 }
 
 // StorageCapabilities advertises what a backend can do so the API adapts (§05.2).
+//
+// Signing and SignPut are separate because the two directions are not one capability: an
+// OCI registry hands out redirect URLs for blob reads but has no presignable write target,
+// so it can offload the read path while uploads still stream through (§05.3.1).
 type StorageCapabilities struct {
-	Signing   bool
+	Signing   bool // can mint a signed GET (read path offloads to the backend)
+	SignPut   bool // can mint a signed PUT (upload bypasses the API)
 	Ranges    bool
 	Multipart bool
-	OCI       bool
+	OCI       bool // artifacts are addressed as oci:// images (modelcars-pullable)
 }
 
 // SignedRequest describes a direct-to-storage upload target (§05.6).
@@ -176,6 +181,8 @@ type StorageBackend interface {
 	AbortMultipart(ctx context.Context, path, uploadID string) error
 
 	// ListObjects enumerates stored objects under prefix, for reference-counted GC (§05.8).
+	// Backends whose retention is owned elsewhere (oci: registry lifecycle policies) return
+	// ErrStorageUnsupported and the sweeper skips them.
 	ListObjects(ctx context.Context, prefix string) ([]ObjectRef, error)
 }
 

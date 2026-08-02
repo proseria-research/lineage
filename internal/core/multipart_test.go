@@ -28,7 +28,7 @@ func newFakeBackend() *fakeSigningBackend {
 
 func (f *fakeSigningBackend) Name() string { return "default" }
 func (f *fakeSigningBackend) Capabilities() domain.StorageCapabilities {
-	return domain.StorageCapabilities{Signing: true, Ranges: true, Multipart: true}
+	return domain.StorageCapabilities{Signing: true, SignPut: true, Ranges: true, Multipart: true}
 }
 func (f *fakeSigningBackend) Stat(_ context.Context, uri string) (domain.ObjectInfo, error) {
 	if o, ok := f.objects[uri]; ok {

@@ -42,9 +42,18 @@ cache:
     passwordSecret: { name: "", key: password }
 
 storage:
-  driver: fs # fs | s3
+  driver: fs # fs | s3 | oci
   fs:
     root: /data/artifacts
+  oci:
+    registry: "" # host[:port] only, no path — ghcr.io, harbor.internal, registry:5000
+    repository: "" # prefix Lineage owns; a model's repo is <repository>/<model>
+    plainHttp: false # in-cluster/dev registries only
+    # A robot account or registry token. Omit for an anonymous (public) pull (§05.4.2).
+    credentialsSecret:
+      name: ""
+      usernameKey: username
+      passwordKey: password
   s3:
     bucket: ""
     region: ""
