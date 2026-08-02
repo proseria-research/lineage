@@ -243,6 +243,34 @@ code {
 	}
 }
 
+/* Phone widths: the wordmark, one destination and the two icons is all that fits on a
+   360px row without it wrapping. Nothing is stranded — the hero's own first action is
+   the quickstart, and the footer carries the full map of the site. */
+@media (max-width: 600px) {
+	.masthead__inner {
+		gap: 0.75rem;
+		padding-block: 0.6rem;
+	}
+	.wordmark {
+		font-size: 1.05rem;
+	}
+	.masthead__nav a:nth-child(3) {
+		display: none;
+	}
+}
+
+/* A thumb needs a bigger target than a cursor does. The height is padding, so the
+   masthead keeps its proportions on anything driven by a mouse. */
+@media (pointer: coarse) {
+	.masthead__nav a {
+		padding-block: 0.65rem;
+	}
+	.icon-button {
+		width: 2.5rem;
+		height: 2.5rem;
+	}
+}
+
 /* ---- Hero ---------------------------------------------------------------- */
 
 .hero {
@@ -251,6 +279,12 @@ code {
 .hero__inner {
 	display: grid;
 	gap: clamp(2.75rem, 6vw, 4.5rem);
+}
+/* A grid item will not shrink below its own min-content width unless it is told it may,
+   and the board holds a resolve path and a terminal holds a clone URL — both wider than
+   a phone. Without this the item wins and the whole page scrolls sideways. */
+.hero__inner > * {
+	min-width: 0;
 }
 .hero__copy {
 	max-width: 64ch;
@@ -272,6 +306,14 @@ code {
 	flex-wrap: wrap;
 	gap: 0.75rem;
 	margin-top: 1.9rem;
+}
+/* Below this the pair no longer fits on one row, and two half-width chips set in mono
+   uppercase are both hard to hit and hard to read. Stack them full width instead. */
+@media (max-width: 430px) {
+	.hero__actions .button {
+		flex: 1 0 100%;
+		justify-content: center;
+	}
 }
 
 /* The box holds the copy button still; the lines scroll inside it. Putting the
@@ -342,6 +384,31 @@ code {
 	font-size: 0.72rem;
 }
 
+/* Without hover there is no gesture that summons the overlay, so on touch the control
+   leaves the corner and becomes a chip above the block — visible, and no longer sitting
+   on top of the line it would otherwise cover. */
+@media (hover: none) {
+	.terminal {
+		display: grid;
+		gap: 0.6rem;
+	}
+	.terminal__copy {
+		position: static;
+		justify-self: end;
+		opacity: 1;
+	}
+	.terminal__body {
+		min-width: 0;
+	}
+}
+
+@media (max-width: 600px) {
+	.terminal {
+		padding-inline: 0.85rem;
+		font-size: 0.72rem;
+	}
+}
+
 /* ---- The registry board (signature) -------------------------------------- */
 
 .board {
@@ -389,9 +456,12 @@ code {
 	pointer-events: none;
 }
 
+/* minmax(0, 1fr), not 1fr: a bare `1fr` is `minmax(auto, 1fr)` and floors each track at
+   its own min-content width, so one long digest in one card widens the whole board past
+   its container instead of wrapping inside its column. */
 .board__grid {
 	display: grid;
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .col + .col {
 	border-left: var(--ln-frame) solid var(--ln-rule);
@@ -484,6 +554,12 @@ code {
 	font-size: 0.72rem;
 	color: var(--ln-ink-muted);
 }
+/* A path has no spaces in it, so nothing else offers this line a break — and a flex
+   item will not shrink past its min-content width. `anywhere` is what makes that
+   min-content narrow; `break-word` leaves it untouched and the page scrolls sideways. */
+.board__resolve code {
+	overflow-wrap: anywhere;
+}
 .board__verb {
 	border: 1.5px solid var(--ln-ink-faint);
 	padding: 0.05rem 0.35rem;
@@ -505,10 +581,24 @@ code {
 		grid-auto-columns: 68%;
 		grid-template-columns: none;
 		overflow-x: auto;
+		overscroll-behavior-x: contain;
 		scroll-snap-type: x mandatory;
 	}
 	.col {
 		scroll-snap-align: start;
+	}
+}
+
+@media (max-width: 600px) {
+	.board__head,
+	.board__resolve {
+		padding-inline: 0.85rem;
+	}
+	/* 68% of a phone is about 250px, and a stage column has to hold a digest and a size
+	   on one line. Widen it — the next column still peeks, which is what says the board
+	   scrolls sideways. */
+	.board__grid {
+		grid-auto-columns: 82%;
 	}
 }
 
@@ -518,6 +608,11 @@ code {
 	display: grid;
 	gap: clamp(2rem, 5vw, 3.5rem);
 	align-items: start;
+}
+/* As in the hero: the response body and the request path are both wider than their
+   column, and they are meant to scroll inside it rather than stretch it. */
+.split > * {
+	min-width: 0;
 }
 @media (min-width: 900px) {
 	.split {
@@ -581,6 +676,22 @@ code {
 	font-size: 0.85rem;
 	color: var(--ln-ink-muted);
 }
+/* A `lineage://` URI is one unbreakable token wider than a 320px phone. */
+.exchange__foot code {
+	overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+	.exchange__request,
+	.exchange__response,
+	.exchange__foot {
+		padding-inline: 0.85rem;
+	}
+	/* The response scrolls either way; a smaller face just means fewer lines have to. */
+	.exchange__response {
+		font-size: 0.7rem;
+	}
+}
 
 /* ---- Provenance mindmap --------------------------------------------------- */
 
@@ -597,6 +708,15 @@ code {
 	width: 100%;
 	min-width: 46rem;
 	height: auto;
+}
+
+/* On a phone the figure breaks out of the gutter and runs to both screen edges. The
+   drawing is a fixed 46rem either way, so the gutter was not buying legibility — it was
+   only shrinking the window onto it. Running to the edge also reads as "this scrolls". */
+@media (max-width: 700px) {
+	.map {
+		margin-inline: calc(var(--ln-gutter) * -1);
+	}
 }
 
 /* Round caps on zero-length dashes draw true dots rather than short dashes, so the
@@ -716,14 +836,21 @@ code {
 /* One mark: four concentric rings, one per hash level, each at a fixed radius and in
    its own hue. The pattern is a deterministic function of the hash, so two versions
    that share a level draw that ring identically. */
-/* Narrower than its grid column, pushed to the outer edge: the disc is a square object
-   and a full-width card left it swimming. */
+/* Narrower than its grid column: the disc is a square object and a full-width card left
+   it swimming. */
 .fp {
-	margin: 0 0 0 auto;
+	margin-inline: auto;
 	max-width: 27rem;
 	width: 100%;
 	border: var(--ln-frame) solid var(--ln-rule-strong);
 	background: var(--ln-paper-raised);
+}
+/* Pushed to the outer edge only once the split has a second column for it to sit at the
+   edge of. Stacked, that same rule strands it against the right margin. */
+@media (min-width: 900px) {
+	.fp {
+		margin-inline: auto 0;
+	}
 }
 .fp__head {
 	display: flex;
