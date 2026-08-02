@@ -17,7 +17,8 @@ compatibility** — match what it does, with our own cleaner data model and API.
 
 ## 2. Axioms
 
-1. **Self-hosting is primary.** SaaS never compromises it.
+1. **Self-hosting is the only distribution model.** There is no hosted service, now or
+   later (`§11.15`).
 2. **Helm is a first-class product surface** — versioned and tested with the code.
    One `helm install` yields a working, secure registry. No Istio dependency.
 3. **Single binary, two surfaces on two ports.** One Go binary, one Deployment,
@@ -241,13 +242,13 @@ The chart is a product surface.
 | `16-eu-risk-classification.md` | Declared `eu_system_risk_class` + `eu_gpai_tier`; the per-regime `classification` row; the drift predicate; inventory query |
 | `17-eu-modification-review.md` | Art. 25 — routing the `11.4` fingerprint verdict to a human when a derivation may transfer provider liability |
 | `19-retention-and-hold.md` | Legal hold, retention floor, optional tamper-evident audit chain. **Regime-neutral** |
-| `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection; the `mrm` profile |
+| `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection |
 | `22-change-control-plans.md` | `change_plan` — a declared change envelope (FDA PCCP shape) and a conformance predicate derived from `11.4` verdicts. Reports, never adjudicates |
 
 Docs `16` and `17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `15`,
-`18`–`22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape and
-names the EU as the one built out; `20`–`22` are the non-EU regimes worth building, and only
-one of the three needs new tables.
+`19`, `20` and `22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime
+landscape and names the EU as the one built out; `20` and `22` are the non-EU regimes worth
+building.
 
 ## 11. Decisions
 
@@ -299,14 +300,11 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
 10. ✅ **Auth → out of scope.** Infra (ingress/gateway/mesh/NetworkPolicy) owns
     authN/authZ; Lineage trusts already-authenticated requests and records an
     infra-provided identity header for audit attribution only (axiom 4).
-11. ✅ **Regulatory posture → evidence substrate, not a compliance product.** Lineage emits
-    the facts it holds in a regulation's own structure and **names every heading it cannot
-    fill** (`18.4` — Annex IV is 2 held / 5 partial / 3 not held). It does not assess
+11. ✅ **Regulatory posture → evidence substrate, not a compliance product.** Lineage records
+    the facts it holds and is explicit about what it does not hold. It does not assess
     conformity, certify, or submit. Rationale: the same boundary as `11.1` (store facts,
-    don't derive them) applied one level up. A bundle that looked complete because it
-    omitted unfilled headings would convert a gap into false confidence — strictly worse
-    than emitting nothing. Stated in `15.3`; this also fixes the ceiling on what `14` may
-    claim.
+    don't derive them) applied one level up. Stated in `15.3`; this also fixes the ceiling on
+    what `14` may claim.
 12. ✅ **Risk classification is `declared`, never inferred — and jurisdiction is in the field
     name.** `eu_system_risk_class` and `eu_gpai_tier` (`16.7.1`) are operator claims carried
     with `11.2` provenance; there is no `derived` path in the schema. `unclassified` is a
@@ -331,8 +329,8 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
 13. ✅ **Retention floor + legal hold → deletion refuses** (`19.3`, `19.4`). `legal_hold` on
     `model`/`model_version`; `DELETE` on a held subject, or on one younger than the configured
     retention floor, returns **`409 failed_precondition`** with `details.reason`
-    (`legal_hold` / `retention_floor`). The floor is reported at `/healthz` and in every
-    bundle so a filing can cite what the registry was actually running under.
+    (`legal_hold` / `retention_floor`). The floor is reported at `/healthz` and on `/v1`
+    so a filing can cite what the registry was actually running under.
     **Refusal beats soft-delete**: hiding the row satisfies the caller and destroys the fact
     — six months on nobody can tell whether a record was retained deliberately or merely not
     yet purged (`19.3.2`). This is the one **non-additive** change in `15`–`19`: an endpoint
@@ -351,6 +349,23 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     single-row inclusion proof a chain could not offer cheaply. Known bounded gap: rows in
     the open epoch are unsealed, reported as `openEpochSince` rather than glossed
     (`19.5.3`). The `13` measurement that gated this is moot.
+15. ✅ **No SaaS, ever — self-hosted is the only distribution model.** Axiom 1 previously read
+    *"self-hosting is primary, SaaS never compromises it"*, which guarded against a hosted
+    service rather than ruling one out. It is now ruled out, and the guard is unnecessary.
+    Rationale: the buyer this product is built for cannot generally use a hosted registry —
+    `20.2`'s supervised firms and `15`'s regulated operators run isolated infrastructure, and
+    `14.7` records the objection verbatim, that a multi-tenant cloud *"doesn't solve the core
+    need for a truly self-hosted, physically isolated platform"*. `14.6` supplies the other
+    half: Neptune's hosted registry closed on 2026-03-06 with all cloud data permanently
+    deleted and no recovery. A registry is a system of record, and a system of record that can
+    be switched off by its vendor is not one. **Consequences:** an air-gapped install is the normal
+    case, not the exception; there is no hosted control plane, so one binary per install stays
+    the only shape; and "no vanishing SaaS" (`14.11`) becomes
+    a permanent structural claim rather than a current-roadmap one.
+16. ✅ **Licence → Apache-2.0, contributions under its section 5.** The registry is
+    Apache-2.0, the licence of MLflow and Kubeflow (`14.2`–`14.3`), so adopting it needs no
+    new legal review. Contributions are licensed on the same terms by Apache-2.0 §5; there
+    is no CLA.
 
 ## 12. Preplanning Done When
 
