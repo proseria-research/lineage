@@ -269,7 +269,7 @@ export const api = {
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/transition`,
       { to, reason },
     ),
-  graph: (m: string, v: string, direction: "upstream" | "downstream") =>
+  graph: (m: string, v: string, direction: "upstream" | "downstream" | "both") =>
     getJSON<LineageGraph>(
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/graph?direction=${direction}`,
     ),
