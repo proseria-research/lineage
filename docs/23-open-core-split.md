@@ -172,29 +172,32 @@ structurally rather than by discipline.
 
 ## 6. How the Commercial Tier Ships
 
-| | **A** — one repo, `ee/` tree | **B** — private repo, core as a Go module | **C** — a separate commercial program |
-|---|---|---|---|
-| Commercial source | published | closed | **closed** |
-| Core changes needed | build tags, dormant code | ports promoted to exported packages | **none** |
-| Coupling | compile-time, same tree | compile-time, versioned module | **a header and a REST API** |
-| Deployables per install | 1 | 1 | 2 |
-
-**Decision: C.** Commercial source is not published, which rules out A. B is rejected for two
-independent reasons: it couples the two codebases at compile time, and **core's packages all
-live under `internal/`**, which Go forbids another module from importing — B would require
-promoting the port set to exported packages and maintaining it as public API forever.
+**The commercial tier is a separate proprietary program.** It sits in front of core and reads
+core's public API. It is not a fork, a plugin, a build tag, or a linked library.
 
 ```
 lineage        public · Apache-2.0 · unchanged by any of this
 lineage-ee     private · proprietary · a separate program, no dependency on core
 ```
 
+Three constraints fix this shape, and any one of them alone would be enough:
+
+| Constraint | Consequence |
+|---|---|
+| Commercial source is not published (§6.5) | it cannot sit in this repository under a source-available licence |
+| **Core's packages all live under `internal/`** | Go forbids another module from importing them. A library dependency would first require promoting the port set to exported packages and then maintaining it as public API forever |
+| Compile-time coupling is unwanted | it would tie every commercial change to a core release, and every core refactor to a consumer that cannot be seen from this repository |
+
+What falls out is better than a compromise: **core needs no change at all** (§5), and the
+commercial program reaches it only through contracts that are already public.
+
 ### 6.1 A front door, not a called service
 
-Earlier drafts rejected C, and the objections were real — but they assumed core *calls out* to
-a commercial service. **Reverse the direction and each one dissolves.**
+A separate program is usually rejected on three grounds, and the objections are real — but
+each assumes core *calls out* to a commercial service. **Reverse the direction and all three
+dissolve.**
 
-| Objection, arrow inward | With the arrow reversed |
+| Objection, if core called outward | With the arrow reversed |
 |---|---|
 | a second deployable contradicts `00.2.3` | it is an ingress-layer component, and `00.2.4` already assigns that layer to the infrastructure. Core remains one binary, one Deployment |
 | a network hop per authorised request | requests pass *through* rather than triggering a side call — no extra round trip |
@@ -253,8 +256,9 @@ closing window**: a bot and a file today, or a negotiation after the first unsig
 
 ### 6.5 Why not source-available
 
-A was available and is declined: **commercial source is not published.** Recorded because the
-option is real and a future reader should know it was weighed, not missed.
+**Commercial source is not published.** Recorded because publishing it under a
+source-available licence is a real and common option, and a future reader should know it was
+weighed rather than missed.
 
 Publishing would not have given it away — copyright is deny-by-default, and a source-available
 licence (BSL, Elastic v2) permits reading while forbidding production use. That model works. It
@@ -268,9 +272,9 @@ is simply not the posture chosen here.
 
 **The boundary must therefore be published even though the code is not.** §3 and §7 are that
 publication, and they are load-bearing precisely because no reader can check them against the
-source. C helps here in a way A and B do not: the commercial program touches core only through
-a documented header and a public API, so **what it can possibly do is bounded by contracts
-anyone can read.**
+source. §6's shape helps here in a way a shared tree or a linked library could not: the
+commercial program touches core only through a documented header and a public API, so **what it
+can possibly do is bounded by contracts anyone can read.**
 
 ## 7. What We Will Never Gate
 
@@ -300,9 +304,9 @@ Not resolved here; each needs a call before the relevant code.
 ## 9. Impact on Build Order
 
 **None.** `15.6`'s phasing is unchanged, and §6 adds no core work at all — which is the
-strongest argument for it. Earlier drafts required an `Authorizer` port (option B) and a
-decision about which packages to export; C needs neither, because it integrates through a
-header that already exists and an API that is already public (§5).
+strongest argument for it. A linked commercial library would have required an `Authorizer` port
+and a decision about which packages to export; §6's shape needs neither, because it integrates
+through a header that already exists and an API that is already public (§5).
 
 Two things core should do anyway, now slightly more load-bearing:
 
