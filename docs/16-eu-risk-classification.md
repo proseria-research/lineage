@@ -1,93 +1,114 @@
 # 16 — EU Risk Classification & Drift
 
-> **Regime: EU AI Act.** Every field in §3 is EU vocabulary and is named `eu_*` to say so
-> (§3.1). The drift machinery in §5 is regime-agnostic and would be reused as-is by a second
-> regime.
+> **This doc is about the EU AI Act.** Every field in §3 uses EU wording, so every one of
+> them is named `eu_*` to make that obvious (§3.1). The drift machinery in §5 has nothing
+> EU-specific in it and a second country's rules would reuse the same shape.
 >
-> Status: **Proposed**. Records how risky a model is — as a **declared** operator claim, never
-> an inference — and detects when that claim has gone out of date. Posture and boundary rules
-> are `15`; the queue this feeds is `17`; the bundle that carries it is `18`.
+> Status: **Proposed**. This is how we store how risky a model is — as something a person
+> **states**, never something we guess — and how we notice when that statement has gone out
+> of date. Who decides what, and by when, is `15`; the review queue this feeds is `17`; the
+> report that carries it out the door is `18`.
+>
+> Throughout, **regime** means "one body of rules" — the EU AI Act is one, US model risk
+> supervision (`20`) is another. It's the word the rest of these docs use and it's a column
+> name (§7.1), so it's worth pinning down once.
 
 ## 1. Scope
 
-| In scope | Out of scope |
+| We do this | We don't do this |
 |---|---|
-| Storing a declared **EU AI Act** risk class per model | Deciding a risk class (`15.3.1`) |
-| Detecting when a classification has drifted | Re-classifying, downgrading, or blocking on drift |
-| The inventory query — "which high-risk models do we have" | Tracking systems, deployments, or filings |
-| — | Non-EU frameworks — §3.1; specced in `20`–`22` |
+| Store the risk class someone declared for a model under the **EU AI Act** | Decide what the risk class should be (`15.3.1`) |
+| Notice when a stored class has gone out of date | Change, downgrade, or block anything when it does |
+| Answer "which high-risk models do we have?" | Track systems, deployments, or regulatory filings |
+| — | Non-EU rules — see §3.1; those are specced in `20`–`22` |
 
 ## 2. The Problem
 
-Someone labels a model "low risk" in January. The team retrains it three times by June. The
+Someone marks a model "low risk" in January. The team retrains it three times by June. The
 label is now wrong and nobody noticed.
 
-The documented status quo is that classifications *"get assigned once and drift out of date"*
-— so **drift is the feature, and the field is just what makes drift measurable.** A registry
-that only stored the label would reproduce the spreadsheet it replaces.
+The complaint we keep hearing is that risk classes *"get assigned once and drift out of
+date"* — so **noticing the drift is the actual feature. The stored field only exists to make
+drift measurable.** A registry that just held the label would be the spreadsheet it replaces.
 
-## 3. Two Fields, Because There Are Two Regimes
+## 3. Two Fields, Because the Act Covers Two Different Things
 
-The Act regulates AI systems and GPAI models separately (`15.3.1`), so one field cannot carry
-both. A GPAI model is not "high-risk" or "low-risk" — it is on a different axis.
+The Act treats *AI systems* and *general-purpose models* separately (`15.3.1`), so one field
+can't hold both. A general-purpose model isn't "high risk" or "low risk" — that's a different
+question entirely.
 
-| Field | About | Values |
+| Field | What it describes | Allowed values |
 |---|---|---|
 | `eu_gpai_tier` | the model itself (Art. 53/55) | `none` · `gpai` · `gpai_systemic` |
-| `eu_system_risk_class` | systems this model serves — **declared** | `unclassified` (default) · `minimal` · `limited` · `high_annex_iii` · `high_annex_i` · `prohibited` |
+| `eu_system_risk_class` | the systems this model is used in — **as declared by a person** | `unclassified` (default) · `minimal` · `limited` · `high_annex_iii` · `high_annex_i` · `prohibited` |
 
-`unclassified` is a visible state. It never renders as, or defaults to, `minimal` — guessing
-low is the expensive direction.
+`unclassified` is a real, visible answer meaning "nobody has said yet". It never shows up as
+`minimal` and never quietly becomes it. Guessing "low" is the guess that costs you.
 
-`gpai_systemic` covers the largest models, presumed above a 10²⁵ FLOP training threshold. Most
-self-hosted installs will never use it; it exists because "not systemic" cannot be recorded
-without the value.
+`gpai_systemic` is for the very largest models — roughly, those trained above 10²⁵ FLOP. Most
+self-hosted installs will never touch it. It exists so that "we checked, and we're not in that
+bucket" is something you can actually record.
 
-### 3.1 Why the fields are `eu_`-prefixed
+### 3.1 Why the enum columns start with `eu_`
 
-`high_annex_iii` is not a risk level — it is a citation. A column called `system_risk_class`
-holding `high_annex_iii` reads as though the registry has a general notion of risk that the EU
-happens to be one expression of. It does not. **These enums are one jurisdiction's vocabulary,
-and the name should say so.**
+`high_annex_iii` isn't a level of risk — it's a pointer to a paragraph of EU law. A column
+called plain `system_risk_class` holding that value reads as if the registry has some universal
+idea of risk that the EU happens to be one flavour of. It doesn't. **These values are one
+jurisdiction's vocabulary, and the column name should say so.**
 
-The prefix buys two things:
+So a second regime never renames anything: a US supervisory tier arrives as `mrm_*` columns,
+and there's never any doubt which rulebook a stored value came from. `20.4` is exactly that
+happening.
 
-1. **A second regime is additive, not a migration.** A supervisory risk tier arrives as
-   `mrm_*` columns on the same row, with no ambiguity about which framework a stored value
-   belongs to and no renaming of what is already there. `20.4` is this being collected, and
-   it cost two columns.
-2. **It stops a false generalization.** Without the prefix, the first non-EU framework forces
-   a choice between overloading an EU enum and renaming a shipped column. Both are worse than
-   a prefix nobody minded typing.
+### 3.2 One row per regime, not one row per model
 
-**Not everything here is EU.** `intended_purpose`, `basis`, `classified_at`, `classified_by`,
-and `review_due_at` stay unprefixed: every framework wants a stated purpose, a rationale, and
-a review date. Only the enums are jurisdictional. The table itself stays `classification` — it
-is the per-model classification record, and one row should be able to carry more than one
-regime.
+The prefix keeps two regimes' *values* apart. It does nothing about everything wrapped around
+them, and that's the part that actually has to be separated.
 
-This is the same posture as `00.11.5` on tenancy: reserve the shape, do not build the
-generality.
+A classification is an **assessment**: somebody made it, on a date, for a stated reason, with
+their own review cycle. Those facts belong to the assessment, not to the model. A single row
+per model has one `classified_at`, one `classified_by`, one `basis`, one `review_due_at` — one
+set of answers for what will be N assessments by N different teams.
 
-## 4. `classificationState` — Three Values, Not a Boolean
+**That breaks the drift check, not just the tidiness.** Every clause in §5 measures against
+`classified_at`. Suppose risk@ classifies for the EU in January, a new version ships in March
+(correctly making the EU classification `stale`), and in June the model-risk team records an
+`mrm_tier`. If both live on one row, `classified_at` moves to June, the March version now looks
+older than the classification, and **the EU staleness silently clears.** A legal field would
+un-flag itself because a different team touched a different regime's column.
 
-A model is in exactly one state. Unclassified is **not** a kind of stale; a filter must be
-able to ask for either.
+So `classification` holds **one row per model per regime**, keyed `(model_id, regime)` (§7.1).
+Each regime gets its own date, its own author, its own reason, its own review cycle. Adding a
+regime adds rows plus a small group of nullable enum columns — nothing already stored is
+renamed or rewritten, which was the point of the prefix in the first place.
+
+**Only the enum columns are jurisdictional.** `intended_purpose`, `basis`, `classified_at`,
+`classified_by`, and `review_due_at` keep plain names, because every regime wants a stated
+purpose, a reason, and a review date — it just wants *its own*. Per-regime rows are what let
+them stay one column each instead of sprouting `eu_basis` and `mrm_basis`.
+
+Same posture as `00.11.5` on tenancy: leave room for it, don't build it yet. The room here is
+one discriminator column.
+
+## 4. `classificationState` — Three Values, Not a Yes/No
+
+A model is in exactly one of these **per regime**. "Nobody classified it" is **not** a kind of
+"out of date", and someone filtering the list needs to ask for one without getting the other.
 
 | State | Meaning |
 |---|---|
-| `unclassified` | no `classification` row, or `eu_system_risk_class = 'unclassified'` |
-| `stale` | classified, but at least one drift trigger fired (§5) |
-| `current` | classified, no trigger fired |
+| `unclassified` | no `classification` row for this regime, or `eu_system_risk_class = 'unclassified'` |
+| `stale` | classified, but something has changed since (§5) |
+| `current` | classified, nothing has changed since |
 
-**The state name is regime-agnostic; today it is computed from the EU record only.** When a
-second regime lands this becomes per-regime (`classificationState.eu`, `.nist`) — an additive
-change, since a single-regime install reads the same either way.
+**The state names don't mention the EU because the ladder isn't EU-specific** — `20.7` uses the
+same three plus one. Since the row is per regime, so is the state: a filter applies within the
+regime being asked about, and an install using one regime reads exactly as it always did.
 
-## 5. The Drift Predicate (normative)
+## 5. When Is a Classification Stale? (normative)
 
-Computed on read from facts already held, so it cannot itself go stale. Given classification
-`c` for model `m` and current time `now`:
+Worked out fresh on every read, from facts we already store, so the answer itself can't go
+stale. For model `m`'s `eu_ai_act` classification row `c` at time `now`:
 
 ```
 stale(m) :=  (c.review_due_at IS NOT NULL AND c.review_due_at < now)               → review_due_passed
@@ -100,101 +121,138 @@ stale(m) :=  (c.review_due_at IS NOT NULL AND c.review_due_at < now)            
                     AND d.created_at > c.classified_at)                             → derivation_since
 ```
 
-Each disjunct names a reason. `staleReasons[]` returns **every** one that fired, not the first
-— a reader deciding whether to re-open a classification wants the full picture.
+In plain terms, a classification goes stale when any of these is true:
+
+1. its review date has passed,
+2. a new version of the model was published after it was classified,
+3. the production version changed after it was classified, or
+4. a review item was opened on the model after it was classified (`17.4`).
+
+Each line has a name. `staleReasons[]` returns **all** the reasons that apply, not just the
+first one — someone deciding whether to redo a classification wants the whole picture.
+
+Because `c` is this regime's own row, writes under another regime can't move the anchor
+(`3.2`).
 
 ```mermaid
 flowchart TB
-    c["classification record<br/>classified_at · review_due_at"]
+    c["eu_ai_act classification row<br/>classified_at · review_due_at"]
     c --> t{"review date<br/>passed?"}
-    c --> v{"version published<br/>since?"}
+    c --> v{"new version<br/>published since?"}
     c --> p{"production version<br/>changed since?"}
-    c --> d{"derived with verdict<br/>≠ identical since? (17)"}
+    c --> d{"review item opened<br/>since? (17)"}
     t -->|yes| s["<b>stale</b> + reason<br/>flagged in console · listed by filter<br/>never auto-corrected"]
     v -->|yes| s
     p -->|yes| s
     d -->|yes| s
 ```
 
-**Index use.** Clauses 2–3 ride the existing `model_version(model_id, stage)` index (`02.6`);
-clause 1 uses `classification(review_due_at)` (§7.3); clause 4 reuses the `17.4` queue join.
+**This stays fast.** Checks 2 and 3 use the `model_version(model_id, stage)` index we already
+have (`02.6`); check 1 uses `classification(regime, review_due_at)` (§7.3); check 4 reuses the
+`17.4` queue join.
 
-**Known false positive, accepted deliberately.** Clause 3 keys on `updated_at`, so a
-metadata-only edit to the production version (a description fix) trips it. The precise
-alternative — scanning `audit_event` for `version.stage_changed` — turns a list query into a
-per-row audit scan. Erring toward *"re-check this classification"* is the safe direction for
-this particular field, and the reason string tells the reader exactly what fired.
+**One false alarm we're keeping on purpose.** Check 3 looks at `updated_at`, so fixing a typo
+in the production version's description marks the classification stale. Getting that exactly
+right would mean scanning the audit log for `version.stage_changed` on every row, turning a
+list query into a per-row audit scan. For a legal field, erring toward *"take another look at
+this"* is the right direction, and the reason string tells the reader precisely what tripped
+it.
 
-**The registry marks staleness and stops.** It does not re-classify, downgrade, or block a
-promotion. A registry that silently adjusted a legal field would be worse than one that never
-had it.
+**We flag it and stop there.** The registry never re-classifies a model, never downgrades it,
+and never blocks a promotion over this. A registry that quietly edited a legal field would be
+worse than one that never had the field.
+
+### 5.1 The shape, not the code
+
+`20.7` runs the same kind of check for model risk management, and it is worth being precise
+about what it reuses. Not this query: `20` anchors on a **validation record per version**,
+where this one anchors on a **classification per model**, and its ladder has four states rather
+than three. What carries over is the shape — a list of independent triggers, evaluated on read,
+returning every reason that fired and never repairing anything.
+
+If that shape gets built once as a trigger list evaluated against a supplied anchor, both
+regimes are configuration. Until then they're two implementations that agree, and the claim is
+"same design", not "same code".
 
 ## 6. Validation
 
-| Rule | On violation |
+| Rule | If broken |
 |---|---|
-| `euSystemRiskClass`, `euGpaiTier` must be in the enum | `400 invalid_argument`, `details.allowedValues` |
-| `euSystemRiskClass != 'unclassified'` requires non-empty `intendedPurpose` | `422 unprocessable` — a class without a stated purpose cannot be reviewed |
-| `euSystemRiskClass` in (`high_annex_iii`, `high_annex_i`) requires non-empty `basis` | `422 unprocessable` |
-| `reviewDueAt`, if set, must be `> now` | `400 invalid_argument` |
-| `classifiedAt` server-set; `classifiedBy` from `X-Lineage-Actor` | request values ignored |
+| `euSystemRiskClass`, `euGpaiTier` must be one of the listed values | `400 invalid_argument`, with `details.allowedValues` |
+| Anything other than `unclassified` needs a non-empty `intendedPurpose` | `422 unprocessable` — nobody can review a class with no stated purpose |
+| `high_annex_iii` and `high_annex_i` also need a non-empty `basis` | `422 unprocessable` |
+| `reviewDueAt`, if given, must be in the future | `400 invalid_argument` |
+| `classifiedAt` is set by the server; `classifiedBy` comes from `X-Lineage-Actor` | values sent in the request are ignored |
 
-Codes are the `03.9` vocabulary — no new ones.
+These are the existing `03.9` error codes — no new ones.
 
 ## 7. Data Model
 
-Additive only — no existing table changes shape, so both dialects take a forward-only
+Purely additive — no existing table changes shape, so both dialects get a forward-only
 migration with no data rewrite (`02.7`).
 
-### 7.1 `classification` (1:1 with `model`, optional)
+### 7.1 `classification` (one row per model per regime)
 
 | Column | Type | Regime | Notes |
 |---|---|---|---|
-| `model_id` | id | — | **PK**, FK→`model.id` ON DELETE CASCADE |
-| `eu_gpai_tier` | enum | **EU** | `none`\|`gpai`\|`gpai_systemic` (default `none`) |
-| `eu_system_risk_class` | enum | **EU** | `unclassified` (default) \| `minimal` \| `limited` \| `high_annex_iii` \| `high_annex_i` \| `prohibited` |
+| `model_id` | id | — | **PK** with `regime`; FK→`model.id` ON DELETE CASCADE |
+| `regime` | enum | — | **PK** with `model_id`. `eu_ai_act` here; `mrm` in `20` |
+| `eu_gpai_tier` | enum? | **EU** | `none`\|`gpai`\|`gpai_systemic` (default `none` on EU rows) |
+| `eu_system_risk_class` | enum? | **EU** | `unclassified` (default on EU rows) \| `minimal` \| `limited` \| `high_annex_iii` \| `high_annex_i` \| `prohibited` |
 | `intended_purpose` | str? | shared | required unless `unclassified` (§6) |
-| `basis` | str? | shared | why this class — the reasoning, not the conclusion. Required for high-risk |
-| `classified_at` | ts | shared | drift anchor (§5) |
-| `classified_by` | str? | shared | `X-Lineage-Actor` at write |
-| `review_due_at` | ts? | shared | null = no scheduled review, itself surfaced |
+| `basis` | str? | shared | *why* this class — the reasoning, not the conclusion. Required for high risk |
+| `classified_at` | ts | shared | this regime's "since when", the anchor §5 measures against |
+| `classified_by` | str? | shared | `X-Lineage-Actor` at time of write |
+| `review_due_at` | ts? | shared | null means no review scheduled — which we surface too |
 
-The **Regime** column is part of the contract, not commentary: a future `nist_*` column set
-lands in the `EU` rows' place without touching the `shared` ones (§3.1).
+A per-dialect `CHECK` ties each enum group to the discriminator: `regime = 'eu_ai_act'` requires
+`eu_system_risk_class` non-null and every other regime's group null. Sparsity stays bounded at
+two or three columns per regime, and each one stays a real enum with a real index.
 
-### 7.2 Provenance
+The **Regime** column is part of the contract, not a note: a future `nist_*` group lands beside
+the `EU` one and takes its own rows, without touching a `shared` column or anything already
+stored (§3.2).
 
-`source` is always `declared` (`11.2`). **There is no `derived` path for a legal class and the
-schema must not imply one** — a nullable `source` column would invite a future producer to
-write `derived` into it.
+### 7.2 Where the value came from
+
+`source` is always `declared` (`11.2`). **There is no computed path for a legal class, and the
+schema must not hint that there could be** — a nullable `source` column would tempt some future
+code path into writing `derived` there.
 
 ### 7.3 Indexes
 
-| Index | Purpose |
+| Index | What it's for |
 |---|---|
-| (`eu_system_risk_class`), (`eu_gpai_tier`) | the inventory query |
-| (`review_due_at`) | drift sweep, clause 1 (§5) |
+| (`regime`, `eu_system_risk_class`), (`regime`, `eu_gpai_tier`) | the inventory query |
+| (`regime`, `review_due_at`) | the review-date check, §5 check 1 |
+
+Every index leads with `regime`, so one regime's queries never scan another's rows.
 
 ## 8. API
 
-Model API (`:8081`, `/v1`), conventions per `03.1`. JSON fields carry the same `eu`
-prefix in camelCase (§3.1).
+Model API (`:8081`, `/v1`), following `03.1`. JSON field names keep the same `eu` prefix, in
+camelCase (§3.1).
 
 ```
-GET  /v1/models/{m}/classification
-PUT  /v1/models/{m}/classification
+GET  /v1/models/{m}/classifications                  every regime's row
+GET  /v1/models/{m}/classifications/eu_ai_act
+PUT  /v1/models/{m}/classifications/eu_ai_act
 GET  /v1/models?euSystemRiskClass=&euGpaiTier=&classificationState=
 ```
 
-**`PUT`, not `PATCH`** — full replace, actor recorded. A partial write to a legal field
-invites a stale `basis` sitting under a new class.
+**The regime is in the path**, so a client writing one regime's assessment cannot see or touch
+another's. That is what makes the next rule safe.
 
-Audit action: `classification.set`, appended in the same transaction (`02.5` invariant 4).
+**`PUT`, not `PATCH`** — you replace that regime's row whole, and we record who did it. Letting
+people edit one field at a time invites an old `basis` sitting underneath a brand-new class.
+
+Audit action: `classification.set`, written in the same transaction (`02.5` invariant 4), with
+the regime recorded.
 
 ### 8.1 Classify a model
 
 ```bash
-curl -X PUT "$LINEAGE/v1/models/fraud-detector/classification" \
+curl -X PUT "$LINEAGE/v1/models/fraud-detector/classifications/eu_ai_act" \
   -H 'Content-Type: application/json' -H 'X-Lineage-Actor: risk@acme.example' -d '{
     "euSystemRiskClass": "high_annex_iii",
     "euGpaiTier": "none",
@@ -206,7 +264,8 @@ curl -X PUT "$LINEAGE/v1/models/fraud-detector/classification" \
 
 ### 8.2 The inventory query
 
-The *"weeks to work out which AI systems are in production"* complaint, answered in one call:
+The *"it takes us weeks to work out which AI systems are in production"* problem, answered in
+one call:
 
 ```
 GET /v1/models?euSystemRiskClass=high_annex_iii&classificationState=stale
@@ -224,33 +283,39 @@ GET /v1/models?euSystemRiskClass=high_annex_iii&classificationState=stale
   ], "nextPageToken": null }
 ```
 
-`regime` is echoed as a constant `"eu_ai_act"` — redundant while there is one regime, and the
-field a client would otherwise have to infer from the key names when there are two.
+Filtering on `euSystemRiskClass` selects the EU row, so `classification` is that one row and
+`regime` names which one — the same object `18.4` embeds in a bundle. `GET
+/v1/models/{m}/classifications` returns the list instead.
 
 ## 9. Console (`06`)
 
-- **Inventory view** — models by `eu_system_risk_class`, stale ones marked **with their reason**.
-  A bare "stale" badge sends the reader hunting; the reason is the actionable part.
-- **Version detail — Compliance panel** — class, intended purpose, basis, drift state.
-- `unclassified` renders as `unclassified`, never as `minimal` (§3).
-- Drift is surfaced, never auto-resolved: there is no "mark current" button that does not
-  write a new classification.
+- **Inventory view** — models grouped by `eu_system_risk_class`, with stale ones marked **and
+  the reason shown**. A bare "stale" badge just sends the reader hunting; the reason is the
+  part they can act on.
+- **Version detail — Compliance panel** — class, intended purpose, basis, and whether it's
+  gone stale. One section per regime once there is more than one; the section header is the
+  regime.
+- `unclassified` shows as `unclassified`, never as `minimal` (§3).
+- Staleness is shown, never cleared for you: there's no "mark as current" button that doesn't
+  write a real new classification.
 
 ## 10. Deferred
 
 | Item | When |
 |---|---|
-| Scheduled drift sweep + webhook on `classification.stale` | With the event surface (`00.7`); §5 is already the whole query |
-| Multi-system classification (one model → N systems) | With multi-tenancy (`00.11.5`) — the `scope` key is the natural carrier |
-| Classification history (who changed a class, when, from what) | `audit_event` already records it; a dedicated read view if asked for |
+| Background staleness sweep + webhook on `classification.stale` | With the event surface (`00.7`); §5 is already the entire query |
+| A shared trigger-list evaluator behind both regimes' staleness checks | When a third regime wants one (`5.1`) |
+| One model classified against several systems | With multi-tenancy (`00.11.5`) — the `scope` key is the natural place to hang it |
+| A history view of class changes | `audit_event` already records them; we'll add a read view if someone asks |
 
 ## 11. See Also
 
 | For | Doc |
 |---|---|
-| Boundary rules, the clock, build order | `15` |
-| The queue that class gates, and that trips drift clause 4 | `17` |
-| How class travels into a filing | `18` |
+| Who decides what, by when, and in what order we build it | `15` |
+| The review queue that class gates, and that trips §5 check 4 | `17` |
+| How the class ends up in a filing | `18` |
+| The second regime, on its own row | `20.4` |
 | Entities, audit invariants | `02` |
 | API conventions, error codes | `03` |
-| Provenance vocabulary (`declared`) | `11.2` |
+| What `declared` means | `11.2` |

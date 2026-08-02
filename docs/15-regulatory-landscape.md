@@ -139,7 +139,7 @@ structure (`18.2`) — no new tables, no new API.
 | **EU AI Act** — Art. 18 | Keep the records ten years | Retention floor + legal hold | **Specced** — phase 4 |
 | **ISO/IEC 42001** | Proof a process is actually followed: what models exist, who changed them, when | `iso-42001` profile over the model inventory + audit log | **Specced** — `21`. Zero schema |
 | **NIST AI RMF** | The same facts, filed under GOVERN / MAP / MEASURE / MANAGE | `nist-ai-rmf` profile | **Specced** — `21`. Zero schema |
-| **SR 26-2 · PRA SS1/23 · OSFI E-23** | A model inventory with a risk tier per model, validation records, and evidence of monitoring | `mrm_tier` on the classification row, a `validation` record, and an `mrm` profile | **Specced** — `20`. Two columns, one table |
+| **SR 26-2 · PRA SS1/23 · OSFI E-23** | A model inventory with a risk tier per model, validation records, and evidence of monitoring | `mrm_tier` on its own `classification` row (`16.3.2`), a `validation` record, and an `mrm` profile | **Specced** — `20`. One column, one row, one table |
 | **FDA PCCP** | What you pre-declared you would change, next to what actually changed | `change_plan` table + a conformance predicate over `11.4` verdicts | **Specced** — `22`. One table, nothing stored that is derivable |
 | **Korea AI Framework Act** | A high-impact declaration, plus labelling for generative output | A sibling of `16` with Korean enums | **Small** — `16` was built to be twinned |
 | **Brazil PL 2338** | An EU-shaped dossier, if it passes | A sibling of `16` + a third profile | **Medium**, and not yet worth starting |
