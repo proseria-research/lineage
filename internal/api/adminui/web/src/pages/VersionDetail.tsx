@@ -17,15 +17,11 @@ import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 export default function VersionDetail() {
   const { model = "", version = "" } = useParams();
   const { data, error, loading, reload } = useAsync(() => api.version(model, version), [model, version]);
-  const graphs = useAsync(
-    () => Promise.all([api.graph(model, version, "upstream"), api.graph(model, version, "downstream")]),
-    [model, version],
-  );
+  const graph = useAsync(() => api.graph(model, version, "both"), [model, version]);
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
   const v = data.version;
-  const [upstream, downstream] = graphs.data ?? [undefined, undefined];
 
   return (
     <div>
@@ -111,25 +107,22 @@ export default function VersionDetail() {
       {/* Composition facts reported by producers (§11.8) */}
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />
 
-      {/* Lineage graph: provenance (upstream) + impact (downstream), §07.3 */}
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Provenance · upstream</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LineageGraphView graph={upstream} empty="No recorded provenance." />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Impact · downstream</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LineageGraphView graph={downstream} empty="Nothing derives from this version." />
-          </CardContent>
-        </Card>
-      </div>
+      {/* One neighbourhood: provenance to the left, impact to the right (§07.3). */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Lineage</CardTitle>
+          <p className="text-xs text-muted-foreground">Trace what produced this version and what depends on it.</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {graph.loading ? (
+            <div className="px-4 py-8 text-center label-caps">Loading lineage…</div>
+          ) : graph.error ? (
+            <div className="m-4 border border-destructive/50 bg-muted px-3 py-2 text-sm">{graph.error}</div>
+          ) : (
+            <LineageGraphView graph={graph.data} empty="No recorded lineage." />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Deployments */}
       <Card>
