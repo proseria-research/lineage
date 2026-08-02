@@ -235,6 +235,7 @@ The chart is a product surface.
 | `10-sdk-and-cli.md` | client ergonomics |
 | `11-model-insights.md` | model composition as queryable metadata: params, layers, framework, precision/quantization, disk vs memory footprint, evaluations, architecture fingerprint + version diff |
 | `12-version-portrait.md` | procedurally generated per-version mark in the console: mark families, encodings, determinism |
+| `13-performance-and-scale.md` | optimization backlog over the implemented system: query push-down, cache topology, HTTP/runtime/engine tuning, verification harness and targets |
 
 ## 11. Decisions
 
