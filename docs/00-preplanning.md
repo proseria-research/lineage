@@ -245,6 +245,7 @@ The chart is a product surface.
 | `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection; the `mrm` profile |
 | `21-assurance-profiles.md` | ISO/IEC 42001 and NIST AI RMF profiles, plus install-scope bundles. **Zero schema** — the proof that `18`'s profile seam is a design rather than a claim |
 | `22-change-control-plans.md` | `change_plan` — a declared change envelope (FDA PCCP shape) and a conformance predicate derived from `11.4` verdicts. Reports, never adjudicates |
+| `23-open-core-split.md` | Where a commercial tier could sit relative to the free registry: the three-rule test, the record/detect vs attest/report line, the code seam, licensing. **Strategy, not architecture** — changes no axiom and no `§11` decision |
 
 Docs `16` and `17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `15`,
 `18`–`22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape and

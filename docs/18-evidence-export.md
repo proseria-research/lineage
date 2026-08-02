@@ -36,6 +36,30 @@ with **zero new tables**. The two install-scope profiles introduce the one mecha
 did not already have (`21.3`); everything downstream — envelope, gap rules, determinism — is
 this doc unchanged.
 
+### 2.1 Concretely
+
+A profile is an instruction sheet, not a generator: *this heading ← that field*. Nothing is
+created, and whatever cannot be mapped is named rather than filled.
+
+Take `fraud-detector` `1.4.0`, already in the registry, under `annex_iv`:
+
+| Annex IV heading | What the registry holds | Result |
+|---|---|---|
+| 5 — validation and testing | an `evaluation` row: `fraud-holdout · auc 0.947 · split q2-2026` | `held` — the row **is** the answer |
+| 3 — data provenance, labelling, cleaning | a `trained_on` edge to `s3://datasets/txn/q2-2026/`, and nothing about curation | `partial` — the reference, plus a gap note for the rest |
+| 8 — risk management system | nothing — it is a provider process, not a model fact | `not_held_by_registry` |
+
+Now ask the same version for a different profile. **No row changes; only the mapping does.**
+
+| Profile | Produces | Reads from |
+|---|---|---|
+| `annex_iv` | EU high-risk technical file, 10 headings | evaluations, lineage, audit log |
+| `mrm` | supervisory file, 5 sections (`20.10`) | the *same* evaluations, lineage, audit log |
+| `iso_42001` | certification evidence, 9 objectives | the install, not one version (`21.3`) |
+
+That is the entire seam: a new regulation is a table of *their heading ← our field*, plus
+fixtures. §5 is the shape this produces, §6 is why the gap notes are constants.
+
 ## 3. `annex-xii` — GPAI to Downstream
 
 Annex XII is substantially a model card, which is why registry coverage is good here:
