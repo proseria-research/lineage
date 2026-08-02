@@ -272,4 +272,4 @@ Lineage's clearest response to each major competitor category is:
 |---|---|---|
 | MLflow | "We already have one" | Audit-by-default, real lifecycle governance, machine-facing resolve API, artifacts that don't melt the server |
 | OCI / Artifactory / Harbor | "It's just artifacts" | Metadata-authoritative, storage-agnostic; OCI becomes a driver, not a competitor |
-| Cloud registries | "Free with the platform" | Self-hosting first, one `helm install`, no region scoping, no vanishing SaaS |
+| Cloud registries | "Free with the platform" | Self-hosting first, one `helm install`, no region scoping, and no SaaS that can vanish — there is no hosted tier at all, by decision (`00.11.15`) |
