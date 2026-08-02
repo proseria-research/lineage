@@ -44,8 +44,13 @@ type Resolution struct {
 	Digest      string              `json:"digest,omitempty"`
 	ModelFormat *domain.ModelFormat `json:"modelFormat,omitempty"`
 	Artifacts   []ResolvedArtifact  `json:"artifacts"`
-	Insight     *ResolvedInsight    `json:"insight,omitempty"`
-	ResolvedAt  int64               `json:"resolvedAt"`
+	// OCIImage is the pullable image reference when this version's MODEL artifacts live in an
+	// OCI registry — the version's artifacts share one manifest, so one ref covers the whole
+	// model directory. It is what goes in `InferenceService.spec.predictor.model.storageUri`
+	// for a modelcars/OCI pull (§04.6, §05.3.1). Omitted for blob backends.
+	OCIImage   string           `json:"ociImage,omitempty"`
+	Insight    *ResolvedInsight `json:"insight,omitempty"`
+	ResolvedAt int64            `json:"resolvedAt"`
 }
 
 // ResolveOption toggles optional blocks on a resolution.
@@ -109,6 +114,7 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 			Digest: a.Digest, MediaType: a.MediaType, ServiceAccount: a.ServiceAccount,
 		})
 	}
+	r.OCIImage = ociImage(arts)
 	if ro.insight {
 		r.Insight = s.compactInsight(ctx, v.ID)
 	}
@@ -118,6 +124,28 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 	}
 	s.signRefs(ctx, r)
 	return r, nil
+}
+
+// ociImage returns the shared image reference for a version's MODEL artifacts when they all
+// live in one OCI manifest (§05.3.1). It stays empty when the artifacts are not OCI, or when
+// they are spread across more than one image — a single storageUri would then be a lie about
+// what a consumer gets by pulling it.
+func ociImage(arts []*domain.Artifact) string {
+	var image string
+	for _, a := range arts {
+		if a.Kind != domain.KindModel {
+			continue
+		}
+		ref, err := domain.ParseOCIURI(a.URI)
+		if err != nil {
+			return ""
+		}
+		if image != "" && image != ref.Image() {
+			return ""
+		}
+		image = ref.Image()
+	}
+	return image
 }
 
 // compactInsight assembles the resolve-time block from stored facts. A version nobody has

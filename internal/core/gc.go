@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -38,6 +39,12 @@ func (s *Service) SweepGarbage(ctx context.Context, prefix string, grace time.Du
 	}
 	objs, err := b.ListObjects(ctx, prefix)
 	if err != nil {
+		// A backend whose retention belongs to the backend itself (oci: registry lifecycle
+		// policies over manifest reachability, §05.8) cannot be swept. That is a no-op, not a
+		// failure — reporting it as an error would log noise on every interval forever.
+		if errors.Is(err, domain.ErrStorageUnsupported) {
+			return res, nil
+		}
 		return res, err
 	}
 	cutoff := domain.NowMillis() - grace.Milliseconds()

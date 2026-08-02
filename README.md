@@ -200,7 +200,8 @@ internal/
     adminui/          :8080 BFF + the embedded web console (web/, go:embed)
   adapters/
     store/{memory,sqlite,postgres}   MetadataStore (shared sqlstore + per-dialect seam)
-    storage/{fs,s3}                  StorageBackend (s3 is a hand-rolled SigV4 client)
+    storage/{fs,s3,oci}              StorageBackend (s3 signs SigV4, oci speaks the
+                                     OCI distribution API — both hand-rolled)
     cache/{memory,redis}             ResolutionCache
     events/                          EventBus
   observability/      health probes + a dependency-free Prometheus registry
@@ -211,8 +212,8 @@ docs/                 numbered design documents (00–11)
 
 **Runtime dependencies** are deliberately minimal: `modernc.org/sqlite` (cgo-free) and
 `jackc/pgx/v5` for the metadata stores, and `redis/go-redis` for the Redis cache. Everything
-else — the S3 driver and SigV4 signer, the Prometheus registry, and the OpenAPI document — is
-standard library or hand-authored.
+else — the S3 driver and SigV4 signer, the OCI registry client, the Prometheus registry, and
+the OpenAPI document — is standard library or hand-authored.
 
 ## Configuration
 
@@ -229,7 +230,7 @@ All configuration is environment-driven.
 | `LINEAGE_REDIS_ADDR`        | `localhost:6379`   | Redis address (when `redis`)                                   |
 | `LINEAGE_REDIS_PASSWORD`    | —                  | Redis password (when `redis`)                                  |
 | `LINEAGE_REDIS_DB`          | `0`                | Redis database index (when `redis`)                            |
-| `LINEAGE_STORAGE_DRIVER`    | `fs`               | `fs` \| `s3`                                                   |
+| `LINEAGE_STORAGE_DRIVER`    | `fs`               | `fs` \| `s3` \| `oci`                                          |
 | `LINEAGE_STORAGE_ROOT`      | `./data/artifacts` | Filesystem backend root                                        |
 | `LINEAGE_S3_BUCKET`         | —                  | S3 bucket                                                      |
 | `LINEAGE_S3_REGION`         | —                  | S3 region                                                     |
@@ -237,6 +238,11 @@ All configuration is environment-driven.
 | `LINEAGE_S3_ACCESS_KEY`     | —                  | Static access key; omit to use the IRSA / ECS / IMDS chain     |
 | `LINEAGE_S3_SECRET_KEY`     | —                  | Static secret key; omit to use the IRSA / ECS / IMDS chain     |
 | `LINEAGE_S3_PATH_STYLE`     | `false`            | `true` for MinIO / Ceph                                        |
+| `LINEAGE_OCI_REGISTRY`      | —                  | Registry host\[:port\], no path (e.g. `ghcr.io`)                |
+| `LINEAGE_OCI_REPOSITORY`    | —                  | Repository prefix; a model's repo is `<prefix>/<model>`        |
+| `LINEAGE_OCI_USERNAME`      | —                  | Registry robot account; omit for an anonymous pull             |
+| `LINEAGE_OCI_PASSWORD`      | —                  | Registry token / password                                      |
+| `LINEAGE_OCI_PLAIN_HTTP`    | `false`            | `true` for in-cluster / dev registries                         |
 | `LINEAGE_STORAGE_GC`        | `retain`           | `sweep` enables reference-counted garbage collection           |
 | `LINEAGE_GC_GRACE`          | `24h`              | Minimum object age before it is eligible for GC                |
 | `LINEAGE_GC_INTERVAL`       | `1h`               | GC sweep period                                                |

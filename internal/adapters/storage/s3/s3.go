@@ -74,7 +74,7 @@ var _ domain.StorageBackend = (*Backend)(nil)
 func (b *Backend) Name() string { return b.name }
 
 func (b *Backend) Capabilities() domain.StorageCapabilities {
-	return domain.StorageCapabilities{Signing: true, Ranges: true, Multipart: true}
+	return domain.StorageCapabilities{Signing: true, SignPut: true, Ranges: true, Multipart: true}
 }
 
 // endpoint resolves the request host and canonical (path-encoded) URI for bucket/key,

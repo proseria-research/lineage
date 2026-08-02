@@ -48,6 +48,12 @@ GET /v1/models/{model}/resolve[?<selector>]
 
 - `storageUri` — native scheme for in-cluster pullers (KServe). `signedUrl` — time-
   limited HTTPS for SDK/URL pullers (Modal, Baseten). Consumers pick whichever fits.
+- `ociImage` — present only when the version's MODEL artifacts share one OCI manifest
+  (`05.3.1`): the pullable image reference covering the whole model directory, ready for
+  `InferenceService.spec.predictor.model.storageUri`. Per-artifact `storageUri`s keep their
+  `#<file>` fragment because they address a *file*; `ociImage` does not because it addresses
+  the *directory*. Omitted when the artifacts span more than one image — no single reference
+  would then deliver the whole model, and claiming one would be a lie.
 - `404 not_found` if the model or a matching version doesn't exist;
   `409 failed_precondition` if the selector matches no version in a resolvable state.
 - **HTTP caching:** `ETag` = resolution digest, `Cache-Control: max-age=…`. Repeat
@@ -64,8 +70,8 @@ GET /v1/models/{model}/versions/{version}/artifacts/{artifact}/content
 
 - Default → `302` redirect to a fresh signed URL (registry never touches bytes).
 - `?mode=stream` → `200` with the bytes, streamed through, **only** where the backend
-  can't sign (e.g. `file://`) — the fallback of §00.11.4. Supports `Range` and
-  `If-None-Match` (`ETag` = digest → `304`).
+  can't sign (`file://`, and `oci://` on a registry that serves blobs inline) — the fallback
+  of §00.11.4. Supports `Range` and `If-None-Match` (`ETag` = digest → `304`).
 
 ## 4. Caching & Consistency
 
@@ -146,7 +152,7 @@ spec:
 |---|---|---|
 | **KServe** (native) | in-cluster pull by URI | resolve → put `storageUri` in `InferenceService` |
 | **KServe** (`lineage://`) | stage-referenced | `storageUri: lineage://model/stage` + our `ClusterStorageContainer` |
-| **KServe modelcars / OCI** | OCI pull | resolve an `oci://` artifact (OCI driver, `05`) |
+| **KServe modelcars / OCI** | OCI pull | resolve → `ociImage` into `storageUri` (`05.3.1`). Build the modelcar image in CI and register it by reference; a Lineage-pushed OCI *artifact* is not a runnable image |
 | **Modal** | SDK/URL download | `resolve()` → `signedUrl` → download into a Volume at build/startup |
 | **Baseten (Truss)** | SDK/URL download | `resolve()` → `signedUrl` during build/deploy |
 | **Anything** | HTTPS | `signedUrl`, or `…/content` broker fetch (§3) |

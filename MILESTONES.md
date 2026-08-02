@@ -33,10 +33,13 @@ flowchart LR
     M5 --> M15["M15 · Retention &amp; hold"]
     M15 --> M14
 
+    M3 --> M17["M17 · OCI/ORAS driver"]
+    M4 --> M17
+
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12 done;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M17 done;
     class M13,M14,M15,M16 todo;
 ```
 
@@ -65,10 +68,11 @@ story is what makes an evidence bundle credible rather than decorative.
 | M14 | Evidence export: Annex XII / Annex IV bundles | `18` | ⬜ |
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
 | M16 | EU modification review (Art. 25) | `17` | ⬜ |
+| M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
 
 **Open work:** M13–M16, the compliance set specced in `15`–`19` (`ddf4654`). No blocked
-decisions — `00.11.11`–`14` are all resolved. The one pre-existing `[ ]` is M3's OCI/ORAS
-driver, a locked v1-out decision (§00.11.4) rather than a gap.
+decisions — `00.11.11`–`14` are all resolved. M3's OCI/ORAS checkbox, the one pre-existing
+`[ ]`, closed with **M17**.
 
 **One behaviour change to plan for.** M15 makes `DELETE` **refuse** on held or
 retention-floored subjects (`409 failed_precondition`). Every other task in M13–M16 is
@@ -141,7 +145,7 @@ consumer downloading via the resolve `signedUrl`; integrity + immutability enfor
 - [x] Tests: SigV4 vector, `fs` round-trip, IRSA web-identity + cache/refresh, core upload
       (stream-through/multipart/mismatch/immutability), GC sweep; **live MinIO** integration
       (round-trip + multipart, gated by `LINEAGE_TEST_S3_*`)
-- [ ] (later) OCI/ORAS driver — a locked v1-out decision (§00.11.4), not a punt
+- [x] OCI/ORAS driver — was a locked v1-out decision (§00.11.4); delivered in **M17**
 
 ## M4 — Delivery Hardening ✅
 
@@ -558,3 +562,52 @@ recording a review closes it; a client-supplied `verdictAtReview` is rejected.
 modification; conformity assessment, CE marking, or EU database submission; Art. 12/19 runtime
 inference logging; risk management, human oversight, or cybersecurity (named as bundle gaps,
 not built); advising on retention periods.
+
+## M17 — OCI/ORAS Storage Driver ✅
+
+**Goal:** close the one deferred v1 decision (§00.11.4) — an OCI registry as a first-class
+`StorageBackend` (`05.3.1`).
+**Acceptance:** publish a version to a registry and every artifact lands in **one** manifest;
+`Stat` returns the artifact's own content digest; resolve carries an `ociImage` a KServe
+`InferenceService` can use verbatim; a plain OCI client reads the manifest we wrote.
+**Done:** verified against a live `registry:2` — driver round-trip, a spec-shaped manifest
+fetched with nothing but the standard `Accept` header, and the real binary publishing,
+resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
+
+- [x] `oci://<registry>/<repo>[:tag][@sha256:…][#<layer>]` grammar (`domain.ParseOCIURI`),
+      distribution-spec name/tag validation; the `#fragment` mirrors `lineage://…#artifact`
+- [x] Distribution v1.1 client, **stdlib-only** like SigV4: manifest get/put/delete, blob
+      head/get/push (streamed, hashed in flight), Docker registry v2 **bearer-token flow**
+      with per-scope caching (a `pull,push` token satisfies later pulls)
+- [x] **One manifest per version, one layer per artifact**, titled with
+      `org.opencontainers.image.title`; layers hold bytes **verbatim**, so a layer's digest
+      *is* the artifact's content digest and `05.5` integrity carries over unchanged
+- [x] `Put` folds a new layer into the version's manifest (creating it on first write,
+      replacing a same-named layer in place); serialized per `(repo, tag)`
+- [x] `SignGet` returns the registry's blob redirect — a presigned URL on object-store-backed
+      registries; `ErrStorageUnsupported` where blobs are served inline, so delivery falls
+      back to stream-through
+- [x] **Port change:** `SignPut` split out of `Signing` — a registry offloads reads but has no
+      presignable write target, so uploads stream through while resolve still offloads
+- [x] `ociImage` on the resolution (`04.2`), omitted when artifacts span >1 image
+- [x] GC opt-out: `ListObjects` → `ErrStorageUnsupported`, swept as a no-op rather than an
+      error; registry lifecycle policies own blob retention (`05.8`)
+- [x] Rejected uploads discard their bytes — tidy on a blob backend, **load-bearing** here,
+      since a rejected layer would otherwise sit inside a pullable image with no GC to reap it
+- [x] Config (`LINEAGE_OCI_*`) + Helm `storage.oci` with a credentials Secret
+- [x] Tests: URI grammar; an in-process fake registry driving round-trip, manifest
+      accumulation, in-place replacement, **concurrent-put layer safety**, redirect vs inline
+      signing, layer/manifest deletion, and token reuse; core-level `ociImage`,
+      stream-through selection and GC skip; live-registry integration gated by
+      `LINEAGE_TEST_OCI_REGISTRY`
+
+**Known limits, accepted rather than engineered around** (`05.3.1`):
+
+- Lineage pushes an OCI **artifact**, not a runnable image. KServe **modelcars** mounts a real
+  image with tar layers — build that in CI and **register it by reference**; Lineage `Stat`s
+  it and resolution hands back the same ref. Repacking artifacts into tar layers would break
+  the digest identity that makes `Stat` free and integrity verifiable.
+- The manifest read-modify-write lock is **process-local**. Two replicas finalizing different
+  artifacts of the same version concurrently can lose a layer. One CI job publishing one
+  version — the normal case — is unaffected; the distribution spec has no portable
+  conditional manifest PUT that would fix it properly.

@@ -19,6 +19,7 @@ import (
 	rediscache "github.com/proseria-research/lineage/internal/adapters/cache/redis"
 	"github.com/proseria-research/lineage/internal/adapters/events"
 	"github.com/proseria-research/lineage/internal/adapters/storage/fs"
+	"github.com/proseria-research/lineage/internal/adapters/storage/oci"
 	"github.com/proseria-research/lineage/internal/adapters/storage/s3"
 	memstore "github.com/proseria-research/lineage/internal/adapters/store/memory"
 	pgstore "github.com/proseria-research/lineage/internal/adapters/store/postgres"
@@ -70,7 +71,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("open storage (%s): %v", cfg.StorageDriver, err)
 	}
-	log.Printf("storage backend: %s (signing=%v)", cfg.StorageDriver, backend.Capabilities().Signing)
+	caps := backend.Capabilities()
+	log.Printf("storage backend: %s (signGet=%v signPut=%v multipart=%v)",
+		cfg.StorageDriver, caps.Signing, caps.SignPut, caps.Multipart)
 	backends := map[string]domain.StorageBackend{backend.Name(): backend}
 	cache, err := openCache(cfg)
 	if err != nil {
@@ -202,9 +205,16 @@ func openCache(cfg config.Config) (domain.ResolutionCache, error) {
 }
 
 // openStorage selects the StorageBackend adapter from config (§05.3). fs is the
-// zero-config dev/air-gapped default; s3 covers any S3-compatible object store.
+// zero-config dev/air-gapped default; s3 covers any S3-compatible object store; oci stores
+// each version as one manifest in an OCI registry.
 func openStorage(cfg config.Config) (domain.StorageBackend, error) {
 	switch cfg.StorageDriver {
+	case "oci":
+		return oci.New("default", oci.Config{
+			Registry: cfg.OCI.Registry, Repository: cfg.OCI.Repository,
+			Username: cfg.OCI.Username, Password: cfg.OCI.Password,
+			PlainHTTP: cfg.OCI.PlainHTTP,
+		})
 	case "s3":
 		return s3.New("default", s3.Config{
 			Bucket: cfg.S3.Bucket, Region: cfg.S3.Region, Endpoint: cfg.S3.Endpoint,

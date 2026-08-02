@@ -14,9 +14,10 @@ type Config struct {
 	MetricsAddr   string // health + metrics (ops)
 	DBEngine      string // sqlite | postgres | memory
 	DBPath        string // sqlite file path / postgres DSN (ignored for memory)
-	StorageDriver string // fs | s3 (§05.3)
+	StorageDriver string // fs | s3 | oci (§05.3)
 	StorageRoot   string // fs backend root (dev default)
 	S3            S3Config
+	OCI           OCIConfig
 	GC            GCConfig
 	Cache         CacheConfig
 	Tracing       TracingConfig
@@ -59,6 +60,16 @@ type S3Config struct {
 	PathStyle    bool
 }
 
+// OCIConfig configures the OCI-registry backend (§05.4.2). Credentials come from env/secret
+// and never appear in API responses.
+type OCIConfig struct {
+	Registry   string // host[:port] — ghcr.io, harbor.internal, registry:5000
+	Repository string // repository prefix Lineage owns, e.g. "lineage/models"
+	Username   string
+	Password   string
+	PlainHTTP  bool // http instead of https (in-cluster/dev registries)
+}
+
 func Load() Config {
 	return Config{
 		AdminAddr:     env("LINEAGE_ADMIN_ADDR", ":8080"),
@@ -78,6 +89,15 @@ func Load() Config {
 			SecretKey:    env("LINEAGE_S3_SECRET_KEY", ""),
 			SessionToken: env("LINEAGE_S3_SESSION_TOKEN", ""),
 			PathStyle:    env("LINEAGE_S3_PATH_STYLE", "") == "true",
+		},
+		// Credentials: a robot account or registry token. Left unset, Lineage talks to the
+		// registry anonymously, which is enough for a public pull-only repository (§05.4.2).
+		OCI: OCIConfig{
+			Registry:   env("LINEAGE_OCI_REGISTRY", ""),
+			Repository: env("LINEAGE_OCI_REPOSITORY", ""),
+			Username:   env("LINEAGE_OCI_USERNAME", ""),
+			Password:   env("LINEAGE_OCI_PASSWORD", ""),
+			PlainHTTP:  env("LINEAGE_OCI_PLAIN_HTTP", "") == "true",
 		},
 		GC: GCConfig{
 			Mode:     env("LINEAGE_STORAGE_GC", "retain"),

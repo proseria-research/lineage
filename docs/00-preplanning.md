@@ -267,6 +267,15 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
 4. ✅ **Artifacts → pluggable blob first, signed-URL (stream-through fallback); OCI/ORAS
    driver later.** v1: S3/GCS/Azure/FS. OCI-native is a later additional driver, not
    the v1 primary path. Detail in `05`.
+   **Outcome (the OCI driver has since landed, `05.3.1`):** ORAS over the distribution API,
+   hand-rolled stdlib-only like SigV4. One manifest per version, one layer per artifact,
+   **bytes verbatim** — so a layer's digest *is* the artifact's content digest and the
+   integrity model of `05.5` carries over unchanged. Two consequences were accepted rather
+   than engineered around: (a) it pushes an OCI *artifact*, not a runnable image, so KServe
+   modelcars is served by **register-by-reference** rather than by our push; (b) the sweeper
+   opts out, because blob lifetime in a registry follows manifest reachability that Lineage
+   cannot see. The port grew one bit — `signPut` split from `signing`, because a registry can
+   offload reads but has no presignable write target.
 5. ✅ **Tenancy → single-tenant per install (v1).** No Project/Namespace entity; reserve
    scope keys so multi-tenancy is additive.
 6. ✅ **API → REST + OpenAPI as contract.** OpenAPI is source of truth; Python SDK + CLI

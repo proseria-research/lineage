@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"log"
 	"strings"
 	"time"
 
@@ -12,12 +13,14 @@ import (
 )
 
 // This file implements the signed upload flow (§05.6, §03.6): initiate → PUT bytes →
-// finalize. Two modes, chosen by the backend's Capabilities():
+// finalize. Two modes, chosen by the backend's Capabilities().SignPut:
 //
-//   - signing backend (s3): initiate returns a presigned direct-PUT URL; the client PUTs
+//   - presignable writes (s3): initiate returns a presigned direct-PUT URL; the client PUTs
 //     bytes straight to object storage; finalize Stats/verifies and records the artifact.
-//   - non-signing backend (fs): initiate returns a stream-through contentUrl on the Model
+//   - everything else (fs, oci): initiate returns a stream-through contentUrl on the Model
 //     API; the client PUTs bytes to us, we hash+write them, finalize records the artifact.
+//     An OCI registry can offload *reads* but has no presignable write target, which is why
+//     the upload path keys on SignPut rather than Signing (§05.3.1).
 //
 // Finalize verifies the client-declared digest and size before creating the (immutable)
 // artifact row; the UNIQUE(version_id, name) constraint enforces write-once (§05.5).
@@ -132,7 +135,7 @@ func (s *Service) InitiateUpload(ctx context.Context, actor, model, version stri
 
 	caps := b.Capabilities()
 	switch {
-	case caps.Signing && caps.Multipart && in.SizeBytes >= multipartThreshold:
+	case caps.SignPut && caps.Multipart && in.SizeBytes >= multipartThreshold:
 		// Large file: hand back a presigned PUT per part (§05.6).
 		parts, partSize := planParts(in.SizeBytes)
 		plan, err := b.InitiateMultipart(ctx, path, parts, partSize, s.uploadTTL)
@@ -141,7 +144,7 @@ func (s *Service) InitiateUpload(ctx context.Context, actor, model, version stri
 		}
 		pu.multipart, pu.backendUploadID = true, plan.UploadID
 		ticket.Multipart, ticket.PartSize, ticket.Parts = true, plan.PartSize, plan.Parts
-	case caps.Signing:
+	case caps.SignPut:
 		sr, err := b.SignPut(ctx, path, s.uploadTTL)
 		if err != nil {
 			return nil, err
@@ -260,9 +263,11 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	sp.SetInt("lineage.size_bytes", size)
 	if declaredDigest != "" && digest != "" && declaredDigest != digest {
 		s.meter.UploadFinalized(time.Since(start).Seconds(), true)
+		s.discardRejected(ctx, pu, b)
 		return nil, domain.Unprocessable("digest mismatch: declared " + declaredDigest + " but object is " + digest)
 	}
 	if pu.in.SizeBytes > 0 && size > 0 && pu.in.SizeBytes != size {
+		s.discardRejected(ctx, pu, b)
 		return nil, domain.Unprocessable("size mismatch: declared bytes differ from uploaded object")
 	}
 	if digest == "" {
@@ -297,6 +302,25 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 	s.audit(ctx, actor, "artifact.register", "artifact", a.ID, "registered "+model+"@"+version+"/"+a.Name, nil)
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	return a, nil
+}
+
+// discardRejected removes bytes we wrote for an upload that then failed verification. Only
+// the stream-through path is cleaned up: those bytes went through us, so they are ours to
+// take back, whereas a client's direct signed PUT landed in the operator's bucket under a
+// key they may be watching.
+//
+// On a blob backend this saves the sweeper a round; on `oci` it is load-bearing, because a
+// rejected layer would otherwise sit inside the version's manifest — visible to anyone who
+// pulls the image — with no artifact row and no GC that could ever reap it (§05.8).
+func (s *Service) discardRejected(ctx context.Context, pu *pendingUpload, b domain.StorageBackend) {
+	if !pu.uploaded {
+		return
+	}
+	if err := b.Delete(ctx, pu.uri); err != nil {
+		// Best-effort: the upload is being rejected either way, and a failure to clean up must
+		// not mask the verification error the client actually needs to see.
+		log.Printf("upload: could not discard rejected object %s: %v", pu.uri, err)
+	}
 }
 
 // takePending fetches a pending upload; if remove is true it is consumed (finalize).

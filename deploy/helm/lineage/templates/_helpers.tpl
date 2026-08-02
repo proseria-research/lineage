@@ -83,6 +83,25 @@ env (Postgres DSN, S3 keys) is added separately via secretKeyRef.
 {{- if eq .Values.storage.driver "fs" }}
 - name: LINEAGE_STORAGE_ROOT
   value: {{ .Values.storage.fs.root | quote }}
+{{- else if eq .Values.storage.driver "oci" }}
+- name: LINEAGE_OCI_REGISTRY
+  value: {{ required "storage.oci.registry is required for storage.driver=oci" .Values.storage.oci.registry | quote }}
+- name: LINEAGE_OCI_REPOSITORY
+  value: {{ .Values.storage.oci.repository | quote }}
+- name: LINEAGE_OCI_PLAIN_HTTP
+  value: {{ .Values.storage.oci.plainHttp | quote }}
+{{- if .Values.storage.oci.credentialsSecret.name }}
+- name: LINEAGE_OCI_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.storage.oci.credentialsSecret.name }}
+      key: {{ .Values.storage.oci.credentialsSecret.usernameKey }}
+- name: LINEAGE_OCI_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.storage.oci.credentialsSecret.name }}
+      key: {{ .Values.storage.oci.credentialsSecret.passwordKey }}
+{{- end }}
 {{- else }}
 - name: LINEAGE_S3_BUCKET
   value: {{ .Values.storage.s3.bucket | quote }}
