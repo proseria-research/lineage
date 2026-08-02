@@ -3,8 +3,8 @@
 > **Regime: financial supervision (US · UK · Canada).** Serves [SR 26-2](https://www.federalreserve.gov/supervisionreg/srletters/SR2602.htm),
 > [PRA SS1/23](https://www.bankofengland.co.uk/prudential-regulation/publication/2023/may/model-risk-management-principles-for-banks-ss)
 > and [OSFI E-23](https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/guideline-e-23-model-risk-management-2027)
-> from one field set, because the three ask for the same three things (§3). Fields are
-> `mrm_*`-prefixed, per the rule in `16.3.1`.
+> from one field set, because the three ask for the same three things (§3). The tier field is
+> `mrm_*`-prefixed and takes its own `classification` row, per `16.3.1` and `16.3.2`.
 >
 > Status: **Proposed**. A governed model inventory: a risk tier per model, an independent
 > validation record per version, and evidence that production models are still being watched.
@@ -54,17 +54,24 @@ the models it excludes, under its own framework. Lineage does not guess which si
 falls on — that is `15.3` again — so scope is **declared**, via an `out_of_scope` tier that
 requires a stated basis (§4).
 
-## 4. `mrm_tier` — a Second Regime on the Existing Row
+## 4. `mrm_tier` — a Second Regime on the Existing Table
 
-`16.3.1` promised that a second regime arrives as prefixed columns on the same
-`classification` row, with no renaming and no migration of what is there. This is that
-promise being collected.
+`16.3` promised that a second regime arrives as a prefixed enum column plus its own row on the
+same `classification` table, with no renaming and no migration of what is there. This is that
+promise being collected: one column, one new `regime` value, `mrm`.
+
+**Its own row, not its own columns on the EU row** (`16.3.2`). The model-risk team tiers a model
+on its own schedule, for its own reasons, on its own validation cycle — so `classified_at`,
+`classified_by`, `basis` and `review_due_at` are answered separately here, using the same
+columns one row down. Sharing the EU row would mean a tiering write in June moving the anchor
+that the EU drift check measures against (`16.5`), silently clearing a staleness raised in
+March.
 
 | Value | Meaning |
 |---|---|
 | `untiered` | default. A visible state, never rendered as low risk |
 | `tier_1` · `tier_2` · `tier_3` | firm-assigned, `tier_1` highest |
-| `out_of_scope` | deliberately outside the firm's MRM framework — **requires `mrm_basis`** |
+| `out_of_scope` | deliberately outside the firm's MRM framework — **requires `basis`** |
 
 **Why three numbered tiers and not the firm's own labels.** Supervisors require tiering
 without mandating names, and every firm has its own. A free-text tier makes the inventory
@@ -72,9 +79,10 @@ query useless; three ordered buckets keep it a real query, and the console maps 
 local names as a display concern. A firm needing a fourth bucket is the signal to revisit
 this, not a reason to pre-build it (`00.11.5`).
 
-`mrm_basis` carries *why this tier* — the reasoning, not the conclusion — and is required for
+`basis` carries *why this tier* — the reasoning, not the conclusion — and is required for
 `tier_1` and `out_of_scope`. Same rule as `16.6`: the two answers that most need a reason are
-the most severe and the one that opts out.
+the most severe and the one that opts out. It is the shared `16.7.1` column, holding this
+regime's reasoning because this is this regime's row — there is no `mrm_basis`.
 
 ## 5. `validation` — a Judgement, Not a Measurement
 
@@ -120,12 +128,15 @@ is a finding — `15.3` applied to a field where the registry genuinely cannot k
 
 ## 7. `mrmState` — Reusing the Drift Machinery
 
-`16` said its drift predicate was regime-agnostic and would be reused as-is. It is, with two
-clauses added for what this regime cares about.
+`16.5.1` is precise about what carries over: the **shape**, not the query. This one anchors on
+a validation record per **version**, where `16.5` anchors on a classification per **model**, and
+the ladder below has four states rather than three. What is identical is the design — a list of
+independent triggers, evaluated on read, returning every reason that fired, repairing nothing.
+Two of the four triggers are this regime's own.
 
 | State | Meaning |
 |---|---|
-| `untiered` | no tier recorded |
+| `untiered` | no `mrm` classification row, or `mrm_tier = 'untiered'` |
 | `unvalidated` | tiered, but no validation row, or the latest is `rejected` |
 | `stale` | validated, and at least one trigger fired |
 | `current` | tiered, validated, nothing fired |
@@ -169,15 +180,19 @@ backfilled from `audit_event`, so it is still a forward-only migration (`02.7`).
 
 Additive only (`02.7`).
 
-### 8.1 `classification` — new columns
+### 8.1 `classification` — one new column, one new `regime` value
 
 | Column | Type | Regime | Notes |
 |---|---|---|---|
-| `mrm_tier` | enum | **MRM** | `untiered` (default) \| `tier_1` \| `tier_2` \| `tier_3` \| `out_of_scope` |
-| `mrm_basis` | str? | **MRM** | required for `tier_1` and `out_of_scope` (§4) |
+| `mrm_tier` | enum? | **MRM** | `untiered` (default on MRM rows) \| `tier_1` \| `tier_2` \| `tier_3` \| `out_of_scope` |
 
-No existing column changes. `intended_purpose`, `classified_at` and `review_due_at` stay
-shared, exactly as `16.3.1` designed for.
+`regime` gains the value `mrm`; the `16.7.1` CHECK gains a branch — `regime = 'mrm'` requires
+`mrm_tier` non-null and the `eu_*` group null. An MRM assessment is a row with
+`(model_id, 'mrm')`.
+
+No existing column changes shape. `intended_purpose`, `basis`, `classified_at`, `classified_by`
+and `review_due_at` are the shared `16.7.1` columns, answered again on this row — which is why
+this regime needs no `mrm_basis` of its own (§4).
 
 ### 8.2 `validation` (many per version, append-only)
 
@@ -205,7 +220,7 @@ shared, exactly as `16.3.1` designed for.
 
 | Table | Index | Purpose |
 |---|---|---|
-| `classification` | (`mrm_tier`) | the inventory query |
+| `classification` | (`regime`, `mrm_tier`) | the inventory query |
 | `validation` | (`version_id`, `validated_at`) | latest-row-per-version |
 | `validation` | (`valid_until`) | staleness sweep, clause 1 |
 | `evaluation` | (`version_id`, `run_at`) | clause 3 anti-join |
@@ -215,11 +230,16 @@ shared, exactly as `16.3.1` designed for.
 Model API (`:8081`, `/v1`), conventions per `03.1`.
 
 ```
-PUT   /v1/models/{m}/classification              mrmTier, mrmBasis alongside the eu* fields
+GET   /v1/models/{m}/classifications/mrm
+PUT   /v1/models/{m}/classifications/mrm         mrmTier + the shared 16.7.1 fields
 POST  /v1/models/{m}/versions/{v}/validations
 GET   /v1/models/{m}/versions/{v}/validations
 GET   /v1/models?mrmTier=&mrmState=
 ```
+
+`16.8`'s endpoint, with `mrm` in the regime slot. The EU row is written at
+`…/classifications/eu_ai_act` and the two never collide — which is what lets both stay
+full-replace `PUT`s.
 
 Audit actions: `validation.record`, `validation.conditions_cleared`, appended in the same
 transaction (`02.5` invariant 4).
@@ -272,7 +292,7 @@ GET /v1/models?mrmTier=tier_1&mrmState=stale
 
 | Situation | Code | HTTP | `details` |
 |---|---|---|---|
-| `mrmTier` in (`tier_1`,`out_of_scope`) without `mrmBasis` | `unprocessable` | 422 | `field: "mrmBasis"` |
+| `mrmTier` in (`tier_1`,`out_of_scope`) without `basis` | `unprocessable` | 422 | `field: "basis"` |
 | `outcome = conditional` without `conditions` | `unprocessable` | 422 | `field: "conditions"` |
 | `validUntil` not `> now` | `invalid_argument` | 400 | |
 | Client-supplied `validatedBy` / `validatedAt` | `invalid_argument` | 400 | |
@@ -325,7 +345,7 @@ this regime asks about the model, and Lineage is a model registry.
 | For | Doc |
 |---|---|
 | The regime landscape and why this one is the cheapest serious win | `15.2.2`, `15.2.7` |
-| The prefixed-column rule this collects on | `16.3.1` |
+| The prefixed-column rule this collects on, and the per-regime row | `16.3.1`, `16.3.2` |
 | The drift predicate reused here | `16.5` |
 | Append-only review precedent (`undetermined`, frozen server-set fields) | `17.5` |
 | `evaluation` — the measurement this is not | `11.3.4` |

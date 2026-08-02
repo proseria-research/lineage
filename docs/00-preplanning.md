@@ -238,7 +238,7 @@ The chart is a product surface.
 | `13-performance-and-scale.md` | optimization backlog over the implemented system: query push-down, cache topology, HTTP/runtime/engine tuning, verification harness and targets |
 | `14-competitive-landscape.md` | who else occupies the registry slot, evidenced user pain points per competitor, cross-cutting failure modes, where we are exposed |
 | `15-regulatory-landscape.md` | Who governs model evidence worldwide, what each regime asks of a registry, and where Lineage sits. Frames `16`–`22`: honest coverage map, non-goals, build order. No schema |
-| `16-eu-risk-classification.md` | Declared `eu_system_risk_class` + `eu_gpai_tier` per model; the drift predicate; inventory query |
+| `16-eu-risk-classification.md` | Declared `eu_system_risk_class` + `eu_gpai_tier`; the per-regime `classification` row; the drift predicate; inventory query |
 | `17-eu-modification-review.md` | Art. 25 — routing the `11.4` fingerprint verdict to a human when a derivation may transfer provider liability |
 | `19-retention-and-hold.md` | Legal hold, retention floor, optional tamper-evident audit chain. **Regime-neutral** |
 | `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection; the `mrm` profile |
@@ -318,8 +318,16 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     the decision (`16.3.1`): `high_annex_iii` is a citation, not a risk level, so an
     unprefixed `system_risk_class` would falsely imply a general notion of risk the registry
     does not have. A second regime then arrives as additive `nist_*` columns rather than a
-    rename of shipped ones. Purpose, basis, and review dates stay unprefixed — every
-    framework wants those.
+    rename of shipped ones. **`classification` is keyed `(model_id, regime)` — one row per
+    regime, not per model** (`16.3.2`), revised after `20` showed the prefix separates *values*
+    but not the assessment wrapped around them: purpose, basis, `classified_at`,
+    `classified_by` and review date stay unprefixed **because each regime answers them on its
+    own row**. On a single shared row they cannot be — `20` had to sprout an `mrm_basis`, and
+    worse, `classified_at` is the drift anchor (`16.5`), so recording an MRM tier in June would
+    move it and silently clear an EU staleness raised by a March version. A legal field
+    un-flagging itself because another team wrote another regime's column is the failure this
+    key prevents. The regime is also in the API path (`16.8`), which is what keeps both
+    regimes' writes full-replace `PUT`s.
 13. ✅ **Retention floor + legal hold → deletion refuses** (`19.3`, `19.4`). `legal_hold` on
     `model`/`model_version`; `DELETE` on a held subject, or on one younger than the configured
     retention floor, returns **`409 failed_precondition`** with `details.reason`
