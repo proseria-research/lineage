@@ -15,7 +15,7 @@
 | Storing a declared **EU AI Act** risk class per model | Deciding a risk class (`15.3.1`) |
 | Detecting when a classification has drifted | Re-classifying, downgrading, or blocking on drift |
 | The inventory query — "which high-risk models do we have" | Tracking systems, deployments, or filings |
-| — | Non-EU frameworks (NIST AI RMF, ISO/IEC 42001) — §3.1 |
+| — | Non-EU frameworks — §3.1; specced in `20`–`22` |
 
 ## 2. The Problem
 
@@ -52,9 +52,10 @@ and the name should say so.**
 
 The prefix buys two things:
 
-1. **A second regime is additive, not a migration.** NIST AI RMF tiers or ISO/IEC 42001
-   controls arrive as `nist_*` columns on the same row, with no ambiguity about which
-   framework a stored value belongs to and no renaming of what is already there.
+1. **A second regime is additive, not a migration.** A supervisory risk tier arrives as
+   `mrm_*` columns on the same row, with no ambiguity about which framework a stored value
+   belongs to and no renaming of what is already there. `20.4` is this being collected, and
+   it cost two columns.
 2. **It stops a false generalization.** Without the prefix, the first non-EU framework forces
    a choice between overloading an EU enum and renaming a shipped column. Both are worse than
    a prefix nobody minded typing.
