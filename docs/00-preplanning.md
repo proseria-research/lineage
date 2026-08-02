@@ -246,7 +246,7 @@ The chart is a product surface.
 | `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection; the `mrm` profile |
 | `21-assurance-profiles.md` | ISO/IEC 42001 and NIST AI RMF profiles, plus install-scope bundles. **Zero schema** — the proof that `18`'s profile seam is a design rather than a claim |
 | `22-change-control-plans.md` | `change_plan` — a declared change envelope (FDA PCCP shape) and a conformance predicate derived from `11.4` verdicts. Reports, never adjudicates |
-| `23-open-core-split.md` | Where a commercial tier could sit relative to the free registry: the three-rule test, the record/detect vs attest/report line, the code seam, licensing. **Strategy, not architecture** — changes no axiom and no `§11` decision |
+| `24-commercial-boundary.md` | The public open-core boundary: what is free, what the commercial tier adds, what will never be gated, and the standing commitments. **Normative** — the strategy behind it lives in the private `lineage-ee` repo, and where the two disagree this one wins |
 
 Docs `16` and `17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `15`,
 `18`–`22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape and
@@ -365,9 +365,9 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     half: Neptune's hosted registry closed on 2026-03-06 with all cloud data permanently
     deleted and no recovery. A registry is a system of record, and a system of record that can
     be switched off by its vendor is not one. **Consequences:** commercial = a licence into the
-    customer's own install (`23.6`); licence validation must work fully offline, since an
+    customer's own install (`24.4`); licence validation must work fully offline, since an
     air-gapped install is the normal case, not the exception; there is no hosted control plane,
-    so `23.5`'s single-binary shape is the only shape; and "no vanishing SaaS" (`14.11`) becomes
+    so one binary per install stays the only shape (`24.1`); and "no vanishing SaaS" (`14.11`) becomes
     a permanent structural claim rather than a current-roadmap one.
 16. ✅ **Core stays Apache-2.0 — not BSL — and a CLA keeps that reversible.** BSL's
     additional-use grant exists to stop a competing *hosted* service. `§11.15` means we never
@@ -375,16 +375,17 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     the customer's own cluster, and `14.7`'s buyer — who needs "a truly self-hosted, physically
     isolated platform" — was never going to use a hosted fork. **BSL would defend revenue this
     project has decided not to have.** Against that, the cost is real: core's job is adoption
-    (`23.4` — free detection manufactures the demand for the paid tier), and a non-OSI licence
+    — recording and detecting compliance state stay free (`24.3`), because free detection is
+    what creates the demand for the paid tier — and a non-OSI licence
     puts a legal review in front of the free tier aimed at precisely the regulated buyer we
     want; `14.2`–`14.3` pit us against Apache-licensed MLflow and Kubeflow, where a *more*
     restrictive licence is a fresh objection rather than an answer; distributions and chart
-    repositories exclude non-OSI terms; and `23.6.5` needs the published boundary to be
-    credible, which a restricted core undercuts. Precedent agrees that BSL is a move for a
+    repositories exclude non-OSI terms; and `24` is a published boundary that only works if it
+    is credible, which a restricted core undercuts. Precedent agrees that BSL is a move for a
     project with adoption worth defending — HashiCorp's BUSL produced OpenTofu, Redis's
     produced Valkey, and Elastic reversed to AGPL — whereas Lineage is pre-code and would pay
     the whole adoption cost for protection against a threat it does not face. **A CLA, not a
-    DCO, is required from the first outside contribution** (`23.6.4`): a DCO certifies
+    DCO, is required from the first outside contribution** (`24.5`): a DCO certifies
     provenance but conveys no right to relicense, so the CLA is the only thing that keeps BSL
     or AGPL available if a hyperscaler ever does appear. Revisit only on that event.
 
