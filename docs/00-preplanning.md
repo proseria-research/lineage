@@ -237,13 +237,14 @@ The chart is a product surface.
 | `12-version-portrait.md` | procedurally generated per-version mark in the console: mark families, encodings, determinism |
 | `13-performance-and-scale.md` | optimization backlog over the implemented system: query push-down, cache topology, HTTP/runtime/engine tuning, verification harness and targets |
 | `14-competitive-landscape.md` | who else occupies the registry slot, evidenced user pain points per competitor, cross-cutting failure modes, where we are exposed |
-| `15-eu-ai-act-posture.md` | EU AI Act framing for `16`–`19`: what we will and will not claim, the deadlines that apply, honest coverage map, build order. No schema |
+| `15-regulatory-landscape.md` | Who governs model evidence worldwide, what each regime asks of a registry, and where Lineage sits. Frames `16`–`19`: honest coverage map, non-goals, build order. No schema |
 | `16-eu-risk-classification.md` | Declared `eu_system_risk_class` + `eu_gpai_tier` per model; the drift predicate; inventory query |
 | `17-eu-modification-review.md` | Art. 25 — routing the `11.4` fingerprint verdict to a human when a derivation may transfer provider liability |
 | `19-retention-and-hold.md` | Legal hold, retention floor, optional tamper-evident audit chain. **Regime-neutral** |
 
-Docs `15`–`17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `18` and
-`19` do not, because theirs is not (`15.2.1`).
+Docs `16` and `17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `15`,
+`18` and `19` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape
+and names the EU as the one built out.
 
 ## 11. Decisions
 
