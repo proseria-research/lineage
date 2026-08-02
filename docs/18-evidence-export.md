@@ -17,18 +17,24 @@
 | Emitting the gap list as first-class data | Filling, estimating, or narrating a gap |
 | Making generation audited, deterministic, and self-attesting | Signing, certifying, or submitting |
 
-## 2. Two Profiles
+## 2. Profiles
 
-A **profile** is a mapping from stored facts to one regulation's document structure. Both
-ship partial, and both say so.
+A **profile** is a mapping from stored facts to one regulation's document structure. All ship
+partial, and all say so.
 
-| Profile | Serves | Coverage | Ships |
-|---|---|---|---|
-| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | near-complete | **first** — the obligation binds now (`15.4.1`) |
-| `annex_iv` | High-risk technical documentation (Art. 11) | 2 of 10 headings | with phase 6 (`15.6`) |
+| Profile | Serves | Scope | Coverage | Ships |
+|---|---|---|---|---|
+| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | version | near-complete | **first** — the obligation binds now (`15.4.1`) |
+| `annex_iv` | High-risk technical documentation (Art. 11) | version | 2 of 10 headings | with phase 6 (`15.6`) |
+| `iso_42001` | AI management system certification | **install** | 3 of 9 objectives | phase 8 — `21.4` |
+| `nist_ai_rmf` | AI risk practices, by function | **install** | 1 of 4 functions | phase 8 — `21.5` |
+| `mrm` | Supervisory model risk management | version | 3 of 5 sections | phase 9 — `20.10` |
+| `pccp` | Pre-authorised change envelopes | version | 2 of 4 sections | phase 10 — `22.8` |
 
-The profile is the extension seam. A third profile is a mapping table and a fixture set, not
-a new subsystem.
+The profile is the extension seam, and `21` is the evidence it holds: two frameworks added
+with **zero new tables**. The two install-scope profiles introduce the one mechanism the seam
+did not already have (`21.3`); everything downstream — envelope, gap rules, determinism — is
+this doc unchanged.
 
 ## 3. `annex-xii` — GPAI to Downstream
 
@@ -246,7 +252,7 @@ classification is what makes the rest of the document mean anything.
 
 | Item | When |
 |---|---|
-| More profiles (NIST AI RMF, ISO/IEC 42001) | If a buyer asks. The seam exists (§2); the mapping work does not. |
+| More profiles beyond `20`–`22` | If a buyer asks. The seam exists (§2); the mapping work does not. |
 | Signed bundles (registry-held key) | Post-v1. The self-digest (§7) covers integrity; signing needs key management Lineage does not have |
 | Dataset-side depth for `annex_iv_3` | With `DATASET` artifacts (`11.10`) |
 | Model-level (rather than version-level) bundles | If a filing turns out to want the family, not the iteration |

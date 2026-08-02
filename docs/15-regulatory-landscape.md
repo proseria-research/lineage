@@ -137,10 +137,10 @@ structure (`18.2`) — no new tables, no new API.
 | **EU AI Act** — high-risk, Annex IV | A technical file, with the holes named | `annex-iv` profile + gap notes | **Specced** — phase 6 |
 | **EU AI Act** — Art. 25 | A warning when editing someone else's model makes you the provider | Modification review queue | **Specced** — phase 5 |
 | **EU AI Act** — Art. 18 | Keep the records ten years | Retention floor + legal hold | **Specced** — phase 4 |
-| **ISO/IEC 42001** | Proof a process is actually followed: what models exist, who changed them, when | `iso-42001` profile over the model inventory + audit log | **Small** — mapping only. Nothing new to store |
-| **NIST AI RMF** | The same facts, filed under GOVERN / MAP / MEASURE / MANAGE | `nist-ai-rmf` profile | **Small** — mapping only |
-| **SR 26-2 · PRA SS1/23 · OSFI E-23** | A model inventory with a risk tier per model, validation records, and evidence of monitoring | A `tier` field on the model, a *validation record* alongside evaluations (`11`), and an `mrm` profile | **Medium** — one field, one record type, one profile |
-| **FDA PCCP** | What you pre-declared you would change, next to what actually changed | Attach the PCCP document to a model; diff each new version against it | **Medium** — reuses `17` verdicts and `11.4` fingerprints |
+| **ISO/IEC 42001** | Proof a process is actually followed: what models exist, who changed them, when | `iso-42001` profile over the model inventory + audit log | **Specced** — `21`. Zero schema |
+| **NIST AI RMF** | The same facts, filed under GOVERN / MAP / MEASURE / MANAGE | `nist-ai-rmf` profile | **Specced** — `21`. Zero schema |
+| **SR 26-2 · PRA SS1/23 · OSFI E-23** | A model inventory with a risk tier per model, validation records, and evidence of monitoring | `mrm_tier` on the classification row, a `validation` record, and an `mrm` profile | **Specced** — `20`. Two columns, one table |
+| **FDA PCCP** | What you pre-declared you would change, next to what actually changed | `change_plan` table + a conformance predicate over `11.4` verdicts | **Specced** — `22`. One table, nothing stored that is derivable |
 | **Korea AI Framework Act** | A high-impact declaration, plus labelling for generative output | A sibling of `16` with Korean enums | **Small** — `16` was built to be twinned |
 | **Brazil PL 2338** | An EU-shaped dossier, if it passes | A sibling of `16` + a third profile | **Medium**, and not yet worth starting |
 | **China CAC** | Register the algorithm with a government body | — | **Not building.** The output is a state filing, not a dossier (§5) |
@@ -311,9 +311,23 @@ decorative. Phase 7 is last only because it is independent, not because it is un
 `13` measurement that once gated it is moot now that sealing costs the write path nothing
 (`19.5.2`).
 
-**The candidate 8th phase is a non-EU profile** (§2.6). ISO/IEC 42001 and SR 26-2 are the two
-worth costing first — the former because it is certifiable and buyers ask for the certificate,
-the latter because it governs budget that already exists rather than compliance that is coming.
+### 6.1 Beyond the EU
+
+Specced in `20`–`22`, sequenced after phase 7 and orderable by demand rather than dependency —
+none of the three blocks another.
+
+| Phase | Ships | Doc | Depends on |
+|---|---|---|---|
+| **8** | `iso-42001` + `nist-ai-rmf` profiles, install-scope bundles | `21` | 2 |
+| **9** | `mrm_tier`, `validation`, `mrm` profile, unmonitored-in-production query | `20` | 1, 2 |
+| **10** | `change_plan`, conformance predicate, `pccp` profile | `22` | 2, `11.4` |
+
+**Phase 8 first if the next conversation is a procurement one** — it is the cheapest of the
+three (zero schema, `21.6`) and ISO/IEC 42001 is the certificate buyers actually ask to see.
+**Phase 9 first if the next conversation is with a bank** — it is the only regime here with
+budget that already exists rather than a deadline that is coming, and one field set covers
+three jurisdictions (`20.3`). Phase 10 waits for a regulated-device buyer; it is well-specced
+precisely so it does not have to be designed under one.
 
 ## 7. See Also
 

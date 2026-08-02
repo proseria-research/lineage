@@ -295,7 +295,7 @@ error table stable.
 | Hold expiry dates | Post-v1. An expiring hold is a scheduler, and a hold that lapses silently is worse than one someone has to clear |
 | Per-model retention overrides | If an install needs two floors. One configured floor is the honest v1 |
 | External anchoring of an epoch root (timestamping authority, or a public log) | Post-v1, with signed bundles (`18.11`). The epoch root is already the right thing to anchor — one hash per interval, not per row |
-| Retention floor on artifacts in the backend | `05.144` GC already refuses to touch objects it did not write; a floor there is a storage-driver concern |
+| Retention floor on artifacts in the backend | `05.8` GC already refuses to touch objects it did not write; a floor there is a storage-driver concern |
 
 ## 10. See Also
 

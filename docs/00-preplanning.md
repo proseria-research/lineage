@@ -237,15 +237,19 @@ The chart is a product surface.
 | `12-version-portrait.md` | procedurally generated per-version mark in the console: mark families, encodings, determinism |
 | `13-performance-and-scale.md` | optimization backlog over the implemented system: query push-down, cache topology, HTTP/runtime/engine tuning, verification harness and targets |
 | `14-competitive-landscape.md` | who else occupies the registry slot, evidenced user pain points per competitor, cross-cutting failure modes, where we are exposed |
-| `15-regulatory-landscape.md` | Who governs model evidence worldwide, what each regime asks of a registry, and where Lineage sits. Frames `16`–`19`: honest coverage map, non-goals, build order. No schema |
+| `15-regulatory-landscape.md` | Who governs model evidence worldwide, what each regime asks of a registry, and where Lineage sits. Frames `16`–`22`: honest coverage map, non-goals, build order. No schema |
 | `16-eu-risk-classification.md` | Declared `eu_system_risk_class` + `eu_gpai_tier` per model; the drift predicate; inventory query |
 | `17-eu-modification-review.md` | Art. 25 — routing the `11.4` fingerprint verdict to a human when a derivation may transfer provider liability |
 | `18-evidence-export.md` | Bundle profiles (Annex XII / Annex IV), bundle shape, gap reporting, determinism. **Regime-neutral** — the profile is the extension seam |
 | `19-retention-and-hold.md` | Legal hold, retention floor, optional tamper-evident audit chain. **Regime-neutral** |
+| `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection; the `mrm` profile |
+| `21-assurance-profiles.md` | ISO/IEC 42001 and NIST AI RMF profiles, plus install-scope bundles. **Zero schema** — the proof that `18`'s profile seam is a design rather than a claim |
+| `22-change-control-plans.md` | `change_plan` — a declared change envelope (FDA PCCP shape) and a conformance predicate derived from `11.4` verdicts. Reports, never adjudicates |
 
 Docs `16` and `17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `15`,
-`18` and `19` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape
-and names the EU as the one built out.
+`18`–`22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape and
+names the EU as the one built out; `20`–`22` are the non-EU regimes worth building, and only
+one of the three needs new tables.
 
 ## 11. Decisions
 

@@ -36,11 +36,17 @@ flowchart LR
     M3 --> M17["M17 · OCI/ORAS driver"]
     M4 --> M17
 
+    M14 --> M18["M18 · Assurance profiles"]
+    M13 --> M19["M19 · Model risk mgmt"]
+    M14 --> M19
+    M16 --> M20["M20 · Change control plans"]
+    M14 --> M20
+
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
     class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M17 done;
-    class M13,M14,M15,M16 todo;
+    class M13,M14,M15,M16,M18,M19,M20 todo;
 ```
 
 **Next up:** M13 → M14 (phases 1–3 of `15.6`) is the shippable near-term slice — it answers
@@ -69,10 +75,16 @@ story is what makes an evidence bundle credible rather than decorative.
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
 | M16 | EU modification review (Art. 25) | `17` | ⬜ |
 | M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
+| M18 | Assurance profiles: ISO/IEC 42001 + NIST AI RMF | `21` | ⬜ |
+| M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ |
+| M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ |
 
-**Open work:** M13–M16, the compliance set specced in `15`–`19` (`ddf4654`). No blocked
-decisions — `00.11.11`–`14` are all resolved. M3's OCI/ORAS checkbox, the one pre-existing
-`[ ]`, closed with **M17**.
+**Open work:** M13–M16, the EU compliance set specced in `15`–`19` (`ddf4654`), then M18–M20,
+the non-EU regimes specced in `20`–`22`. No blocked decisions — `00.11.11`–`14` are all
+resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed with **M17**.
+
+**M18–M20 are demand-ordered, not dependency-ordered** (`15.6.1`): none blocks another, and
+which comes first is a question about the next buyer rather than the next commit.
 
 **One behaviour change to plan for.** M15 makes `DELETE` **refuse** on held or
 retention-floored subjects (`409 failed_precondition`). Every other task in M13–M16 is
@@ -611,3 +623,79 @@ resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
   artifacts of the same version concurrently can lose a layer. One CI job publishing one
   version — the normal case — is unaffected; the distribution spec has no portable
   conditional manifest PUT that would fix it properly.
+
+## M18 — Assurance Profiles ⬜
+
+**Goal:** ISO/IEC 42001 and NIST AI RMF answered from facts already stored (`21`).
+**Acceptance:** `POST /v1/evidence {profile, asOf}` returns an `18.5` bundle at install scope;
+re-running with the same `asOf` is byte-identical; both profiles report honest partial coverage.
+**Depends on:** M14 (the bundle mechanism). **Phase:** 8.
+**Why first:** it is the cheapest of the three — **zero new tables** — and ISO/IEC 42001 is the
+certificate buyers actually ask to see.
+
+- [ ] **Install scope** (`21.3`) — the one new mechanism: `subject.scope = "install"`,
+      `evidence_bundle.scope` + nullable `version_id` + `as_of` (`21.7.2`)
+- [ ] `asOf` **required, never defaulted to now** (`21.3.1`) — a bundle that cannot be
+      regenerated is not evidence
+- [ ] `iso_42001` profile — nine control objectives A.2–A.10; **objective identifiers and our
+      evidence only, never ISO control text** (`21.4.1`), which is copyrighted and paywalled
+- [ ] `nist_ai_rmf` profile — mapped at **category** level, not subcategory (`21.5.1`): 72
+      subcategories would produce a document that is mostly `not_held_by_registry`
+- [ ] Wrong-scope request (`annex_iv` at install scope, or the reverse) → `400` with
+      `reason:"wrong_scope"`; coercing either would emit a confident, meaningless document
+- [ ] Console: install-scope Compliance page; gap list renders as a checklist, never a score
+- [ ] Tests: byte-identical regeneration at a fixed `asOf` across a clock change; scope
+      mismatch rejected; **assert zero new tables** — the claim `21.6` makes
+
+## M19 — Model Risk Management ⬜
+
+**Goal:** one field set serving SR 26-2, PRA SS1/23 and OSFI E-23 (`20`).
+**Acceptance:** `GET /v1/models?mrmTier=tier_1&mrmState=stale` returns a tier-1 model whose
+production version has had no evaluation since promotion, with reason
+`unmonitored_in_production`.
+**Depends on:** M13 (the `classification` row), M14 (the bundle). **Phase:** 9.
+**Why it may go first:** the only regime in `15` governing budget that already exists rather
+than a deadline that is coming.
+
+- [ ] `mrm_tier` + `mrm_basis` on `classification` (`20.8.1`) — collecting on `16.3.1`'s
+      prefixed-column promise; two columns, no migration of what is there
+- [ ] `out_of_scope` tier with **required basis** — the SR 26-2 genAI carve-out is *declared*,
+      never inferred (`20.3`); the registry does not decide what a regulation covers
+- [ ] `validation` table (`20.8.2`) — append-only, a **judgement** not a measurement, kept
+      distinct from `evaluation` (`20.5`); `conditional` requires non-empty `conditions`
+- [ ] `stage_changed_at` on `model_version`, backfilled from `audit_event` — the one column
+      clause 3 needs
+- [ ] `mrmState` predicate (`20.7`) reusing `16.5` drift machinery, all four clauses.
+      **`unmonitored_in_production` is the one worth the trouble** — the ongoing-monitoring
+      failure all three regimes exist to catch
+- [ ] Independence **evidenced, not enforced** (`20.6`): flag when `validated_by` equals the
+      version author; never refuse the write
+- [ ] `mrm` profile (`20.10`) — 3 held / 1 partial / 1 not held
+- [ ] Server-set `validatedBy` / `validatedAt`; client-supplied values → `400`
+- [ ] Tests: each stale clause; conditional-without-conditions rejected; latest-row-per-version;
+      independence flag on a self-validated version
+
+## M20 — Change Control Plans ⬜
+
+**Goal:** a declared change envelope, and conformance against what actually shipped (`22`).
+**Acceptance:** declare a plan allowing `["identical","reweighted"]`, publish a version whose
+`11.4` verdict is `rescaled`, and it appears in `GET /v1/change-plans/conformance?status=outside_plan`
+with its basis — **and the publish is not blocked**.
+**Depends on:** M14, and `11.4` fingerprints. **Phase:** 10.
+
+- [ ] `change_plan` table (`22.6.1`) — append-only; superseding writes a new row and stamps
+      `effective_to`, because *which plan was in force when that version shipped* is the question
+- [ ] Envelope in the `11.4.1` **verdict vocabulary**, not free text (`22.3`) — *"minor
+      retraining only"* is unfalsifiable and would never flag anything
+- [ ] Conformance **derived on read, never stored** (`22.4`) — a stored verdict is a second
+      truth that disagrees the moment either side moves
+- [ ] `undetermined` (missing `weights_hash`) is **queued, not passed** (`22.4.1`); treating an
+      absent hash as conformant makes a producer who never computes it invisible
+- [ ] `uncovered` ≠ `outside_plan` (`22.4.2`) — a version predating the plan is not a violation
+- [ ] Overlapping live plans rejected with `409 plan_overlap`, so "which plan" stays
+      single-valued
+- [ ] `pccp` profile (`22.8`); `basis` on every queue row so a reader sees *why*, not just the label
+- [ ] **Publish is never blocked** (`22.5`) — a registry refusing a publish on a derived legal
+      judgement would be wrong often and routed around fast
+- [ ] Tests: each conformance branch; supersession keeps history; overlap rejected; publish
+      succeeds while `outside_plan`
