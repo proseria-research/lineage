@@ -105,9 +105,34 @@ type serverProcess struct {
 	stopped bool
 }
 
+type serverConfig struct {
+	stateDir string
+	env      map[string]string
+}
+
+func sqliteFSConfig(stateDir string) serverConfig {
+	return serverConfig{
+		stateDir: stateDir,
+		env: map[string]string{
+			"LINEAGE_DB_ENGINE":      "sqlite",
+			"LINEAGE_DB_PATH":        filepath.Join(stateDir, "lineage.db"),
+			"LINEAGE_STORAGE_DRIVER": "fs",
+			"LINEAGE_STORAGE_ROOT":   filepath.Join(stateDir, "artifacts"),
+			"LINEAGE_CACHE_ENGINE":   "memory",
+			"LINEAGE_STORAGE_GC":     "retain",
+		},
+	}
+}
+
 // startServer launches a real Lineage process with SQLite and filesystem storage rooted in
 // stateDir. Reusing stateDir across launches verifies migrations and durable restart behavior.
 func startServer(t *testing.T, stateDir string) *serverProcess {
+	return startServerWith(t, sqliteFSConfig(stateDir))
+}
+
+// startServerWith launches the binary with an explicit adapter configuration. It is used by
+// the production-backend matrix without weakening the isolated SQLite/FS default.
+func startServerWith(t *testing.T, cfg serverConfig) *serverProcess {
 	t.Helper()
 	modelAddr := freeAddress(t)
 	adminAddr := freeAddress(t)
@@ -118,16 +143,10 @@ func startServer(t *testing.T, stateDir string) *serverProcess {
 	cmd.Dir = repositoryRoot
 	cmd.Stdout = logs
 	cmd.Stderr = logs
-	cmd.Env = append(cleanEnvironment(os.Environ()),
+	cmd.Env = append(configEnvironment(cfg),
 		"LINEAGE_MODEL_API_ADDR="+modelAddr,
 		"LINEAGE_ADMIN_ADDR="+adminAddr,
 		"LINEAGE_METRICS_ADDR="+opsAddr,
-		"LINEAGE_DB_ENGINE=sqlite",
-		"LINEAGE_DB_PATH="+filepath.Join(stateDir, "lineage.db"),
-		"LINEAGE_STORAGE_DRIVER=fs",
-		"LINEAGE_STORAGE_ROOT="+filepath.Join(stateDir, "artifacts"),
-		"LINEAGE_CACHE_ENGINE=memory",
-		"LINEAGE_STORAGE_GC=retain",
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start lineage: %v", err)
@@ -153,6 +172,24 @@ func startServer(t *testing.T, stateDir string) *serverProcess {
 	t.Cleanup(func() { s.stop(t) })
 	s.waitReady(t)
 	return s
+}
+
+func configEnvironment(cfg serverConfig) []string {
+	env := cleanEnvironment(os.Environ())
+	for key, value := range cfg.env {
+		env = append(env, key+"="+value)
+	}
+	return env
+}
+
+// runLineageCommand exercises non-server process modes such as the migration command with
+// exactly the same adapter configuration used by a subsequent server launch.
+func runLineageCommand(cfg serverConfig, args ...string) (string, error) {
+	cmd := exec.Command(testBinary, args...)
+	cmd.Dir = repositoryRoot
+	cmd.Env = configEnvironment(cfg)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
 
 func cleanEnvironment(env []string) []string {

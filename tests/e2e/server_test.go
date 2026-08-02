@@ -24,9 +24,17 @@ type response struct {
 
 func (s *serverProcess) request(t *testing.T, method, url string, body []byte, headers map[string]string) response {
 	t.Helper()
+	result, err := s.doRequest(method, url, body, headers)
+	if err != nil {
+		t.Fatalf("%s %s: %v\n--- process logs ---\n%s", method, url, err, s.logs.String())
+	}
+	return result
+}
+
+func (s *serverProcess) doRequest(method, url string, body []byte, headers map[string]string) (response, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(body))
 	if err != nil {
-		t.Fatal(err)
+		return response{}, err
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -36,14 +44,14 @@ func (s *serverProcess) request(t *testing.T, method, url string, body []byte, h
 	}
 	resp, err := s.client.Do(req)
 	if err != nil {
-		t.Fatalf("%s %s: %v\n--- process logs ---\n%s", method, url, err, s.logs.String())
+		return response{}, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("read %s %s: %v", method, url, err)
+		return response{}, err
 	}
-	return response{status: resp.StatusCode, header: resp.Header.Clone(), body: data}
+	return response{status: resp.StatusCode, header: resp.Header.Clone(), body: data}, nil
 }
 
 func (s *serverProcess) json(t *testing.T, method, url string, body any, want int) map[string]any {
