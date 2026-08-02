@@ -1,4 +1,4 @@
-.PHONY: build run seed test test-console fmt vet tidy clean web web-dev docker docker-init helm-lint sdk sdk-check cli \
+.PHONY: build run seed test test-console test-e2e fmt vet tidy clean web web-dev docker docker-init helm-lint sdk sdk-check cli \
         site site-dev site-preview site-check site-links site-deploy
 
 BIN := bin/lineage
@@ -35,6 +35,11 @@ test:
 
 test-console: web
 	go test -tags console ./...
+
+# test-e2e builds and launches the real binary, probes all three server surfaces, exercises
+# a full publish-to-resolve workflow, restarts it against durable state, and shuts it down.
+test-e2e:
+	go test -tags=e2e ./tests/e2e -count=1 -timeout=5m -v
 
 fmt:
 	gofmt -w internal cmd
