@@ -60,7 +60,7 @@ flowchart TB
     end
     subgraph core["Core — free, complete, self-hostable"]
         direction LR
-        reg["registry"] ~~~ del["delivery"] ~~~ gov["governance<br/>metadata"] ~~~ aud["audit · sealing<br/>· hold"] ~~~ ops["Helm · stores<br/>SDK · console"]
+        reg["registry"] ~~~ del["delivery"] ~~~ gov["governance<br/>metadata"] ~~~ aud["audit · sealing<br/>· hold"] ~~~ exp["one export<br/>profile"] ~~~ ops["Helm · stores<br/>SDK · console"]
     end
     ee ~~~ core
 ```
@@ -68,17 +68,20 @@ flowchart TB
 The upper band reaches the lower one only through contracts that already exist (§5); it never
 replaces or gates anything in it.
 
+Grouped by tier, and within core in the same order as the band above.
+
 | Capability | Tier | Why |
 |---|---|---|
-| Registry, artifacts, delivery, console, SDK/CLI, Helm | **core** | rule 1 and rule 2 — this *is* the product |
-| Audit log, retention floor, legal hold (`19`) | **core** | `00.2.7` makes auditability an axiom; a paid audit log contradicts it |
-| Classification, drift, validation records (`16` · `17` · `20`) | **core** | §4 |
-| One self-serve export profile (`18`) | **core** | the value has to be visible without a sales call |
-| **Identity & RBAC** | commercial | `00.2.4` leaves the slot empty by design — §3.1, split further in §6.3 |
-| Tamper-evident audit chain (`19.5`) | **core** | `00.11.14` settled this — Merkle epoch sealing costs the write path nothing, so it defaults **on**. A paid tamper-evidence tier would contradict a resolved decision and `00.2.7` |
-| **Profile library + scheduled bundles** (`18` · `21` · `22`) | commercial | §4 |
-| **Signing** bundles with a managed key (`18.11`) | commercial | distinct from sealing: the self-digest is core, key management is not |
-| ~~Multi-tenancy~~ | **core, if ever** | §6.2 — it is a data-model change, and §6's shape cannot deliver it from outside |
+| **Registry** — models, versions, stages, artifacts (`02` · `03`) | core | rules 1 and 2. This *is* the product |
+| **Delivery** — resolve, fetch, signed URLs, storage-initializer (`04` · `05`) | core | `00.2.8`, and rule 2 names this path explicitly. The adoption engine |
+| **Governance metadata** — classification, drift, validation records (`16` · `17` · `20`) | core | §4 — recording and detecting both stay free |
+| **Audit** — log, Merkle sealing, retention floor, legal hold (`19`) | core | `00.2.7` makes auditability an axiom, and `00.11.14` already put sealing on by default. A paid tamper-evidence tier would contradict a resolved decision |
+| **One self-serve export profile** (`18`) | core | the value has to be visible without a sales call |
+| **Operations** — Helm, SQLite + Postgres, SDK/CLI, console (`06` · `08` · `10`) | core | `00.2.2`. A paid install path is the gap we sell *against* (`14.6`), not one to reproduce |
+| **Identity & RBAC** | **commercial** | `00.2.4` leaves the slot empty by design — §3.1, refined in §6.3 |
+| **Profile library + scheduled bundles** (`18` · `21` · `22`) | **commercial** | §4 — a recurring obligation, not a one-off question |
+| **Bundle signing with a managed key** (`18.11`) | **commercial** | key custody is a service; the sealing and self-digest it builds on are core |
+| ~~Multi-tenancy~~ | *neither* — core if ever | §6.2: a data-model change, which §6's shape cannot deliver from outside |
 
 ### 3.1 Auth is the cleanest line in the product
 
@@ -274,13 +277,15 @@ anyone can read.**
 Publishing this list is part of the strategy — an open-core project is trusted exactly as far
 as its boundary is predictable.
 
+Same order as §3's core rows.
+
 | Never gated | Because |
 |---|---|
-| Postgres, or any storage backend | `00.2.6`; gating the real database is the classic bait-and-switch |
-| The audit log | `00.2.7` — auditability is an axiom, not a feature |
-| Helm, or a working default install | `00.2.2`; `14.6` documents the competitor whose self-hosting is enterprise-tier-only and takes ~3 engineer-weeks to stabilise — that gap is what we sell into |
+| Postgres, or any storage backend | `00.2.6`. Gating the real database is the classic bait-and-switch |
 | Resolve, fetch, signed URLs, the storage-initializer | `00.2.8` — this is the adoption engine |
-| Recording or detecting compliance state | §4 |
+| Recording or detecting compliance state | §4. Free detection is what creates the demand it would otherwise hide |
+| The audit log, including Merkle sealing | `00.2.7` and `00.11.14` — auditability is an axiom, not a feature |
+| Helm, or a working default install | `00.2.2`. `14.6` documents the competitor whose self-hosting is enterprise-tier-only and takes ~3 engineer-weeks to stabilise; that gap is what we sell into |
 
 ## 8. Open Decisions
 
