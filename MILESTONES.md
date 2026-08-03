@@ -65,6 +65,10 @@ credible rather than decorative.
 
 ## Status Summary
 
+Shipped first, then open work in dependency order. **The number is an identifier, not a
+position** — M17 was specced late and shipped early, and renumbering it would break every
+reference already written against it.
+
 | # | Milestone | Docs | Status |
 |---|---|---|---|
 | M0 | Architecture & design docs | `00`–`19` | ✅ |
@@ -80,11 +84,11 @@ credible rather than decorative.
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ✅ |
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
 | M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
+| M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
 | M13 | EU risk classification & drift | `16` | ⬜ |
 | M14 | Evidence export: bundle mechanism + `annex_xii` | `18` | ⬜ ⧉ |
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
 | M16 | EU modification review (Art. 25) | `17` | ⬜ |
-| M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
 | M18 | Install-scope bundles (the `21` mechanism, not its profiles) | `21.3` · `21.7.2` | ⬜ ⧉ |
 | M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ ⧉ |
 | M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ ⧉ |
@@ -454,6 +458,55 @@ given a milestone row until now.
 - [x] Interactive portrait with per-level ring colour and dimension details; comparison
       fingerprints on the Compare view
 
+## M17 — OCI/ORAS Storage Driver ✅
+
+**Goal:** close the one deferred v1 decision (§00.11.4) — an OCI registry as a first-class
+`StorageBackend` (`05.3.1`).
+**Acceptance:** publish a version to a registry and every artifact lands in **one** manifest;
+`Stat` returns the artifact's own content digest; resolve carries an `ociImage` a KServe
+`InferenceService` can use verbatim; a plain OCI client reads the manifest we wrote.
+**Done:** verified against a live `registry:2` — driver round-trip, a spec-shaped manifest
+fetched with nothing but the standard `Accept` header, and the real binary publishing,
+resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
+
+- [x] `oci://<registry>/<repo>[:tag][@sha256:…][#<layer>]` grammar (`domain.ParseOCIURI`),
+      distribution-spec name/tag validation; the `#fragment` mirrors `lineage://…#artifact`
+- [x] Distribution v1.1 client, **stdlib-only** like SigV4: manifest get/put/delete, blob
+      head/get/push (streamed, hashed in flight), Docker registry v2 **bearer-token flow**
+      with per-scope caching (a `pull,push` token satisfies later pulls)
+- [x] **One manifest per version, one layer per artifact**, titled with
+      `org.opencontainers.image.title`; layers hold bytes **verbatim**, so a layer's digest
+      *is* the artifact's content digest and `05.5` integrity carries over unchanged
+- [x] `Put` folds a new layer into the version's manifest (creating it on first write,
+      replacing a same-named layer in place); serialized per `(repo, tag)`
+- [x] `SignGet` returns the registry's blob redirect — a presigned URL on object-store-backed
+      registries; `ErrStorageUnsupported` where blobs are served inline, so delivery falls
+      back to stream-through
+- [x] **Port change:** `SignPut` split out of `Signing` — a registry offloads reads but has no
+      presignable write target, so uploads stream through while resolve still offloads
+- [x] `ociImage` on the resolution (`04.2`), omitted when artifacts span >1 image
+- [x] GC opt-out: `ListObjects` → `ErrStorageUnsupported`, swept as a no-op rather than an
+      error; registry lifecycle policies own blob retention (`05.8`)
+- [x] Rejected uploads discard their bytes — tidy on a blob backend, **load-bearing** here,
+      since a rejected layer would otherwise sit inside a pullable image with no GC to reap it
+- [x] Config (`LINEAGE_OCI_*`) + Helm `storage.oci` with a credentials Secret
+- [x] Tests: URI grammar; an in-process fake registry driving round-trip, manifest
+      accumulation, in-place replacement, **concurrent-put layer safety**, redirect vs inline
+      signing, layer/manifest deletion, and token reuse; core-level `ociImage`,
+      stream-through selection and GC skip; live-registry integration gated by
+      `LINEAGE_TEST_OCI_REGISTRY`
+
+**Known limits, accepted rather than engineered around** (`05.3.1`):
+
+- Lineage pushes an OCI **artifact**, not a runnable image. KServe **modelcars** mounts a real
+  image with tar layers — build that in CI and **register it by reference**; Lineage `Stat`s
+  it and resolution hands back the same ref. Repacking artifacts into tar layers would break
+  the digest identity that makes `Stat` free and integrity verifiable.
+- The manifest read-modify-write lock is **process-local**. Two replicas finalizing different
+  artifacts of the same version concurrently can lose a layer. One CI job publishing one
+  version — the normal case — is unaffected; the distribution spec has no portable
+  conditional manifest PUT that would fix it properly.
+
 ---
 
 # Next — Compliance & Evidence (M13–M16)
@@ -632,55 +685,6 @@ recording a review closes it; a client-supplied `verdictAtReview` is rejected.
 modification; conformity assessment, CE marking, or EU database submission; Art. 12/19 runtime
 inference logging; risk management, human oversight, or cybersecurity (named as bundle gaps,
 not built); advising on retention periods.
-
-## M17 — OCI/ORAS Storage Driver ✅
-
-**Goal:** close the one deferred v1 decision (§00.11.4) — an OCI registry as a first-class
-`StorageBackend` (`05.3.1`).
-**Acceptance:** publish a version to a registry and every artifact lands in **one** manifest;
-`Stat` returns the artifact's own content digest; resolve carries an `ociImage` a KServe
-`InferenceService` can use verbatim; a plain OCI client reads the manifest we wrote.
-**Done:** verified against a live `registry:2` — driver round-trip, a spec-shaped manifest
-fetched with nothing but the standard `Accept` header, and the real binary publishing,
-resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
-
-- [x] `oci://<registry>/<repo>[:tag][@sha256:…][#<layer>]` grammar (`domain.ParseOCIURI`),
-      distribution-spec name/tag validation; the `#fragment` mirrors `lineage://…#artifact`
-- [x] Distribution v1.1 client, **stdlib-only** like SigV4: manifest get/put/delete, blob
-      head/get/push (streamed, hashed in flight), Docker registry v2 **bearer-token flow**
-      with per-scope caching (a `pull,push` token satisfies later pulls)
-- [x] **One manifest per version, one layer per artifact**, titled with
-      `org.opencontainers.image.title`; layers hold bytes **verbatim**, so a layer's digest
-      *is* the artifact's content digest and `05.5` integrity carries over unchanged
-- [x] `Put` folds a new layer into the version's manifest (creating it on first write,
-      replacing a same-named layer in place); serialized per `(repo, tag)`
-- [x] `SignGet` returns the registry's blob redirect — a presigned URL on object-store-backed
-      registries; `ErrStorageUnsupported` where blobs are served inline, so delivery falls
-      back to stream-through
-- [x] **Port change:** `SignPut` split out of `Signing` — a registry offloads reads but has no
-      presignable write target, so uploads stream through while resolve still offloads
-- [x] `ociImage` on the resolution (`04.2`), omitted when artifacts span >1 image
-- [x] GC opt-out: `ListObjects` → `ErrStorageUnsupported`, swept as a no-op rather than an
-      error; registry lifecycle policies own blob retention (`05.8`)
-- [x] Rejected uploads discard their bytes — tidy on a blob backend, **load-bearing** here,
-      since a rejected layer would otherwise sit inside a pullable image with no GC to reap it
-- [x] Config (`LINEAGE_OCI_*`) + Helm `storage.oci` with a credentials Secret
-- [x] Tests: URI grammar; an in-process fake registry driving round-trip, manifest
-      accumulation, in-place replacement, **concurrent-put layer safety**, redirect vs inline
-      signing, layer/manifest deletion, and token reuse; core-level `ociImage`,
-      stream-through selection and GC skip; live-registry integration gated by
-      `LINEAGE_TEST_OCI_REGISTRY`
-
-**Known limits, accepted rather than engineered around** (`05.3.1`):
-
-- Lineage pushes an OCI **artifact**, not a runnable image. KServe **modelcars** mounts a real
-  image with tar layers — build that in CI and **register it by reference**; Lineage `Stat`s
-  it and resolution hands back the same ref. Repacking artifacts into tar layers would break
-  the digest identity that makes `Stat` free and integrity verifiable.
-- The manifest read-modify-write lock is **process-local**. Two replicas finalizing different
-  artifacts of the same version concurrently can lose a layer. One CI job publishing one
-  version — the normal case — is unaffected; the distribution spec has no portable
-  conditional manifest PUT that would fix it properly.
 
 ## M18 — Install-Scope Bundles ⬜ ⧉
 
