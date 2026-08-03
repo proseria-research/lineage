@@ -1,10 +1,25 @@
 # Lineage — Milestones
 
-Living progress tracker. Update status markers as work lands and link the commit that
-completed a task. Architecture specs are in [`docs/`](docs/) (`00`–`19`); this file
-tracks *execution* against them.
+This file tracks execution against the architecture specs in [`docs/`](docs/). When a task
+lands, update its status marker and link the commit that completed it.
+
+**References:** `§NN.x` means section `x` of `docs/NN-*.md`. For example, §16.7.1 is section
+7.1 of `16-eu-risk-classification.md`.
 
 **Legend:** ✅ done · 🚧 in progress · ⬜ not started · 🔮 future
+
+**Renumbered on 2026-09-26.** Milestones now run in the order they shipped, then open work in
+dependency order. Commits and code comments before that date use the old numbers:
+
+| Old | New | Milestone |
+|---|---|---|
+| M17 | M13 | OCI/ORAS storage driver |
+| M13 | M14 | EU risk classification & drift |
+| M19 | M17 | Model risk management |
+| M20 | M18 | Change control plans |
+| M21 | M19 | API contract guarantees |
+
+M0–M12, M15 and M16 keep their numbers. The old M14 and M18 are no longer tracked here.
 
 ## Roadmap
 
@@ -25,43 +40,37 @@ flowchart LR
     M6 --> M11
     M11 --> M12["M12 · Version portrait"]
 
-    M5 --> M13["M13 · EU risk classification"]
-    M13 --> M14["M14 · Evidence export"]
-    M13 --> M16["M16 · EU modification review"]
-    M11 --> M16
-    M16 --> M14
+    M3 --> M13["M13 · OCI/ORAS driver"]
+    M4 --> M13
+
+    M5 --> M14["M14 · EU risk classification"]
     M5 --> M15["M15 · Retention &amp; hold"]
-    M15 --> M14
+    M14 --> M16["M16 · EU modification review"]
+    M11 --> M16
 
-    M3 --> M17["M17 · OCI/ORAS driver"]
-    M4 --> M17
+    M14 --> M17["M17 · Model risk mgmt"]
+    M16 --> M18["M18 · Change control plans"]
 
-    M14 --> M18["M18 · Assurance profiles"]
-    M13 --> M19["M19 · Model risk mgmt"]
-    M14 --> M19
-    M16 --> M20["M20 · Change control plans"]
-    M14 --> M20
+    M5 --> M19["M19 · API contract guarantees"]
 
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M17 done;
-    class M13,M14,M15,M16,M18,M19,M20 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16 done;
+    class M17,M18,M19 todo;
 ```
 
-**Next up:** M13 → M14 (phases 1–3 of `15.6`) is the shippable near-term slice — it answers
-the GPAI obligation that has been in force since Aug 2025. M15 follows, because a retention
-story is what makes an evidence bundle credible rather than decorative.
+**Next up:** M19 whenever there is capacity. M17 and M18 are built when a user needs them.
 
 ## Status Summary
 
 | # | Milestone | Docs | Status |
 |---|---|---|---|
-| M0 | Architecture & design docs | `00`–`19` | ✅ |
+| M0 | Architecture & design docs | `00`–`10` | ✅ |
 | M1 | Go scaffold (single binary, ports & adapters) | `01` | ✅ |
 | M2 | Persistence: per-dialect MetadataStore + migrations | `02` | ✅ |
 | M3 | Storage: S3 backend, signed URLs, upload flow | `05` | ✅ |
-| M4 | Delivery hardening: cache↔events, fetch, `lineage://` | `04` | ✅ |
+| M4 | Delivery hardening: cache invalidation, fetch, `lineage://` | `04` | ✅ |
 | M5 | Model API completeness + OpenAPI | `03` | ✅ |
 | M6 | Admin UI: BFF + web console | `06` | ✅ |
 | M7 | Lineage & provenance graph | `07` | ✅ |
@@ -70,632 +79,726 @@ story is what makes an evidence bundle credible rather than decorative.
 | M10 | SDK & CLI (OpenAPI-generated) | `10` | ✅ |
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
 | M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
-| M13 | EU risk classification & drift | `16` | ⬜ |
-| M14 | Evidence export: Annex XII / Annex IV bundles | `18` | ⬜ |
-| M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
-| M16 | EU modification review (Art. 25) | `17` | ⬜ |
-| M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
-| M18 | Assurance profiles: ISO/IEC 42001 + NIST AI RMF | `21` | ⬜ |
-| M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ |
-| M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ |
+| M13 | OCI/ORAS storage driver | §05.3.1 | ✅ |
+| M14 | EU risk classification & drift | `16` | ✅ |
+| M15 | Retention, legal hold, Merkle audit sealing | `19` | ✅ |
+| M16 | EU modification review (Art. 25) | `17` | ✅ |
+| M17 | Model risk management: tier, validation, monitoring | `20` | ⬜ |
+| M18 | Change control plans (FDA PCCP shape) | `22` | ⬜ |
+| M19 | API contract guarantees | `03` | ⬜ |
 
-**Open work:** M13–M16, the EU compliance set specced in `15`–`19` (`ddf4654`), then M18–M20,
-the non-EU regimes specced in `20`–`22`. No blocked decisions — `00.11.11`–`14` are all
-resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed with **M17**.
-
-**M18–M20 are demand-ordered, not dependency-ordered** (`15.6.1`): none blocks another, and
-which comes first is a question about the next buyer rather than the next commit.
-
-**One behaviour change to plan for.** M15 makes `DELETE` **refuse** on held or
-retention-floored subjects (`409 failed_precondition`). Every other task in M13–M16 is
-purely additive — new tables, new endpoints, no existing behaviour altered. See §00.11.13.
+**Open work:** M17 and M18 cover the non-EU regimes specced in docs `20` and `22`. They are
+ordered by demand, not by dependency (§15.6.1): neither blocks the other. M19 turns two
+existing API contracts into CI checks. There are no blocked decisions: §00.11.11–16 are all
+resolved.
 
 ---
 
 ## M0 — Architecture & Design Docs ✅
 
-Full spec set `00`–`10`, mermaid-only diagrams, decisions recorded in `00 §11`.
-**Done:** commits through `9eed5f0`. `11-model-insights.md` was specced later, with **M11**
-(it replaced the managed-service doc, moved out of this OSS repo); `12-version-portrait.md`
-later still, with **M12**.
+The full spec set (`00`–`10`), with Mermaid-only diagrams and decisions recorded in §00.11.
+**Done:** commits up to `9eed5f0`. `11-model-insights.md` was written later, alongside **M11**,
+and `12-version-portrait.md` later still, with **M12**.
 
 ## M1 — Go Scaffold ✅
 
-Compiling, runnable, tested skeleton; ports & adapters; end-to-end happy path verified.
+A compiling, runnable, tested skeleton using ports and adapters, with the end-to-end happy path
+verified.
 **Done:** `0f8bb34`.
 
 - [x] Module, package tree, Makefile, README, `.gitignore`
-- [x] Domain: entities, enums, stage machine, ULID, coded errors, port interfaces
-- [x] Core: create/publish/transition/resolve, audit-in-flow
-- [x] Adapters: in-memory store, fs storage, memory cache, event bus
-- [x] Two surfaces (:8081 Model API, :8080 Admin UI) + ops (:9090)
-- [x] Unit tests (stage machine, name validation); `go vet`/`gofmt` clean
+- [x] Domain: entities, enums, stage machine, ULIDs, coded errors, port interfaces
+- [x] Core: create, publish, transition, resolve; audit recorded inside each flow
+- [x] Adapters: in-memory store, filesystem storage, memory cache, event bus
+- [x] Two surfaces (Model API on :8081, Admin UI on :8080) plus ops (:9090)
+- [x] Unit tests (stage machine, name validation); `go vet` and `gofmt` clean
 
 ## M2 — Persistence ✅
 
 **Goal:** replace the in-memory store with real per-dialect adapters (§02.7).
-**Acceptance:** the full happy path passes against **both** SQLite and Postgres; schema
-via migrations; singleton invariant enforced (Postgres `FOR UPDATE`, SQLite serialized).
-**Done:** shared `sqlstore` (`database/sql`) + `Dialect`; conformance suite green on
-memory + SQLite; persistence verified across a restart.
+**Acceptance:** the full happy path passes on **both** SQLite and Postgres; the schema is
+managed by migrations; the singleton invariant is enforced (Postgres with `FOR UPDATE`, SQLite
+by serializing writes).
+**Done:** a shared `sqlstore` package (`database/sql`) with a `Dialect` interface. The
+conformance suite passes on memory and SQLite, and data persists across a restart.
 
-- [x] Shared `sqlstore` + `Dialect` (placeholders, unique-violation, model lock)
-- [x] SQLite `MetadataStore` (cgo-free modernc driver, WAL, single-writer) + migrations
+- [x] Shared `sqlstore` + `Dialect` (placeholders, unique-violation detection, model lock)
+- [x] SQLite `MetadataStore` (cgo-free modernc driver, WAL, single writer) + migrations
 - [x] Postgres `MetadataStore` (pgx) + migrations; `FOR UPDATE` singleton lock
-- [x] Shared conformance suite (`storetest`) run vs memory + SQLite; Postgres via `LINEAGE_TEST_PG`
-- [x] Versioned forward-only migrator (`schema_version`)
-- [x] Config wiring (`LINEAGE_DB_ENGINE`) picks the adapter at startup; default SQLite
-- [x] FK `ON DELETE CASCADE` in schema (§02.5)
-- [x] Cursor pagination (real `nextPageToken`) — delivered in **M5** (`domain.Page`)
-- [x] Postgres JSONB `label`/`custom_properties` push-down — delivered post-M9 (per-dialect
-      `JSONContainsClause`); the Postgres adapter is now validated on real embedded Postgres
+- [x] Shared conformance suite (`storetest`) run against memory and SQLite; against Postgres
+      when `LINEAGE_TEST_PG` is set
+- [x] Versioned, forward-only migrator (`schema_version`)
+- [x] `LINEAGE_DB_ENGINE` selects the adapter at startup; SQLite is the default
+- [x] `ON DELETE CASCADE` foreign keys in the schema (§02.5)
+- [x] Cursor pagination with a real `nextPageToken`, delivered in **M5** (`domain.Page`)
+- [x] Postgres JSONB push-down for `label` and `custom_properties`, delivered after M9 via a
+      per-dialect `JSONContainsClause`. The Postgres adapter is now validated against a real
+      embedded Postgres
 
 ## M3 — Storage ✅
 
-**Goal:** production artifact delivery (§05).
-**Acceptance:** register-by-reference fills digest/size via `Stat`; signed upload
-(initiate→PUT→finalize) verifies digest; signed download works on S3.
-**Done:** hand-rolled SigV4 (validated vs AWS's published vector **and** against a live
-MinIO server) so any S3-compatible endpoint works; full upload flow (all three modes) driven
-end-to-end over HTTP — including the real binary uploading to MinIO via a presigned PUT and a
-consumer downloading via the resolve `signedUrl`; integrity + immutability enforced.
+**Goal:** production-grade artifact delivery (§05).
+**Acceptance:** registering an artifact by reference fills in its digest and size via `Stat`;
+the signed upload flow (initiate → PUT → finalize) verifies the digest; signed downloads work
+on S3.
+**Done:** SigV4 is implemented by hand and validated against AWS's published test vector
+**and** a live MinIO server, so any S3-compatible endpoint works. All three upload modes were
+exercised end-to-end over HTTP, including the real binary uploading to MinIO through a
+presigned PUT and a consumer downloading through the `signedUrl` returned by resolve.
+Integrity and immutability are enforced.
 
-- [x] S3 driver: `SignGet`/`SignPut`/`Stat`/`Get`/`Put`/`Delete`, path- & virtual-host style
-      (AWS · MinIO · R2 · Ceph via endpoint override); SigV4 hand-rolled, stdlib-only
-- [x] **Credential chain**: static → env → **IRSA / EKS Pod Identity** (STS
-      `AssumeRoleWithWebIdentity`) → ECS task role → EC2 IMDSv2; temporary creds cached +
-      auto-refreshed before expiry (§05.4.1)
-- [x] Upload initiate/finalize flow (§05.6): signed direct PUT (s3), **multipart** for large
-      files (presigned part URLs → complete), **and** stream-through (`fs`/non-signing);
-      `Put`/`URIFor`/multipart/`ListObjects` added to the `StorageBackend` port
-- [x] Integrity: sha256 verification on finalize (stream-through hashes inline; signed path
-      Stats `x-amz-meta-sha256`, or verifies-by-stream under a size cap; large/multipart trust
-      declared digest + `Stat` size); immutability via write-once `UNIQUE(version_id,name)`
-- [x] **GC** (§05.8): default `retain` (`DELETE` drops the row, not bytes); optional `sweep`
-      reference-counts objects by uri (`ArtifactRefsURI`) and deletes unreferenced ones past a
-      grace period, path-scoped; background sweeper wired via `LINEAGE_STORAGE_GC=sweep`
-- [x] Tests: SigV4 vector, `fs` round-trip, IRSA web-identity + cache/refresh, core upload
-      (stream-through/multipart/mismatch/immutability), GC sweep; **live MinIO** integration
-      (round-trip + multipart, gated by `LINEAGE_TEST_S3_*`)
-- [x] OCI/ORAS driver — was a locked v1-out decision (§00.11.4); delivered in **M17**
+- [x] S3 driver: `SignGet`, `SignPut`, `Stat`, `Get`, `Put`, `Delete`, with path-style and
+      virtual-host-style addressing (AWS, MinIO, R2, Ceph via an endpoint override). SigV4 is
+      implemented with the standard library only
+- [x] **Credential chain:** static → environment → **IRSA / EKS Pod Identity** (STS
+      `AssumeRoleWithWebIdentity`) → ECS task role → EC2 IMDSv2. Temporary credentials are
+      cached and refreshed before they expire (§05.4.1)
+- [x] Upload flow (§05.6): signed direct PUT (S3), **multipart** for large files (presigned
+      part URLs, then complete), **and** stream-through for `fs` and other non-signing
+      backends. `Put`, `URIFor`, multipart, and `ListObjects` were added to the
+      `StorageBackend` port
+- [x] Integrity: SHA-256 is verified on finalize. Stream-through hashes bytes as they arrive.
+      The signed path reads `x-amz-meta-sha256` via `Stat`, or re-reads the object to verify it
+      when under a size cap. Large and multipart uploads trust the declared digest and check the
+      size via `Stat`. Immutability comes from a write-once `UNIQUE(version_id, name)`
+- [x] **Garbage collection** (§05.8): the default is `retain` (`DELETE` removes the row, not
+      the bytes). The optional `sweep` mode reference-counts objects by URI
+      (`ArtifactRefsURI`) and deletes unreferenced ones after a grace period, limited to the
+      configured path. Enabled with `LINEAGE_STORAGE_GC=sweep`
+- [x] Tests: SigV4 vector, `fs` round-trip, IRSA web identity with cache and refresh, core
+      upload (stream-through, multipart, digest mismatch, immutability), GC sweep; **live
+      MinIO** integration (round-trip and multipart, enabled by `LINEAGE_TEST_S3_*`)
+- [x] OCI/ORAS driver: originally excluded from v1 (§00.11.4); delivered in **M13**
 
 ## M4 — Delivery Hardening ✅
 
-**Goal:** the resolve/fetch path is fast, correct, and integration-ready (§04).
-**Acceptance:** cache invalidates on events; `ETag`/`304` on resolve; stream-through
-fetch for fs; `lineage://` initializer resolves in a KServe pod.
-**Done:** verified end-to-end against the running binary — conditional resolve returns 304,
-`/content` streams fs bytes, and `lineage-init` pulls `lineage://fraud-detector/production`
-into a model dir with matching bytes.
+**Goal:** a fast, correct resolve/fetch path that integrates easily with serving systems (§04).
+**Acceptance:** the cache invalidates on events; resolve supports `ETag`/`304`; fetch streams
+bytes from `fs`; the `lineage://` initializer resolves inside a KServe pod.
+**Done:** verified end-to-end against the running binary. A conditional resolve returns `304`,
+`/content` streams bytes from `fs`, and `lineage-init` pulls
+`lineage://fraud-detector/production` into a model directory with matching bytes.
 
-- [x] Resolve cache subscribed to `version.created`/`stage_changed`/`artifact.created` via the
-      bus in `core.New`; direct invalidation calls removed (purely event-driven, §04.4)
-- [x] `ETag` (= digest) + `If-None-Match` → `304` + `Cache-Control: private,no-cache` on resolve
-- [x] `/content` fetch: `302` to a fresh signed URL, or stream-through with `Range` +
-      conditional (`http.ServeContent`) where the backend can't sign (`FetchArtifact`)
-- [x] `lineage://` grammar parser (`domain.ParseLineageURI`) + `cmd/lineage-init` KServe
-      storage-initializer; `ClusterStorageContainer` manifest in §04.5
-- [x] Tests: parser cases, resolve ETag/304, content stream/Range/304, event-driven
-      invalidation (promotion reflected immediately); live initializer round-trip
+- [x] The resolve cache subscribes to `version.created`, `stage_changed`, and
+      `artifact.created` on the event bus (in `core.New`). Direct invalidation calls were
+      removed, so invalidation is purely event-driven (§04.4)
+- [x] Resolve sets `ETag` (the digest) and `Cache-Control: private, no-cache`, and returns
+      `304` on a matching `If-None-Match`
+- [x] `/content` fetch: redirects (`302`) to a fresh signed URL, or streams the bytes with
+      `Range` and conditional support (`http.ServeContent`) when the backend cannot sign
+      (`FetchArtifact`)
+- [x] `lineage://` URI parser (`domain.ParseLineageURI`) and the `cmd/lineage-init` KServe
+      storage initializer; the `ClusterStorageContainer` manifest is in §04.5
+- [x] Tests: parser cases, resolve `ETag`/`304`, content streaming with `Range` and `304`,
+      event-driven invalidation (a promotion shows up immediately); live initializer round-trip
 
 ## M5 — Model API Completeness ✅
 
 **Goal:** the full `/v1` contract (§03).
-**Acceptance:** OpenAPI served at `/v1/openapi.json` matches handlers; all resources CRUD.
-**Done:** every resource in the §03 map is wired and verified end-to-end (HTTP tests + a live
-SQLite binary smoke run): CRUD, guards, immutability, idempotency, pagination, audit, OpenAPI.
+**Acceptance:** the OpenAPI document served at `/v1/openapi.json` matches the handlers, and
+every resource supports CRUD.
+**Done:** every resource in the §03 map is implemented and verified end-to-end, through HTTP
+tests and a live smoke run on SQLite: CRUD, guards, immutability, idempotency, pagination,
+audit, and OpenAPI.
 
-- [x] Model PATCH / `:archive` (reversible) / guarded `DELETE`; Version PATCH / guarded `DELETE`
-- [x] Artifact GET / list / PATCH (immutable uri·digest·sizeBytes → `409`) / DELETE
-- [x] Lineage endpoints (add/list/delete, relation + target validation)
-- [x] Deployment endpoints (create/list/get/patch/delete)
-- [x] Audit feed: `GET /v1/models/{m}/audit` + `GET /v1/audit?subjectType=&subjectId=`
-- [x] **Idempotency-Key** replay for POST creates (in-process store, replays cached 2xx)
-- [x] **Cursor pagination** (real `nextPageToken`, `(createdAt,id)` cursor) — carried from M2,
-      shared `domain.Page`, applied to models/versions/audit
-- [x] Delete guards: production version / model with production → `409` unless `?force=true`
-- [x] Hand-authored **OpenAPI 3.1** spec embedded + served at `/v1/openapi.json`; test asserts
-      it covers the resources and every `$ref` resolves
-- [x] Postgres `custom_properties` filtering (`cp.<k>`, JSONB `@>`) — done post-M9; a richer
-      `filter` expression grammar is still deferred (§03.3)
+- [x] Model `PATCH`, reversible `:archive`, and guarded `DELETE`; version `PATCH` and guarded
+      `DELETE`
+- [x] Artifact `GET`, list, `PATCH` (changing `uri`, `digest`, or `sizeBytes` returns `409`),
+      and `DELETE`
+- [x] Lineage endpoints (add, list, delete) with relation and target validation
+- [x] Deployment endpoints (create, list, get, patch, delete)
+- [x] Audit feed: `GET /v1/models/{m}/audit` and `GET /v1/audit?subjectType=&subjectId=`
+- [x] **`Idempotency-Key`** support for `POST` creates (in-process store that replays the
+      cached 2xx response)
+- [x] **Cursor pagination** with a real `nextPageToken` and a `(createdAt, id)` cursor, carried
+      over from M2. Shared via `domain.Page` and applied to models, versions, and audit
+- [x] Delete guards: deleting a production version, or a model that has one, returns `409`
+      unless `?force=true`
+- [x] Hand-written **OpenAPI 3.1** spec, embedded in the binary and served at
+      `/v1/openapi.json`. A test checks that it covers every resource and that every `$ref`
+      resolves
+- [x] Postgres filtering on `custom_properties` (`cp.<k>`, JSONB `@>`), done after M9. A richer
+      `filter` expression language is still deferred (§03.3)
 
 ## M6 — Admin UI ✅
 
-**Goal:** the human console (§06). BFF endpoints + SPA served on :8080.
-**Done:** a Vite/React/TypeScript + Tailwind v4 SPA with shadcn-style components, embedded via
-`go:embed` and served by the `:8080` BFF; verified end-to-end (Go tests + a live run).
-**Design system:** monochrome (grayscale only, no accent color), 1px hairline borders, sharp
-(zero-radius) corners, mono type for ids/digests; auto light/dark.
+**Goal:** the human-facing console (§06): BFF endpoints plus an SPA, served on :8080.
+**Done:** a Vite + React + TypeScript SPA styled with Tailwind v4 and shadcn-style components.
+It is embedded with `go:embed` and served by the :8080 BFF. Verified by Go tests and a live
+run.
+**Design system:** monochrome (grayscale, no accent color), 1px hairline borders, square
+corners, monospace type for IDs and digests, automatic light and dark modes.
 
-- [x] BFF (`adminui/bff.go`): `/api/overview`, `/api/models` (rollup: version count +
-      production pointer), `/api/models/{m}`, `/api/models/{m}/versions/{v}`, `/api/activity`;
-      calls the same core in-process, empty collections coalesced to `[]`
-- [x] Web console SPA (`adminui/web/`): Overview (counts, stage bars, recent activity), Models
-      (searchable table), Model detail (version timeline), Version detail, Activity feed
-- [x] Lineage edges + audit **timeline** views on the version detail page
-- [x] Search box (header → `/models?q=`); client-side routing with SPA index fallback
-- [x] `go:embed all:web/dist` + `make web` (pnpm build); dist committed so `go build` needs no Node
-- [x] Tests: SPA served at `/` + fallback for client routes; BFF aggregates/rollup/detail
+- [x] BFF (`adminui/bff.go`): `/api/overview`, `/api/models` (with version count and production
+      pointer), `/api/models/{m}`, `/api/models/{m}/versions/{v}`, `/api/activity`. It calls
+      the same core in-process and returns `[]` rather than `null` for empty collections
+- [x] SPA (`adminui/web/`): Overview (counts, stage bars, recent activity), Models (searchable
+      table), Model detail (version timeline), Version detail, and Activity feed
+- [x] Lineage edges and an audit **timeline** on the version detail page
+- [x] Header search box (navigates to `/models?q=`); client-side routing with an SPA fallback
+      to `index.html`
+- [x] `go:embed all:web/dist` and `make web` (pnpm build). The built `dist` is committed, so
+      `go build` does not need Node
+- [x] Tests: SPA served at `/` with fallback for client routes; BFF aggregation, rollup, and
+      detail endpoints
 
 ## M7 — Lineage & Provenance ✅
 
-**Goal:** the differentiator (§07). Typed edges + graph traversal.
-**Done:** bounded, cycle-safe traversal (ancestry upstream, impact downstream) exposed on the
-Model API and rendered in the console; verified end-to-end + unit-tested.
+**Goal:** Lineage's main differentiator (§07): typed edges and graph traversal.
+**Done:** bounded, cycle-safe traversal, upstream (ancestry) and downstream (impact), exposed
+on the Model API and rendered in the console. Verified end-to-end and by unit tests.
 
-- [x] Edge create/list/delete; relation + target validation — delivered in **M5**
-- [x] Ancestry (upstream) + impact-analysis (downstream) traversal: bounded `depth`, cycle-safe
-      (each version expanded once), relation filter, reaches external dataset refs;
-      `core.TraverseLineage` walks the store's indexed edge lookup (dialect-agnostic; a
-      per-dialect `WITH RECURSIVE` can replace the neighbor-walk behind the port for scale)
-- [x] `GET /v1/models/{m}/versions/{v}/lineage?direction=&depth=&relations=` → `{nodes, edges}`
-      (flat edge list without `direction`); `GetVersionByID` added for node labeling; OpenAPI updated
-- [x] Console: version detail renders **Provenance (upstream)** + **Impact (downstream)** graphs
-      (BFF `/api/…/graph`), version nodes linked
-- [x] Tests: ancestry, depth bound, impact, relation filter, cycle safety (core); graph over HTTP
-- [x] SDK auto-capture (`produced_by`, `derived_from`) — delivered in **M10**
-      (`sdk/python/lineage/client.py`: run + `git://<sha>` provenance, `derived_from` parents)
+- [x] Edge create, list, delete, with relation and target validation (delivered in **M5**)
+- [x] Ancestry (upstream) and impact (downstream) traversal with a bounded `depth`, cycle
+      safety (each version is expanded once), relation filtering, and support for external
+      dataset references. `core.TraverseLineage` uses the store's indexed edge lookup, so it
+      works on every dialect. A per-dialect `WITH RECURSIVE` query can replace it behind the
+      port if scale requires it
+- [x] `GET /v1/models/{m}/versions/{v}/lineage?direction=&depth=&relations=` returns
+      `{nodes, edges}`, or a flat edge list when `direction` is omitted. `GetVersionByID` was
+      added to label nodes; OpenAPI updated
+- [x] Console: the version detail page renders **Provenance (upstream)** and **Impact
+      (downstream)** graphs (BFF `/api/…/graph`), with version nodes linked
+- [x] Tests: ancestry, depth limit, impact, relation filter, cycle safety (core); graph over HTTP
+- [x] SDK automatic capture of `produced_by` and `derived_from`, delivered in **M10**
+      (`sdk/python/lineage/client.py`: run and `git://<sha>` provenance, `derived_from` parents)
 
 ## M8 — Observability ✅
 
-**Goal:** production ops (§09).
-**Done:** a hand-rolled, dependency-free Prometheus registry + `/metrics`, real readiness, and
-structured JSON access logs with correlation IDs — all verified live. Tracing and the SLO rules
-landed after M9: spans export over OTLP from the running binary (API → core → store, verified
-against a stub collector), and the six alert rules render and pass `promtool check rules`.
+**Goal:** production operations support (§09).
+**Done:** a dependency-free Prometheus registry with `/metrics`, a real readiness check, and
+structured JSON access logs with correlation IDs, all verified live. Tracing and SLO rules
+landed after M9. Spans are exported over OTLP from the running binary (API → core → store,
+verified against a stub collector), and the six alert rules render and pass
+`promtool check rules`.
 
-- [x] **Prometheus registry** (`observability/metrics`, hand-rolled counters/gauges/histograms
-      with labels + text exposition — no `client_golang` dep): RED (`surface`/**templated**
-      `route`/`method`/`status` + duration histogram), resolve cache hit/miss, versions
-      published, transitions by `to`-stage, singleton demotions, signed URLs, finalize latency,
-      digest-mismatch; domain gauges (totals + stage distribution) and DB pool stats refreshed
-      at scrape via `OnScrape`
-- [x] Core stays metrics-free: a `domain.Meter` port (no-op default) is injected with
-      `core.WithMeter` (non-breaking functional option); hooks in resolve/publish/transition/finalize
-- [x] **Structured JSON request logs** (`slog`): surface, route, method, status, latencyMs,
-      `requestId`, `actor`, `traceId`; `X-Request-Id` echoed; **W3C `traceparent`** trace-id
-      propagated for correlation — never logs secrets/signed URLs/bytes
-- [x] Real **`/readyz`**: composed store + default-storage `Stat` checks gate traffic; `/healthz` liveness
-- [x] Tests: registry (counter/gauge/histogram cumulative buckets, scrape hooks, label escaping),
-      ops handler (health/ready/metrics + failure gating), meter hooks fire from the core
-- [x] **OTLP span export** (OTel SDK): a `domain.Tracer` port with a no-op default, injected via
-      `core.WithTracer` — the core never imports the SDK, mirroring `Meter` (§01). The
-      `observability/tracing` adapter owns the provider, OTLP/HTTP exporter, and W3C propagation;
-      store spans come from a decorator over the `MetadataStore` **port**, so SQLite/Postgres/
-      memory are covered once and the store adapters stay telemetry-free
-- [x] Server spans carry the **templated** route (renamed after the mux matches), so span names
-      stay bounded like the metric labels; 5xx marks the span errored, 4xx does not; `requestId`
-      falls back to the live span's trace id so logs and traces join
-- [x] Tracing is **off unless `otlpEndpoint` is set** — disabled means the decorator is not in
-      the call path at all; the chart renders the env, sampling is parent-based
-- [x] SLO alert rules (§09.5) as a `PrometheusRule` chart asset over the existing RED metrics:
-      resolve availability + p99, publish success, digest mismatch, singleton violation, down
-- [x] Tests: real OTLP export to a stub collector, upstream `traceparent` adoption, disabled-path
-      identity, store-decorator spans + error marking, middleware route templating and 4xx/5xx;
-      live binary → collector round-trip; `helm lint`/`template` both profiles + `promtool`
+- [x] **Prometheus registry** (`observability/metrics`): hand-written counters, gauges, and
+      histograms with labels and text exposition, with no `client_golang` dependency. It
+      records RED metrics (labelled by `surface`, **templated** `route`, `method`, and
+      `status`, plus a duration histogram), resolve cache hits and misses, versions published,
+      transitions by target stage, singleton demotions, signed URLs issued, finalize latency,
+      and digest mismatches. Domain gauges (totals and stage distribution) and DB pool stats
+      are refreshed at scrape time via `OnScrape`
+- [x] The core has no metrics dependency. A `domain.Meter` port (no-op by default) is injected
+      with `core.WithMeter`, a non-breaking functional option, and called from resolve,
+      publish, transition, and finalize
+- [x] **Structured JSON request logs** (`slog`): surface, route, method, status, `latencyMs`,
+      `requestId`, `actor`, and `traceId`. `X-Request-Id` is echoed back, and the **W3C
+      `traceparent`** trace ID is propagated for correlation. Secrets, signed URLs, and
+      artifact bytes are never logged
+- [x] Real **`/readyz`**, which gates traffic on a store check and a `Stat` against the default
+      storage backend; `/healthz` reports liveness
+- [x] Tests: registry (counters, gauges, cumulative histogram buckets, scrape hooks, label
+      escaping), ops handler (health, readiness, metrics, and failure gating), meter hooks
+      called from the core
+- [x] **OTLP span export** (OpenTelemetry SDK): a `domain.Tracer` port with a no-op default,
+      injected via `core.WithTracer`, so the core never imports the SDK (the same pattern as
+      `Meter`, §01). The `observability/tracing` adapter owns the provider, the OTLP/HTTP
+      exporter, and W3C propagation. Store spans come from a decorator around the
+      `MetadataStore` **port**, so SQLite, Postgres, and memory are all covered by one
+      implementation and the adapters stay free of telemetry code
+- [x] Server spans are named after the **templated** route (renamed once the router matches),
+      keeping span names bounded like the metric labels. A 5xx marks the span as errored; a 4xx
+      does not. When no `requestId` is supplied, the live span's trace ID is used, so logs and
+      traces can be joined
+- [x] Tracing is **off unless `otlpEndpoint` is set**. When disabled, the decorator is not in
+      the call path at all. The chart renders the environment variables; sampling is
+      parent-based
+- [x] SLO alert rules (§09.5) shipped as a `PrometheusRule` chart asset built on the existing
+      RED metrics: resolve availability and p99 latency, publish success, digest mismatch,
+      singleton violation, and instance down
+- [x] Tests: real OTLP export to a stub collector, adoption of an upstream `traceparent`,
+      disabled path adds nothing, store-decorator spans and error marking, route templating
+      and 4xx/5xx handling in middleware; live binary → collector round-trip; `helm lint` and
+      `helm template` on both profiles, plus `promtool`
 
 ## M9 — Deployment (Helm) ✅
 
-**Goal:** the Helm axiom realized (§08).
-**Acceptance:** `helm install` on a fresh cluster → working registry (dev profile).
-**Done:** chart in `deploy/helm/lineage`; `helm lint` + `helm template` clean on both profiles;
-guards fail-closed; multi-stage `Dockerfile` (cgo-free static → distroless non-root).
+**Goal:** deliver on the Helm axiom (§08).
+**Acceptance:** `helm install` on a fresh cluster yields a working registry (dev profile).
+**Done:** the chart is in `deploy/helm/lineage`. `helm lint` and `helm template` pass on both
+profiles, and misconfiguration guards fail closed. A multi-stage `Dockerfile` builds a
+cgo-free static binary into a distroless, non-root image.
 
-- [x] Chart: Deployment (two surfaces + ops port), three Services, two Ingresses; env rendered
-      from values (secret-bearing DSN/keys via `secretKeyRef`, never plaintext, §08.6)
-- [x] **Migrate Job** = Helm `pre-install`/`pre-upgrade` hook running `lineage migrate` (new
-      subcommand) for Postgres; SQLite migrates at startup; `values-dev.yaml` / `values-prod.yaml`
-- [x] **SQLite ⇒ single replica** enforced (template `fail` on `replicaCount>1` or autoscaling);
-      PVC for sqlite/fs; `Recreate` strategy for the single-writer; postgres/redis are external
-      (subcharts reserved as a documented opt-in — external managed DB is the prod path)
-- [x] Hardened: non-root, `readOnlyRootFilesystem`, dropped caps, seccomp; **NetworkPolicy**
-      (restricts Admin UI, opens Model API + ops), **PDB** + **HPA** (prod), **ServiceMonitor**
-- [x] `Dockerfile` (node build console → cgo-free static Go binary → distroless nonroot) + `make docker`
-- [x] Validated: `helm lint`/`template` both profiles, guard failures, `lineage migrate` smoke
+- [x] Chart: one Deployment (both surfaces plus the ops port), three Services, two Ingresses.
+      Environment is rendered from values; secrets such as the DSN and keys come from
+      `secretKeyRef`, never plaintext (§08.6)
+- [x] **Migration Job**: a Helm `pre-install`/`pre-upgrade` hook runs `lineage migrate` (a new
+      subcommand) for Postgres. SQLite migrates at startup. Ships `values-dev.yaml` and
+      `values-prod.yaml`
+- [x] **SQLite requires a single replica**: the template fails if `replicaCount > 1` or
+      autoscaling is enabled. A PVC backs SQLite and `fs` storage, and the `Recreate`
+      strategy protects the single writer. Postgres and Redis are external; bundled subcharts
+      are a documented opt-in, and an external managed database is the recommended production
+      setup
+- [x] Hardening: non-root, `readOnlyRootFilesystem`, all capabilities dropped, seccomp.
+      **NetworkPolicy** restricts the Admin UI and opens the Model API and ops ports. **PDB**
+      and **HPA** (prod profile) and a **ServiceMonitor**
+- [x] `Dockerfile` (Node builds the console → cgo-free static Go binary → distroless nonroot)
+      and `make docker`
+- [x] Validated: `helm lint` and `helm template` on both profiles, guard failures, and a
+      `lineage migrate` smoke test
 
 ## M10 — SDK & CLI ✅
 
-**Goal:** client ergonomics (§10). Generated from OpenAPI (needs M5).
+**Goal:** client ergonomics (§10), generated from OpenAPI (requires M5).
 
-- [x] Python SDK: `publish`, `transition`, `resolve`, `download`, lineage helpers; all three
-      upload modes (signed direct, multipart, stream-through) with streamed bodies; SHA-256
-      verification on upload and download; optional git/run lineage capture
-- [x] Go CLI `lineage`: model list, version publish/promote, resolve, pull, lineage traversal;
-      multipart upload and multi-artifact pull
-- [x] Generation + versioning pipeline: `sdk/generate.py` derives an operation → path manifest
-      from the served OpenAPI source and the SDK routes every request through it;
+- [x] Python SDK: `publish`, `transition`, `resolve`, `download`, and lineage helpers. Supports
+      all three upload modes (signed direct, multipart, stream-through) with streamed bodies,
+      SHA-256 verification on upload and download, and optional git/run lineage capture
+- [x] Go CLI `lineage`: list models, publish and promote versions, resolve, pull, and traverse
+      lineage; supports multipart upload and multi-artifact pull
+- [x] Generation and versioning: `sdk/generate.py` builds an operation → path manifest from
+      the served OpenAPI source, and the SDK routes every request through it.
       `make sdk-check` regenerates and compiles it
-- [x] Validated end-to-end on both storage tiers: `fs` (stream-through) and S3/MinIO
-      (signed direct + 70 MiB multipart), plus `go test ./cmd/lineage-cli`
+- [x] Validated end-to-end on both storage tiers: `fs` (stream-through) and S3/MinIO (signed
+      direct and a 70 MiB multipart upload), plus `go test ./cmd/lineage-cli`
 
 ## M11 — Model Insights ✅
 
-**Goal:** the fact API for model composition (§11) — param counts, layer breakdown,
-framework, precision/quantization, disk vs memory footprint, evaluations, and an
-architecture fingerprint that classifies version-to-version change. The registry stores and
-queries these facts; producers outside it derive them (§11.1).
-**Acceptance:** two versions whose facts were submitted over the API yield
-`GET /v1/models/{m}/diff?from=A&to=B` with the correct §11.4.1 verdict (`reweighted` vs
-`recast` vs `rearchitected`) plus metric deltas, while the binary opens no artifact on any
-insight path — no framework code, no header parsing, no artifact reads.
-**Depends on:** M5 (Model API contract) · M2 (per-dialect store) · M6 (console panels).
-M10 is not a dependency; the SDK is one producer among several, added later.
-**Done:** four tables behind the `MetadataStore` port, green on memory + SQLite + real
-Postgres; the four-hash verdict table with per-tensor partial diffs; PATCH-merge writes with
+**Goal:** an API for facts about a model's composition (§11): parameter counts, layer
+breakdown, framework, precision and quantization, disk and memory footprint, evaluations, and
+an architecture fingerprint that classifies how one version differs from another. The registry
+stores and queries these facts; external producers derive them (§11.1).
+**Acceptance:** given two versions whose facts were submitted over the API,
+`GET /v1/models/{m}/diff?from=A&to=B` returns the correct §11.4.1 verdict (`reweighted`,
+`recast`, or `rearchitected`) plus metric deltas, and the binary never opens an artifact on
+any insight path: no framework code, no header parsing, no artifact reads.
+**Depends on:** M5 (Model API contract), M2 (per-dialect store), M6 (console panels). M10 is
+not a dependency; the SDK is just one producer among several and was added later.
+**Done:** four tables behind the `MetadataStore` port, passing on memory, SQLite, and real
+Postgres; the four-hash verdict table with per-tensor partial diffs; `PATCH`-merge writes with
 per-field attribution; the published producer contract; console panels. Verified live on the
-SQLite binary — two producers merging without clobber, a bf16→int8 pair diffing to `recast`
-(−9.6 GB on disk, −10.0 GB resident, −1.7 points of MMLU), the `409` immutability guard, and
-persistence across a restart.
+SQLite binary: two producers merged their facts without overwriting each other, a bf16 → int8
+pair diffed as `recast` (−9.6 GB on disk, −10.0 GB in memory, −1.7 points on MMLU), the `409`
+immutability guard fired, and the data survived a restart.
 
 ### 11a — Schema & core
 
-- [x] Tables `version_insight`, `layer_block`, `footprint`, `evaluation` (§11.3) — per-dialect
-      migrations + `MetadataStore` port methods; `ON DELETE CASCADE` from `model_version`
-- [x] `lineage_edge.properties json?` (§11.3.6) so `derived_from` can carry `{method:"quantize"}`
-- [x] Domain entities + enums (`source`, `param_count_method`, `dtype_dominant`); `coverage`
-      records extractability rather than substituting a value — unknown is `null` (§11.2)
-- [x] Per-field provenance: `field_sources` + `reporter_*`, so independent producers coexist
-      without clobbering each other (§11.2, §11.6.1)
-- [x] Store conformance suite extended (`storetest`) → green on memory + SQLite + Postgres
+- [x] Tables `version_insight`, `layer_block`, `footprint`, and `evaluation` (§11.3), with
+      per-dialect migrations, `MetadataStore` port methods, and `ON DELETE CASCADE` from
+      `model_version`
+- [x] `lineage_edge.properties` (optional JSON, §11.3.6), so a `derived_from` edge can carry
+      `{method: "quantize"}`
+- [x] Domain entities and enums (`source`, `param_count_method`, `dtype_dominant`). `coverage`
+      records what could be extracted instead of guessing a value; unknown is `null` (§11.2)
+- [x] Per-field provenance (`field_sources` and `reporter_*`), so independent producers can
+      contribute without overwriting each other (§11.2, §11.6.1)
+- [x] Store conformance suite (`storetest`) extended; passes on memory, SQLite, and Postgres
 
 ### 11b — Fingerprint & diff
 
-All of this computes over stored facts only — the same posture as lineage traversal (§07).
+Everything here computes over stored facts only, the same approach as lineage traversal (§07).
 
-- [x] Canonical arch-doc normalization spec (sorted tensor names, normalized op names,
-      collapsed repeats), published so independent producers hash identically; the registry
-      validates the shape, producers compute the hashes
-- [x] Verdict classifier over the stored four-hash ladder, from the §11.4.1 lookup table
-      (not a heuristic) + per-tensor merkle partial diff → changed-name patterns (detects a
-      LoRA merge, §11.4.2)
-- [x] Partial facts: missing `weights_hash` ⇒ a narrowed verdict naming the missing inputs;
-      no facts ⇒ `verdict:"unknown"` rather than an inference (§11.4.3, §11.6.2)
-- [x] Metric delta join over (`suite`,`metric`,`split`,`harness_version`) with
-      `higher_is_better` applied; empty intersection ⇒ `comparable:false`, never a bogus delta
-- [x] Tests: each verdict row, partial/unknown verdicts, ordering stability of the
+- [x] A published specification for normalizing the architecture document (sorted tensor
+      names, normalized op names, collapsed repeats), so independent producers compute
+      identical hashes. The registry validates the shape; producers compute the hashes
+- [x] Verdict classifier over the stored four-hash ladder, using the §11.4.1 lookup table
+      rather than a heuristic, plus a per-tensor Merkle partial diff that reports patterns in
+      changed tensor names (for example, detecting a LoRA merge, §11.4.2)
+- [x] Partial facts: a missing `weights_hash` produces a narrower verdict that names the
+      missing inputs; no facts at all produce `verdict: "unknown"` rather than a guess
+      (§11.4.3, §11.6.2)
+- [x] Metric deltas are joined on (`suite`, `metric`, `split`, `harness_version`) and respect
+      `higher_is_better`. If nothing matches, the result is `comparable: false` rather than a
+      misleading delta
+- [x] Tests: every verdict row, partial and unknown verdicts, ordering stability of the
       canonical form, non-comparable metric pairs
 
 ### 11c — API
 
-- [x] `PATCH …/insight` merges per field (absent = unchanged, explicit `null` = clear),
-      recording `field_sources` per merged field — the default write (§11.6.1)
-- [x] `PUT …/insight` full replace (single-owner case); `POST`/`GET …/evaluations` (append-only);
-      `PUT`/`GET …/footprints[/{scenario}]` (upsert by scenario); `GET …/insight?include=layers,sources`
-- [x] `GET /v1/models/{m}/diff?from=&to=` + cross-model `GET /v1/diff?from=a@1&to=b@2`
-- [x] Versioned JSON Schema: payload declares `schemaVersion`; unknown version ⇒ `400`;
-      unknown fields rejected rather than dropped; no partial writes
-- [x] Governance (§11.7): audit-in-transaction; **`weights_hash` conflict ⇒ `409`** unless
-      `?force=true`; evaluations append-only
-- [x] `resolve ?include=insight` compact block (`paramCount`,`dtype`,`diskBytes`,
-      `minDeviceMemoryBytes`) — gated so the hot cached path stays small (§04, axiom 8)
-- [x] OpenAPI updated; scalar filters on both engines, `arch_doc` JSONB predicates
+- [x] `PATCH …/insight` merges field by field (absent means unchanged; explicit `null` means
+      clear) and records `field_sources` for each merged field. This is the default write path
+      (§11.6.1)
+- [x] `PUT …/insight` for full replacement when there is a single owner; `POST` and
+      `GET …/evaluations` (append-only); `PUT` and `GET …/footprints[/{scenario}]` (upsert by
+      scenario); `GET …/insight?include=layers,sources`
+- [x] `GET /v1/models/{m}/diff?from=&to=` and the cross-model `GET /v1/diff?from=a@1&to=b@2`
+- [x] Versioned JSON Schema: payloads declare `schemaVersion`, and an unknown version returns
+      `400`. Unknown fields are rejected rather than silently dropped, and writes are never
+      partial
+- [x] Governance (§11.7): audit is written in the same transaction; a conflicting
+      `weights_hash` returns **`409`** unless `?force=true`; evaluations are append-only
+- [x] `resolve ?include=insight` adds a compact block (`paramCount`, `dtype`, `diskBytes`,
+      `minDeviceMemoryBytes`). It is opt-in so the cached hot path stays small (§04, axiom 8)
+- [x] OpenAPI updated. Scalar filters work on both engines; `arch_doc` JSONB predicates are
       Postgres-only (§02.7)
-- [x] Tests: multi-producer merge (three writers, disjoint fields, no clobber), schema-version
-      rejection, `409` on fingerprint contradiction, idempotent replay
+- [x] Tests: multi-producer merge (three writers on disjoint fields, no overwrites),
+      schema-version rejection, `409` on a fingerprint contradiction, idempotent replay
 
 ### 11d — Producer contract (published, not implemented here)
 
-The registry ships no extractor (§11.5, §11.9); it owes producers a contract stable enough
-to build against.
+The registry ships no extractor (§11.5, §11.9). Instead, it owes producers a contract stable
+enough to build against.
 
-- [x] JSON Schema published + served alongside the OpenAPI document, versioned independently
-- [x] Golden fixture set (one per format family) + a conformance test any producer can run
-- [x] Canonical arch-doc normalization documented precisely enough that two producers agree
-      on the same hash for the same model
-- [x] Worked producer examples in the docs (curl + SDK), incl. the `declared`-only path for a
-      format that reveals nothing
+- [x] JSON Schema published and served next to the OpenAPI document, versioned independently
+- [x] A golden fixture set (one per format family) and a conformance test any producer can run
+- [x] Architecture-document normalization documented precisely enough that two producers
+      compute the same hash for the same model
+- [x] Worked producer examples in the docs (curl and SDK), including the `declared`-only path
+      for formats that expose nothing
 
 ### 11e — Console (§11.8)
 
-- [x] Version detail Insights panel: params, framework, precision, disk vs memory, layer
-      breakdown (repeats collapsed); every value labelled with its `source` and reporter
-- [x] Compare view: verdict, hash ladder, changed-tensor summary, metric deltas
-- [x] Estimated footprints rendered with their basis, not as a bare byte count
-- [x] Absent facts render as "not reported", distinct from a zero or an empty value
+- [x] Insights panel on version detail: parameters, framework, precision, disk and memory
+      footprint, and layer breakdown (with repeats collapsed). Every value shows its `source`
+      and reporter
+- [x] Compare view: verdict, hash ladder, summary of changed tensors, metric deltas
+- [x] Estimated footprints are shown with the basis of the estimate, not as a bare byte count
+- [x] Missing facts are shown as "not reported", distinct from zero or empty
 
-**Non-goals** (§11.9): the registry derives no fact from an artifact (weights, headers, or
-config); no scanner ships in this repo; no eval orchestration; no verification of accuracy
-claims; no determination of why weights changed.
+**Non-goals** (§11.9): the registry derives no facts from artifacts (weights, headers, or
+config); no scanner ships in this repo; no evaluation orchestration; no verification of
+accuracy claims; no explanation of why weights changed.
 
 ## M12 — Version Portrait ✅
 
-**Goal:** two procedurally generated marks per version in the console (§12) — a square
-**Fingerprint** (identity, from `insight.hashes`) and a wide **Portrait** (structure, from
-`insight.layers`). Independent sections, deterministic, browser-side at paint time.
-**Done:** `b22a6e9`…`5916f69`. Specced after M11 and built in the same pass, so it was never
-given a milestone row until now.
+**Goal:** two procedurally generated marks per version in the console (§12): a square
+**Fingerprint** that shows identity (from `insight.hashes`) and a wide **Portrait** that shows
+structure (from `insight.layers`). They are independent, deterministic, and drawn in the
+browser.
+**Done:** `b22a6e9`…`5916f69`. It was specced after M11 and built in the same pass, which is
+why it did not have a milestone row until later.
 
-- [x] `VersionPortrait` / `VersionFingerprint` / `VersionMark` components, drawn only from
-      facts a producer already reported — no new field, table, or API (§12.1)
-- [x] The honesty rule (§12.2): absent input renders an empty section; neither mark ever
-      substitutes for the other; nothing reported ⇒ no mark
-- [x] Interactive portrait with per-level ring colour and dimension details; comparison
-      fingerprints on the Compare view
+- [x] `VersionPortrait`, `VersionFingerprint`, and `VersionMark` components, drawn only from
+      facts a producer has already reported. No new field, table, or API (§12.1)
+- [x] Honesty rule (§12.2): a section with no input renders empty; neither mark ever stands in
+      for the other; if nothing is reported, no mark is drawn
+- [x] Interactive portrait with per-level ring colours and dimension details; fingerprints
+      shown side by side in the Compare view
+
+## M13 — OCI/ORAS Storage Driver ✅
+
+**Goal:** resolve the one deferred v1 decision (§00.11.4) by making an OCI registry a
+first-class `StorageBackend` (§05.3.1).
+**Acceptance:** publishing a version to a registry puts every artifact in **one** manifest;
+`Stat` returns the artifact's own content digest; resolve returns an `ociImage` that a KServe
+`InferenceService` can use as-is; a standard OCI client can read the manifest Lineage wrote.
+**Done:** verified against a live `registry:2`: a driver round-trip, a spec-compliant manifest
+fetched using only the standard `Accept` header, and the real binary publishing, resolving,
+and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
+
+- [x] URI grammar `oci://<registry>/<repo>[:tag][@sha256:…][#<layer>]`
+      (`domain.ParseOCIURI`) with distribution-spec name and tag validation. The `#fragment`
+      mirrors `lineage://…#artifact`
+- [x] Distribution v1.1 client, **standard library only** (like SigV4): manifest get, put, and
+      delete; blob head, get, and push (streamed and hashed on the fly); the Docker registry v2
+      **bearer-token flow**, with tokens cached per scope (a `pull,push` token also serves later
+      pulls)
+- [x] **One manifest per version, one layer per artifact**, each titled with
+      `org.opencontainers.image.title`. Layers store bytes **unchanged**, so a layer's digest
+      *is* the artifact's content digest and the integrity model of §05.5 carries over as-is
+- [x] `Put` adds a new layer to the version's manifest (creating the manifest on the first
+      write and replacing a same-named layer in place), serialized per `(repo, tag)`
+- [x] `SignGet` returns the registry's blob redirect, which is a presigned URL on registries
+      backed by object storage. Where blobs are served directly, it returns
+      `ErrStorageUnsupported` and delivery falls back to stream-through
+- [x] **Port change:** `SignPut` was split out of `Signing`. A registry can offload reads but
+      has no presignable write target, so uploads stream through while resolve still offloads
+      downloads
+- [x] `ociImage` on the resolution (§04.2), omitted when a version's artifacts span more than
+      one image
+- [x] GC opt-out: `ListObjects` returns `ErrStorageUnsupported`, which the sweeper treats as a
+      no-op rather than an error. Registry lifecycle policies own blob retention (§05.8)
+- [x] Rejected uploads discard their bytes. On a blob backend this is tidiness; here it is
+      **essential**, because a rejected layer would otherwise remain inside a pullable image
+      with no GC to remove it
+- [x] Configuration via `LINEAGE_OCI_*` and Helm `storage.oci` with a credentials Secret
+- [x] Tests: URI grammar; an in-process fake registry covering round-trips, manifest
+      accumulation, in-place replacement, **layer safety under concurrent puts**, redirect vs
+      direct signing, layer and manifest deletion, and token reuse; core-level `ociImage`,
+      stream-through selection, and GC skip; live-registry integration enabled by
+      `LINEAGE_TEST_OCI_REGISTRY`
+
+**Known limitations, accepted rather than engineered around** (§05.3.1):
+
+- Lineage pushes an OCI **artifact**, not a runnable image. KServe **modelcars** mount a real
+  image with tar layers. Build that image in CI and **register it by reference**; Lineage
+  `Stat`s it, and resolve returns the same reference. Repacking artifacts into tar layers would
+  break the digest identity that makes `Stat` cheap and integrity verifiable.
+- The manifest read-modify-write lock is **per process**. If two replicas finalize different
+  artifacts of the same version at the same time, one layer can be lost. The normal case (one
+  CI job publishing one version) is unaffected. A proper fix would need a conditional manifest
+  PUT, which the distribution spec does not portably provide.
 
 ---
 
-# Next — Compliance & Evidence (M13–M16)
+# Compliance (M14–M16)
 
-Specced in `15`–`19` (`ddf4654`). `15` is the regime landscape and framing; it ships no
-code. The four milestones below are the four capabilities it governs.
+Specced in docs `15`–`19` (`ddf4654`). Doc `15` surveys the regulatory landscape and frames
+the approach; it ships no code. **M14, M15, and M16 have all shipped.**
 
-**The stance, which constrains every task here:** Lineage is an *evidence substrate*, not a
-compliance product. It emits stored facts in a regulation's structure and **names every
-heading it cannot fill**. It never decides a risk class, never asserts a modification is
-substantial in law, and never implies its audit log satisfies the Act's runtime logging
-articles (§15.3). A task that would blur one of those lines is out of scope, not behind.
+**The stance that constrains every task here:** Lineage is an *evidence substrate*, not a
+compliance product. It records facts and **states explicitly what it does not know**. It never
+decides a risk class, never asserts that a modification is legally substantial, and never
+implies that its audit log satisfies the Act's runtime logging articles (§15.3). A task that
+blurs any of these lines is out of scope, not merely postponed. Everything Lineage ships is a
+fact, a predicate over facts, or a way to read them.
 
-**Sequencing** follows `15.6`. Phase numbers are annotated per task, since the phases
-interleave across docs while the milestones stay doc-aligned.
+**Sequencing** follows §15.6. Each task is annotated with its phase number, because the phases
+cut across docs while the milestones follow the docs.
 
-## M13 — EU Risk Classification & Drift ⬜
+## M14 — EU Risk Classification & Drift ✅
 
-**Goal:** record how risky a model is — a **declared** operator claim, never an inference —
-and detect when that claim has gone out of date (`16`).
-**Acceptance:** classify a model `high_annex_iii`, publish a new version, then
+**Goal:** record how risky a model is, as a **declared** claim by the operator (never
+inferred), and detect when that claim has gone out of date (§16).
+**Acceptance:** classify a model as `high_annex_iii`, publish a new version, and
 `GET /v1/models?classificationState=stale` returns it with
-`staleReasons:["version_published_since"]` — **with no background job having run**, proving
-drift is computed at read time rather than stored.
-**Depends on:** M2 (per-dialect store) · M5 (API contract) · M6 (console).
-**Phase:** 1, plus its half of phase 3.
+`staleReasons: ["version_published_since"]`, **without any background job having run**. This
+proves drift is computed at read time rather than stored.
+**Depends on:** M2 (per-dialect store), M5 (API contract), M6 (console).
+**Phase:** 1, plus its share of phase 3.
+**Done:** `a3ebc0a`…`8fa3030`. Acceptance was verified live on the real SQLite binary, not just
+in tests. Store conformance passes on memory, SQLite, and real Postgres.
 
-- [ ] `classification` table (`16.7.1`) — per-dialect migrations, `MetadataStore` port
-      methods, `ON DELETE CASCADE` from `model`
-- [ ] Fields `eu_system_risk_class` / `eu_gpai_tier` carry the **`eu_` prefix** (`16.3.1`);
-      `intended_purpose`, `basis`, `classified_at`, `review_due_at` stay unprefixed —
-      jurisdictional vs shared is part of the contract, not a naming preference
-- [ ] `source` is always `declared`; **no `derived` path exists in the schema** so a future
-      producer cannot write one (`16.7.2`)
-- [ ] `PUT`/`GET /v1/models/{m}/classification` — full replace, not `PATCH` (`16.8`); audit
-      action `classification.set` in the same transaction
-- [ ] Validation (`16.6`): enum membership; class ⇒ `intendedPurpose`; high-risk ⇒ `basis`;
-      `reviewDueAt > now`; `classifiedAt`/`classifiedBy` server-set and request values ignored
-- [ ] **Drift predicate** (`16.5`) as a read-time computation — four disjuncts, each
-      returning its own reason; `staleReasons[]` returns *every* one that fired
-- [ ] `classificationState` is three-valued (`unclassified`/`stale`/`current`), not a boolean
-      — `unclassified` is not a kind of stale (`16.4`)
-- [ ] Inventory filter on `GET /v1/models?euSystemRiskClass=&euGpaiTier=&classificationState=`
-- [ ] Console (`16.9`): inventory view with stale models marked **and their reason**; version
-      detail Compliance panel; `unclassified` never renders as `minimal`
-- [ ] OpenAPI updated; scalar filters work on both engines
-- [ ] Tests: each drift clause fires independently; `unclassified ≠ stale`; every validation
-      rule; the deliberate false positive in clause 3 (`updated_at` on the production version)
-      is asserted as intended behaviour, not fixed
+**The work forced two corrections, both recorded in the relevant docs.** First, migrations are
+**shared, not per-dialect**: this codebase keeps a single portable migration list in
+`sqlstore`, and only `Rebind`, `IsUniqueViolation`, `LockModelByVersionSQL`, and
+`JSONContainsClause` sit behind the `Dialect`, so one migration serves both engines. Second,
+§16.6 said a client-supplied `classifiedAt`/`classifiedBy` would be *ignored*. In fact, the
+shared decoder used by every `/v1` write rejects unknown fields, so the response is **`400`**,
+and the doc now says so.
 
-## M14 — Evidence Export ⬜
+- [x] `classification` table (§16.7.1), with **primary key `(model_id, regime)`: one row per
+      model per regime**. `MetadataStore` port methods and `ON DELETE CASCADE` from `model`.
+      One shared migration, since the schema needs nothing dialect-specific
+- [x] **A `CHECK` constraint ties each group of enum columns to the `regime` discriminator.**
+      There is only one branch today, so it also rejects any regime this build does not define;
+      M17 adds the `mrm` branch. `nullEnum` keeps unused columns `NULL` rather than `''`,
+      because an empty string would satisfy `IS NOT NULL` and quietly defeat the constraint
+- [x] The fields `eu_system_risk_class` and `eu_gpai_tier` carry an **`eu_` prefix**
+      (§16.3.1), while `intended_purpose`, `basis`, `classified_at`, and `review_due_at` do
+      not. Whether a field is jurisdiction-specific or shared is part of the contract, not a
+      naming preference
+- [x] `source` is always `declared`. **There is no `derived` path in the schema or in the
+      struct** (§16.7.2): the entity has no settable field, and `MarshalJSON` always emits the
+      constant, so a client sending `"source": "derived"` gets `declared` back
+- [x] `PUT`/`GET /v1/models/{m}/classifications/{regime}` and `GET …/classifications`. Writes
+      are full replacements, not `PATCH` (§16.8). **The regime is part of the path**, so
+      writing one regime's assessment can neither see nor modify another's. The audit action
+      `classification.set` records the regime as structured data, not only in the message
+- [x] Validation (§16.6): enum values must be valid; a class requires `intendedPurpose`; a
+      high-risk class requires `basis`; `reviewDueAt` must be in the future. `classifiedAt` and
+      `classifiedBy` are set by the server, and **sending them returns `400`**.
+      `ClassificationInput` has no field for them, which is a stronger guarantee than a step
+      that strips them, since such a step is easy to forget when a new field is added
+- [x] **Drift predicate** (§16.5), computed at read time. It has four clauses, each with its
+      own reason, and `staleReasons[]` lists *every* clause that fired. It is a **pure function
+      over the facts it is given**, so §20.7 can reuse it (§16.5.1) and the inventory filter
+      calls the same predicate instead of duplicating it in SQL. Comparisons are strict: a
+      publish in the same millisecond as the classification does not count as happening
+      *after* it; otherwise, classifying a model would immediately mark it stale
+- [x] `classificationState` has three values (`unclassified`, `stale`, `current`), not a
+      boolean. `unclassified` is decided first, before any clause runs (§16.4)
+- [x] Inventory filter: `GET /v1/models?euSystemRiskClass=&euGpaiTier=&classificationState=`.
+      Enum filters run in SQL; the computed state is filtered in Go; pagination is applied
+      last, so pages are never short. **The join only happens when needed** (when filtering or
+      with `include=classification`), because `GET /v1/models` is a hot path and most callers
+      do not use the field
+- [x] Console (§16.9): the model table **is** the inventory view. Stale rows show the reason in
+      the same component as the badge, so one never renders without the other. The version
+      detail page has a Compliance panel. An unclassified model arrives as an explicit `null`
+      and is shown as `unclassified`, never as `minimal`. There is no "mark as current" action
+      anywhere
+- [x] OpenAPI updated (`compliance` tag, 6 schemas, 2 paths, 5 query parameters); scalar
+      filters work on both engines
+- [x] Tests: each drift clause fires on its own; `unclassified` is not `stale`; every
+      validation rule; the intentional false positive in clause 3 (`updated_at` on the
+      production version) is asserted as expected behaviour rather than fixed; the `CHECK`
+      rejects an `eu_ai_act` row with a null `eu_system_risk_class` on both dialects
 
-**Goal:** one call produces the dossier a regulator asks for, from facts `02`–`11` already
-hold, with every unfilled heading emitted as explicit data (`18`).
-**Acceptance:** generating an `annex_iv` bundle twice **across a clock change** yields
-byte-identical output; `gapSummary` reports `{held:2, partial:5, notHeld:3}`; all three
-not-held sections are present with their fixed notes rather than absent.
-**Depends on:** M13 (the class every bundle carries) · M11 (insights, evaluations) ·
-M15 (the retention floor it echoes) · M16 (review state a filing may cite).
-**Phase:** 2 (annex-xii), the other half of 3, then 6 (annex-iv).
+**Regime isolation is tested in M17, not here.** The bug that the per-regime key prevents can
+only occur when a second regime exists, and the second regime, `mrm`, arrives in M17
+(§20.8.1). Writing an undefined regime would only test that the `CHECK` rejects it, which is a
+different claim. M14 tests its own part: the key itself, and that one model's rows never leak
+into another's.
 
-- [ ] `evidence_bundle` table (`18.8.1`) — records that a bundle was produced and its digest;
-      **the body is not stored**, since it is a pure function of facts plus profile and a
-      stored copy could disagree with the source
-- [ ] `gap_counts` frozen at generation — the one exception, so "we filed with three gaps in
-      March" stays answerable after those gaps are filled
-- [ ] Profile registry with `annex_xii` first (`18.3`) — the obligation in force since Aug 2025
-- [ ] Canonical serialization per `11.4.5`, with `bundle.digest` and `bundle.generatedAt`
-      **excluded from the hashed form** (a digest cannot cover itself; a timestamp defeats
-      reproducibility)
-- [ ] **Determinism test as an acceptance gate**, not an afterthought (`18.7`)
-- [ ] `POST …:evidence` + `GET …/evidence` history; audit action `evidence.generate` — a
-      read-shaped operation audited anyway, because who exported what and when is the question
-- [ ] `?include=docs` → zip with `bundle.json` at root and referenced `DOC`/`METRICS`
-      artifacts under `artifacts/`, fetched through `05` signed URLs
-- [ ] Gap notes as **constants in the binary** (`18.6`), so the same gap reads identically in
-      every install and can be matched by a consumer
-- [ ] `annex_iv` profile (`18.4`) — 2 held / 5 partial / 3 not held, and that is the correct
-      result, not a shortfall
-- [ ] Errors: bundle for an unclassified model ⇒ `409 reason:"unclassified"` rather than a
-      bundle with a null class
-- [ ] Console (`18.10`): bundle history with digests and frozen gap counts; **`gapSummary`
-      renders as a checklist, never a failure state** — a red badge would train users to
-      distrust a truthful bundle
-- [ ] Tests: byte-identical regeneration; gap counts per profile; every not-held section
-      present; zip contents resolve
+## M15 — Retention, Legal Hold & Audit Sealing ✅
 
-## M15 — Retention, Legal Hold & Audit Sealing ⬜
+**Goal:** evidence cannot be destroyed prematurely, and the audit log can prove it has not been
+rewritten (§19).
+**Acceptance (met):** `DELETE` on a held model returns `409` with `reason: "legal_hold"`.
+Editing a row inside a sealed epoch makes `:verify` report `root_mismatch` for that epoch;
+deleting a row makes it report `leaf_count_mismatch`. A `:proof` for a sealed row verifies
+against its epoch's root.
+**Depends on:** M2, M5. **Phase:** 4 (hold and floor), 7 (sealing).
 
-**Goal:** evidence survives, and the audit log can prove it was not rewritten (`19`).
-**Acceptance:** `DELETE` on a held model returns `409` with `reason:"legal_hold"`; editing a
-row inside a sealed epoch makes `:verify` report `root_mismatch` at that epoch; deleting one
-makes it report `leaf_count_mismatch`; `:proof` for a sealed row verifies against its root.
-**Depends on:** M2 · M5. Independent of M13/M14 — schedule by value, not by blockers.
-**Phase:** 4 (hold + floor), 7 (sealing).
+### 15a — Legal hold & retention floor ✅
 
-### 15a — Legal hold & retention floor (phase 4)
+- [x] `held_since` and `held_by` on `model` and `model_version`; `hold.set` and `hold.release`
+      are separate audited actions
+- [x] **⚠ The one non-additive change:** `DELETE` refuses a held subject, or one younger than
+      the configured retention floor, with `409 failed_precondition` and `details.reason`
+      (§00.11.13)
+- [x] Holds are inherited **in both directions**, and the refusal names the holding subject in
+      `heldSubject`
+- [x] A hold blocks **deletion only**. `PATCH`, transitions, publishing, and archiving still
+      work
+- [x] Retention configuration is reported at `/healthz` **and `GET /v1/retention`**; a value of
+      `0` disables it
+- [x] `POST …:hold` and `…:release`; the `reason` is stored on the audit event, not on the row
 
-- [ ] `legal_hold` on `model` / `model_version`; `hold.set` / `hold.release` as **separate
-      audited actions** — clearing a hold is the event an auditor cares about
-- [ ] **⚠ The non-additive change:** `DELETE` refuses on a held subject, or one younger than
-      the configured floor, with `409 failed_precondition` + `details.reason`. Existing
-      teardown automation may need a retry branch (§00.11.13)
-- [ ] Transitive: a hold on a model covers its versions, refused with the model in `heldBy`
-- [ ] Hold blocks **destruction only** — `PATCH`, transitions, and archival still work
-- [ ] Retention config (`19.4`) echoed at `/healthz` **and in every bundle**, so a filing can
-      cite the floor the registry actually ran under; `0` disables and is a real choice
-- [ ] `POST …:hold` / `…:release`; `reason` recorded on the audit event, not the row
+### 15b — Merkle epoch sealing ✅
 
-### 15b — Merkle epoch sealing (phase 7)
+- [x] `audit_event.epoch` is derived from the row's own timestamp, **without reading any other
+      row**
+- [x] `audit_epoch` table: one root per closed time window, chained through `prev_root`,
+      append-only
+- [x] Background sealer, delayed by `sealGraceSeconds`
+- [x] Domain-separated leaf and node hashing; leaves ordered by ULID `id`; an odd node is
+      promoted to the next level
+- [x] Sealing is **on** by default
+- [x] `GET /v1/audit:verify` and `GET /v1/audit/{id}:proof`
+- [x] The current, unsealed epoch is reported honestly rather than hidden:
+      `409 reason: "epoch_unsealed"` with `sealsAt`
+- [x] Tests: tampering is detected for an edited row, a deleted row, a removed epoch, and a
+      removal at the head of the chain; proof verification; no backfill of existing rows
 
-- [ ] `audit_event.epoch = floor(at / sealIntervalMs)` — derived from the row's own clock,
-      **reading no other row**. This is what keeps the write path free of coordination
-- [ ] `audit_epoch` table (`19.6.1`) — one Merkle root per closed window, epochs chained by
-      `prev_root`; append-only and never updated
-- [ ] Background sealer with `sealGraceSeconds`, so a transaction begun inside a window
-      commits before its epoch closes
-- [ ] RFC 6962 construction (`19.5.1`): domain-separated leaf/node hashing, leaves ordered by
-      ULID `id`, odd node promoted
-- [ ] Defaults **on** (`19.5.2`) — the write cost that justified opt-in belonged to the
-      per-row chain design, not to the goal; axiom 7 says auditable by default
-- [ ] `GET /v1/audit:verify` reporting `root_mismatch` / `leaf_count_mismatch` /
-      `prev_root_mismatch`, plus `openEpochSince`
-- [ ] `GET /v1/audit/{id}:proof` — `O(log n)` inclusion path, so a third party verifies one
-      event without reading the log
-- [ ] The open epoch is **reported, not glossed** (`19.5.3`): `:proof` inside it returns
-      `409 reason:"epoch_unsealed"` with `sealsAt`
-- [ ] Tests: tamper detection for edit / delete / whole-epoch removal; proof verification;
-      enabling mid-life starts at the current epoch and does **not** backfill
+### Console & chart ✅
 
-## M16 — EU Modification Review ⬜
+- [x] Hold marker on model and version detail pages, naming the holder when the hold is
+      inherited. The console has no destructive actions, so nothing needed disabling
+- [x] Evidence-integrity panel on the compliance page: retention floor, sealing state, and an
+      explicit "verify audit log" action that reports what it did not cover
+- [x] Chart values `compliance.retention.*` and `compliance.auditAttestation.*`; the dev
+      profile ships with a floor of `0`
 
-**Goal:** warn when editing someone else's model may have transferred provider liability
-under Art. 25 (`17`).
-**Acceptance:** publish a fine-tune with a `derived_from` edge on a high-risk model → it
-appears in `GET /v1/reviews?status=open` with verdict `reweighted` and the declared method;
-recording a review closes it; a client-supplied `verdictAtReview` is rejected.
-**Depends on:** M13 (the class that gates the queue) · M11 (`11.4` verdicts).
+**The one behaviour change in M14–M16.** `DELETE` now refuses a held or retention-floored
+subject (`409 failed_precondition`). Upgrading changes nothing on its own: the floor defaults
+to `0`, and nothing is held until someone places a hold. Every other task in M14–M16 is purely
+additive. See §00.11.13.
+
+## M16 — EU Modification Review ✅
+
+**Goal:** warn when modifying someone else's model may have transferred provider liability
+under Art. 25 (§17).
+**Acceptance (met):** a fine-tune with a `derived_from` edge to a high-risk model appears in
+`GET /v1/reviews?status=open` with its verdict and declared method. Recording a review closes
+the item. A client-supplied `verdictAtReview` is rejected with `400`, and nothing is stored.
+**Depends on:** M14 (the risk class that gates the queue), M11 (the §11.4 verdicts).
 **Phase:** 5.
+**Done:** conformance passes on memory, SQLite, and real Postgres. The seeded registry
+populates the queue with all four notable verdicts.
 
-- [ ] `modification_review` table (`17.5.1`) — append-only like `evaluation`; a re-review is a
-      new row and the queue keys on the latest per (`version_id`,`edge_id`)
-- [ ] `verdict_at_review` is **server-set and frozen**, so a producer submitting a
-      `weights_hash` later cannot rewrite what a reviewer actually saw
-- [ ] Queue query (`17.4`), all four conditions — including that **`unknown` is eligible**:
-      "we cannot tell what changed" is precisely the case wanting human eyes, and excluding it
-      would make a missing hash look like a clean bill of health
-- [ ] `POST …/reviews` rejects a client-supplied verdict with `400`; `GET /v1/reviews?status=`
-- [ ] Response carries `basis` (which hashes were present per side), so a partial verdict is
-      identifiable as partial rather than read as confident
-- [ ] `undetermined` is a real outcome — "looked at it, needs counsel" must be distinguishable
-      from "nobody opened it"
-- [ ] Console (`17.7`): queue with verdict, declared method, and **both fingerprints side by
-      side** (`12.6.2` already renders at 64px). The queue never blocks an action
-- [ ] Wire drift clause 4 back to M13 — an open review item makes a classification stale
-- [ ] Tests: each queue condition; `unknown` queued; latest-row-per-pair; frozen verdict
-      survives a later hash write
+- [x] `modification_review` table (§17.5.1), append-only like `evaluation`. A re-review adds a
+      new row, and the queue uses the latest row per (`version_id`, `edge_id`). **There is no
+      foreign key on `edge_id`:** deleting the edge removes the item from the queue, but must
+      not erase the record that a human reviewed it
+- [x] `verdict_at_review` is **set by the server and frozen**, so a `weights_hash` submitted
+      later cannot change what the reviewer actually saw. A closed item returns both this and
+      the current verdict, so any difference is visible
+- [x] Queue query (§17.4) with all four conditions, including that **`unknown` verdicts are
+      eligible**. Conditions 2 and 3 form a pure predicate (`ReviewEligible`) shared by the
+      endpoint, the console, and drift clause 4. Condition 3 is an **inner join**, which
+      bounds the scan
+- [x] `POST …/reviews` rejects a client-supplied verdict with `400`: `ReviewInput` has no field
+      for it, and the shared decoder rejects unknown keys. `GET /v1/reviews?status=` has no
+      default status, so the full total can always be retrieved
+- [x] The response includes `basis` as **two lists, not one**, because the question it answers
+      is which *side* of the comparison was missing which facts. `hashes` is included
+      alongside, as in the §11.6.2 diff
+- [x] `undetermined` is a valid outcome and closes the item like any other
+- [x] Console (§17.7): the queue in the compliance workspace, with both fingerprints side by
+      side and the changed rings highlighted. Nothing on the page blocks any action
+- [x] Drift clause 4 connected back to M14. It is computed in core rather than SQL, because
+      whether an item is open depends on the §11.4 verdict; it is batched for inventory reads
+- [x] Tests: each queue condition; `unknown` is queued; latest row per pair; the frozen verdict
+      survives a later hash write; an open item blocks no transition, publish, or delete
 
-**Non-goals across M13–M16** (`15.5`): determining a risk class; asserting substantial
+**Non-goals across M14–M16** (§15.5): deciding a risk class; asserting substantial
 modification; conformity assessment, CE marking, or EU database submission; Art. 12/19 runtime
-inference logging; risk management, human oversight, or cybersecurity (named as bundle gaps,
-not built); advising on retention periods.
+inference logging; risk management, human oversight, or cybersecurity (not
+built); advice on retention periods.
 
-## M17 — OCI/ORAS Storage Driver ✅
+## M17 — Model Risk Management ⬜
 
-**Goal:** close the one deferred v1 decision (§00.11.4) — an OCI registry as a first-class
-`StorageBackend` (`05.3.1`).
-**Acceptance:** publish a version to a registry and every artifact lands in **one** manifest;
-`Stat` returns the artifact's own content digest; resolve carries an `ociImage` a KServe
-`InferenceService` can use verbatim; a plain OCI client reads the manifest we wrote.
-**Done:** verified against a live `registry:2` — driver round-trip, a spec-shaped manifest
-fetched with nothing but the standard `Accept` header, and the real binary publishing,
-resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
-
-- [x] `oci://<registry>/<repo>[:tag][@sha256:…][#<layer>]` grammar (`domain.ParseOCIURI`),
-      distribution-spec name/tag validation; the `#fragment` mirrors `lineage://…#artifact`
-- [x] Distribution v1.1 client, **stdlib-only** like SigV4: manifest get/put/delete, blob
-      head/get/push (streamed, hashed in flight), Docker registry v2 **bearer-token flow**
-      with per-scope caching (a `pull,push` token satisfies later pulls)
-- [x] **One manifest per version, one layer per artifact**, titled with
-      `org.opencontainers.image.title`; layers hold bytes **verbatim**, so a layer's digest
-      *is* the artifact's content digest and `05.5` integrity carries over unchanged
-- [x] `Put` folds a new layer into the version's manifest (creating it on first write,
-      replacing a same-named layer in place); serialized per `(repo, tag)`
-- [x] `SignGet` returns the registry's blob redirect — a presigned URL on object-store-backed
-      registries; `ErrStorageUnsupported` where blobs are served inline, so delivery falls
-      back to stream-through
-- [x] **Port change:** `SignPut` split out of `Signing` — a registry offloads reads but has no
-      presignable write target, so uploads stream through while resolve still offloads
-- [x] `ociImage` on the resolution (`04.2`), omitted when artifacts span >1 image
-- [x] GC opt-out: `ListObjects` → `ErrStorageUnsupported`, swept as a no-op rather than an
-      error; registry lifecycle policies own blob retention (`05.8`)
-- [x] Rejected uploads discard their bytes — tidy on a blob backend, **load-bearing** here,
-      since a rejected layer would otherwise sit inside a pullable image with no GC to reap it
-- [x] Config (`LINEAGE_OCI_*`) + Helm `storage.oci` with a credentials Secret
-- [x] Tests: URI grammar; an in-process fake registry driving round-trip, manifest
-      accumulation, in-place replacement, **concurrent-put layer safety**, redirect vs inline
-      signing, layer/manifest deletion, and token reuse; core-level `ociImage`,
-      stream-through selection and GC skip; live-registry integration gated by
-      `LINEAGE_TEST_OCI_REGISTRY`
-
-**Known limits, accepted rather than engineered around** (`05.3.1`):
-
-- Lineage pushes an OCI **artifact**, not a runnable image. KServe **modelcars** mounts a real
-  image with tar layers — build that in CI and **register it by reference**; Lineage `Stat`s
-  it and resolution hands back the same ref. Repacking artifacts into tar layers would break
-  the digest identity that makes `Stat` free and integrity verifiable.
-- The manifest read-modify-write lock is **process-local**. Two replicas finalizing different
-  artifacts of the same version concurrently can lose a layer. One CI job publishing one
-  version — the normal case — is unaffected; the distribution spec has no portable
-  conditional manifest PUT that would fix it properly.
-
-## M18 — Assurance Profiles ⬜
-
-**Goal:** ISO/IEC 42001 and NIST AI RMF answered from facts already stored (`21`).
-**Acceptance:** `POST /v1/evidence {profile, asOf}` returns an `18.5` bundle at install scope;
-re-running with the same `asOf` is byte-identical; both profiles report honest partial coverage.
-**Depends on:** M14 (the bundle mechanism). **Phase:** 8.
-**Why first:** it is the cheapest of the three — **zero new tables** — and ISO/IEC 42001 is the
-certificate buyers actually ask to see.
-
-- [ ] **Install scope** (`21.3`) — the one new mechanism: `subject.scope = "install"`,
-      `evidence_bundle.scope` + nullable `version_id` + `as_of` (`21.7.2`)
-- [ ] `asOf` **required, never defaulted to now** (`21.3.1`) — a bundle that cannot be
-      regenerated is not evidence
-- [ ] `iso_42001` profile — nine control objectives A.2–A.10; **objective identifiers and our
-      evidence only, never ISO control text** (`21.4.1`), which is copyrighted and paywalled
-- [ ] `nist_ai_rmf` profile — mapped at **category** level, not subcategory (`21.5.1`): 72
-      subcategories would produce a document that is mostly `not_held_by_registry`
-- [ ] Wrong-scope request (`annex_iv` at install scope, or the reverse) → `400` with
-      `reason:"wrong_scope"`; coercing either would emit a confident, meaningless document
-- [ ] Console: install-scope Compliance page; gap list renders as a checklist, never a score
-- [ ] Tests: byte-identical regeneration at a fixed `asOf` across a clock change; scope
-      mismatch rejected; **assert zero new tables** — the claim `21.6` makes
-
-## M19 — Model Risk Management ⬜
-
-**Goal:** one field set serving SR 26-2, PRA SS1/23 and OSFI E-23 (`20`).
+**Goal:** a single set of fields that serves SR 26-2, PRA SS1/23, and OSFI E-23 (§20).
 **Acceptance:** `GET /v1/models?mrmTier=tier_1&mrmState=stale` returns a tier-1 model whose
-production version has had no evaluation since promotion, with reason
+production version has had no evaluation since it was promoted, with the reason
 `unmonitored_in_production`.
-**Depends on:** M13 (the `classification` row), M14 (the bundle). **Phase:** 9.
-**Why it may go first:** the only regime in `15` governing budget that already exists rather
-than a deadline that is coming.
+**Depends on:** M14 (the `classification` row). **Phase:** 9.
+**Why it might come first:** of the regimes in doc `15`, it is the only one with budget
+already allocated today, rather than a deadline still to come.
 
-- [ ] `mrm_tier` + `mrm_basis` on `classification` (`20.8.1`) — collecting on `16.3.1`'s
-      prefixed-column promise; two columns, no migration of what is there
-- [ ] `out_of_scope` tier with **required basis** — the SR 26-2 genAI carve-out is *declared*,
-      never inferred (`20.3`); the registry does not decide what a regulation covers
-- [ ] `validation` table (`20.8.2`) — append-only, a **judgement** not a measurement, kept
-      distinct from `evaluation` (`20.5`); `conditional` requires non-empty `conditions`
-- [ ] `stage_changed_at` on `model_version`, backfilled from `audit_event` — the one column
-      clause 3 needs
-- [ ] `mrmState` predicate (`20.7`) reusing `16.5` drift machinery, all four clauses.
-      **`unmonitored_in_production` is the one worth the trouble** — the ongoing-monitoring
-      failure all three regimes exist to catch
-- [ ] Independence **evidenced, not enforced** (`20.6`): flag when `validated_by` equals the
-      version author; never refuse the write
-- [ ] `mrm` profile (`20.10`) — 3 held / 1 partial / 1 not held
-- [ ] Server-set `validatedBy` / `validatedAt`; client-supplied values → `400`
-- [ ] Tests: each stale clause; conditional-without-conditions rejected; latest-row-per-version;
-      independence flag on a self-validated version
+- [ ] **One new column and one new `regime` value** (§20.8.1): add `mrm_tier` to
+      `classification`, add `mrm` to `regime`, and add a branch to the §16.7.1 `CHECK`. An MRM
+      assessment is the row `(model_id, 'mrm')`. There is **no `mrm_basis`**: the shared
+      `basis` column is filled in again on that row, which is exactly what per-regime rows make
+      possible (§20.4)
+- [ ] `out_of_scope` tier with a **required basis**. The SR 26-2 carve-out for generative AI is
+      *declared*, never inferred (§20.3); the registry does not decide what a regulation covers
+- [ ] `validation` table (§20.8.2), append-only. A validation is a **judgement**, not a
+      measurement, so it is kept separate from `evaluation` (§20.5). A `conditional` result
+      requires a non-empty `conditions`
+- [ ] `stage_changed_at` on `model_version`, backfilled from `audit_event`. This is the only
+      new column that clause 3 needs
+- [ ] `mrmState` predicate (§20.7) reusing the §16.5 drift machinery, with all four clauses.
+      **`unmonitored_in_production` matters most**: it catches the ongoing-monitoring failure
+      that all three regimes exist to prevent
+- [ ] Independence is **recorded, not enforced** (§20.6): flag a validation whose
+      `validated_by` matches the version's author, but never reject the write
+- [ ] `PUT`/`GET /v1/models/{m}/classifications/mrm`; inventory filter
+      `GET /v1/models?mrmTier=&mrmState=`
+- [ ] `validatedBy` and `validatedAt` are set by the server; client-supplied values return `400`
+- [ ] Tests: each staleness clause; `conditional` without `conditions` is rejected; latest row
+      per version; the independence flag on a self-validated version
+- [ ] **Regime isolation, deferred from M14:** writing the `mrm` row leaves the `eu_ai_act`
+      row's `classified_at` and staleness unchanged. This is the bug the `(model_id, regime)`
+      key exists to prevent (§16.3.2), and M17 is the first milestone with two regimes that
+      could trigger it. Also test that the `CHECK` rejects an enum from the wrong regime on both
+      dialects
 
-## M20 — Change Control Plans ⬜
+## M18 — Change Control Plans ⬜
 
-**Goal:** a declared change envelope, and conformance against what actually shipped (`22`).
-**Acceptance:** declare a plan allowing `["identical","reweighted"]`, publish a version whose
-`11.4` verdict is `rescaled`, and it appears in `GET /v1/change-plans/conformance?status=outside_plan`
-with its basis — **and the publish is not blocked**.
-**Depends on:** M14, and `11.4` fingerprints. **Phase:** 10.
+**Goal:** record a declared envelope of permitted changes, and check what actually shipped
+against it (§22).
+**Acceptance:** declare a plan allowing `["identical", "reweighted"]`, then publish a version
+whose §11.4 verdict is `rescaled`. The version appears in
+`GET /v1/change-plans/conformance?status=outside_plan` with its basis, **and the publish is
+not blocked**.
+**Depends on:** the §11.4 fingerprints. **Phase:** 10.
 
-- [ ] `change_plan` table (`22.6.1`) — append-only; superseding writes a new row and stamps
-      `effective_to`, because *which plan was in force when that version shipped* is the question
-- [ ] Envelope in the `11.4.1` **verdict vocabulary**, not free text (`22.3`) — *"minor
-      retraining only"* is unfalsifiable and would never flag anything
-- [ ] Conformance **derived on read, never stored** (`22.4`) — a stored verdict is a second
-      truth that disagrees the moment either side moves
-- [ ] `undetermined` (missing `weights_hash`) is **queued, not passed** (`22.4.1`); treating an
-      absent hash as conformant makes a producer who never computes it invisible
-- [ ] `uncovered` ≠ `outside_plan` (`22.4.2`) — a version predating the plan is not a violation
-- [ ] Overlapping live plans rejected with `409 plan_overlap`, so "which plan" stays
-      single-valued
-- [ ] `pccp` profile (`22.8`); `basis` on every queue row so a reader sees *why*, not just the label
-- [ ] **Publish is never blocked** (`22.5`) — a registry refusing a publish on a derived legal
-      judgement would be wrong often and routed around fast
-- [ ] Tests: each conformance branch; supersession keeps history; overlap rejected; publish
-      succeeds while `outside_plan`
+- [ ] `change_plan` table (§22.6.1), append-only. Superseding a plan adds a new row and sets
+      `effective_to` on the old one, because the key question is *which plan was in force when
+      a given version shipped*
+- [ ] The envelope uses the §11.4.1 **verdict vocabulary**, not free text (§22.3). A phrase
+      like *"minor retraining only"* cannot be checked and would never flag anything
+- [ ] Conformance is **computed on read, never stored** (§22.4). A stored verdict would be a
+      second source of truth that goes stale as soon as either side changes
+- [ ] `undetermined` (no `weights_hash`) is **queued, not passed** (§22.4.1). Treating a
+      missing hash as conformant would hide any producer that never computes one
+- [ ] `uncovered` is distinct from `outside_plan` (§22.4.2): a version published before the plan
+      existed is not a violation
+- [ ] Overlapping active plans are rejected with `409 plan_overlap`, so there is always exactly
+      one applicable plan
+- [ ] Every queue row includes a `basis`, so readers see *why* it was flagged, not just the label
+- [ ] **Publishing is never blocked** (§22.5). A registry that refused publishes based on a
+      derived legal judgement would often be wrong, and users would quickly work around it
+- [ ] Tests: each conformance branch; supersession preserves history; overlaps are rejected;
+      publishing succeeds while `outside_plan`
+
+---
+
+## M19 — API Contract Guarantees ⬜
+
+**Goal:** turn two integration contracts that Lineage already meets into CI checks, so no
+refactor can quietly break them: a `/v1` API complete enough that an external client can read
+every recorded fact, and a configurable actor header.
+**Acceptance:** an external process with no privileged access reads every fact a compliance
+report needs from `/v1` alone; a custom `LINEAGE_ACTOR_HEADER` is honoured end-to-end into the
+audit trail.
+**Depends on:** M5 (the `/v1` contract).
+
+- [ ] **Read-from-outside test.** A test binary talking to a live server over HTTP only
+      collects a reference report kept in the test suite. It covers a version-scoped read, an
+      install-scoped `asOf` read, evaluations, lineage, audit history, and the classification
+      fields. If it ever needs an in-process call, that is a `/v1` gap to close, not a test to
+      loosen
+- [ ] **Actor-header test.** A non-default `LINEAGE_ACTOR_HEADER` is honoured; its value is
+      recorded **verbatim** in `audit_event`; Lineage makes no authorization decision from it
+      (§00.2.4), so a front door that rewrites the header is enough
+- [ ] Document the header in §03 as an **integration contract**: its name is configurable, its
+      value is trusted, and changing either is a breaking change
+- [ ] **Core smoke test:** the default build starts on Postgres, resolves, fetches, signs URLs
+      and seals an audit epoch
+- [ ] These tests run in CI on every PR, not only at release time
