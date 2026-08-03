@@ -15,7 +15,7 @@
 flowchart TB
     subgraph ee["Commercial — a separate program"]
         direction LR
-        auth["identity<br/>& RBAC"] ~~~ prof["profile<br/>library"] ~~~ sig["bundle<br/>signing"]
+        auth["identity<br/>& RBAC"] ~~~ prof["profile<br/>library"] ~~~ sig["bundle<br/>signing"] ~~~ flt["fleet<br/>routing · rollup"]
     end
     subgraph core["Core — free, complete, self-hostable"]
         direction LR
@@ -51,6 +51,7 @@ Running Lineage without ever paying yields a complete and correct registry, not 
 | Recording or detecting compliance state | knowing a classification has gone stale is registry work, not a product tier |
 | The audit log, including Merkle sealing | `00.2.7` and `00.11.14` — auditability is an axiom, not a feature |
 | Helm, or a working default install | `00.2.2`. One `helm install` yields a working, secure registry |
+| Anything about a *single* install | fleet is about running **several**. One install answers every question about its own models, on its own, forever |
 
 ## 4. What the Commercial Tier Adds
 
@@ -59,6 +60,7 @@ Running Lineage without ever paying yields a complete and correct registry, not 
 | **Identity & RBAC** — SSO, per-model authorisation | `00.2.4` puts authN/authZ on the infrastructure by design. Core trusts an infra-supplied actor header and always will; this adds the infrastructure, it does not remove the default |
 | **Profile library + scheduled bundles** | a recurring regulatory obligation, per framework — see `18.2`, `21`. This is the *shaping* of facts into one regulator's document, never the facts themselves (§4.1) |
 | **Bundle signing with a managed key** | key custody is a service. The sealing and self-digest it builds on are core (`18.7`, `19.5`) |
+| **Fleet** — routing and cross-install rollup across several installs | `00.11.5` makes one install per tenant the design, and each install is complete and authoritative on its own. Running *many* of them, and reading across them into one derived view, is work that happens outside every one of them — it adds nothing to any install and takes nothing from it |
 
 Each is **additive**. Remove the commercial program and you are left with exactly what §2
 describes, behaving exactly as these docs specify.
@@ -101,4 +103,5 @@ the filing** for them, across a library of frameworks, on a schedule, signed, is
 | Axioms these commitments derive from | `00.2` |
 | The decisions themselves | `00.11.14`, `00.11.15`, `00.11.16` |
 | The identity header the commercial tier integrates through | `00.2.4`, `03` |
+| Single-tenant per install, and the reserved scope key | `00.11.5`, `02.1` |
 | Evidence profiles and the seam they plug into | `18.2`, `21` |
