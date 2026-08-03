@@ -37,7 +37,7 @@ point of making it.
 | Delivery — resolve, fetch, signed URLs, storage-initializer | `04` · `05` |
 | Governance metadata — classification, drift, validation records | `16` · `17` · `20` |
 | Audit — log, Merkle epoch sealing, retention floor, legal hold | `19` |
-| One self-serve evidence export profile | `18` |
+| One self-serve evidence export profile — **`annex_xii`** | `18.3` |
 | Operations — Helm, SQLite + Postgres, SDK/CLI, console | `06` · `08` · `10` |
 
 Running Lineage without ever paying yields a complete and correct registry, not a trial.
@@ -81,8 +81,8 @@ it runs between *holding a fact* and *shaping it into a regulator's document*:
 | `19` retention, hold, audit sealing | all of it (`00.11.14`) | — |
 | `20` model risk management | `mrm_tier`, `validation` records, unmonitored-in-production detection | the `mrm` bundle profile |
 | `22` change control plans | the `change_plan` table and the conformance predicate | the `pccp` bundle profile |
-| `18` evidence export | the bundle mechanism, gap reporting, one self-serve profile | the profile library, scheduling |
-| `21` assurance profiles | — it declares **zero schema** | all of it — it is nothing but profiles |
+| `18` evidence export | the bundle mechanism, gap reporting, and `annex_xii` — the GPAI→downstream document an engineer produces per release | the profile library, scheduling |
+| `21` assurance profiles | the install-scope columns it needs (`21.7.2`) — a column, so it can be nowhere else | the two profiles; the doc declares **zero schema** of its own |
 
 So: **knowing** you have nine stale high-risk models is free, and always will be. **Producing
 the filing** for them, across a library of frameworks, on a schedule, signed, is the product.

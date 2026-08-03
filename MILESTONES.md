@@ -1,10 +1,16 @@
 # Lineage — Milestones
 
 Living progress tracker. Update status markers as work lands and link the commit that
-completed a task. Architecture specs are in [`docs/`](docs/) (`00`–`19`); this file
+completed a task. Architecture specs are in [`docs/`](docs/) (`00`–`24`); this file
 tracks *execution* against them.
 
-**Legend:** ✅ done · 🚧 in progress · ⬜ not started · 🔮 future
+**This file tracks the free registry only.** Lineage is open core (`24`): everything below is
+Apache-2.0 and ships here. The commercial tier is a separate program in a separate repository
+and has its own tracker; nothing in it is a prerequisite for anything here. See
+[§ Boundary](#boundary) for what moved out and why.
+
+**Legend:** ✅ done · 🚧 in progress · ⬜ not started · 🔮 future · ⧉ split — part of this
+milestone is commercial
 
 ## Roadmap
 
@@ -36,22 +42,26 @@ flowchart LR
     M3 --> M17["M17 · OCI/ORAS driver"]
     M4 --> M17
 
-    M14 --> M18["M18 · Assurance profiles"]
+    M14 --> M18["M18 · Install-scope bundles"]
     M13 --> M19["M19 · Model risk mgmt"]
     M14 --> M19
     M16 --> M20["M20 · Change control plans"]
     M14 --> M20
 
+    M5 --> M21["M21 · Boundary guarantees"]
+    M14 --> M21
+
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
     class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M17 done;
-    class M13,M14,M15,M16,M18,M19,M20 todo;
+    class M13,M14,M15,M16,M18,M19,M20,M21 todo;
 ```
 
 **Next up:** M13 → M14 (phases 1–3 of `15.6`) is the shippable near-term slice — it answers
-the GPAI obligation that has been in force since Aug 2025. M15 follows, because a retention
-story is what makes an evidence bundle credible rather than decorative.
+the GPAI obligation that has been in force since Aug 2025, which is also the profile core
+ships (§ Boundary). M15 follows, because a retention story is what makes an evidence bundle
+credible rather than decorative.
 
 ## Status Summary
 
@@ -71,20 +81,52 @@ story is what makes an evidence bundle credible rather than decorative.
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
 | M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
 | M13 | EU risk classification & drift | `16` | ⬜ |
-| M14 | Evidence export: Annex XII / Annex IV bundles | `18` | ⬜ |
+| M14 | Evidence export: bundle mechanism + `annex_xii` | `18` | ⬜ ⧉ |
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
 | M16 | EU modification review (Art. 25) | `17` | ⬜ |
 | M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
-| M18 | Assurance profiles: ISO/IEC 42001 + NIST AI RMF | `21` | ⬜ |
-| M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ |
-| M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ |
+| M18 | Install-scope bundles (the `21` mechanism, not its profiles) | `21.3` · `21.7.2` | ⬜ ⧉ |
+| M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ ⧉ |
+| M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ ⧉ |
+| M21 | Boundary guarantees: the two contracts `24` rests on | `24` | ⬜ |
 
 **Open work:** M13–M16, the EU compliance set specced in `15`–`19` (`ddf4654`), then M18–M20,
-the non-EU regimes specced in `20`–`22`. No blocked decisions — `00.11.11`–`14` are all
-resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed with **M17**.
+the non-EU regimes specced in `20`–`22`, plus M21 alongside M14. No blocked decisions —
+`00.11.11`–`16` are all resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed
+with **M17**.
 
 **M18–M20 are demand-ordered, not dependency-ordered** (`15.6.1`): none blocks another, and
 which comes first is a question about the next buyer rather than the next commit.
+
+<a id="boundary"></a>
+
+## Boundary
+
+`24` is the public promise; this is what it means for execution. The test is one line:
+
+> **If it needs a column, it is core. If it turns stored facts into paperwork, it is
+> commercial.**
+
+Every ⧉ above is a milestone the line runs *through*. The schema, the predicates and the
+detection stay here; the profile that shapes them into one regulator's document does not.
+
+| Split out of | What left | What stayed here |
+|---|---|---|
+| M14 | the `annex_iv` profile | the bundle mechanism, canonical serialization, gap reporting, determinism gate, `annex_xii` |
+| M18 | `iso_42001`, `nist_ai_rmf` | `evidence_bundle.scope` / `as_of` and the scope rules — **columns, so they cannot live anywhere else** |
+| M19 | the `mrm` profile | `mrm_tier`, `validation`, `stage_changed_at`, the whole `mrmState` predicate |
+| M20 | the `pccp` profile | `change_plan`, the conformance predicate, the queue |
+
+**`annex_xii` is the free profile**, and the choice is deliberate rather than arbitrary. It is
+the GPAI→downstream document: near-complete coverage (`18.3`), produced per release by the
+engineer shipping the model, in force since Aug 2025. `annex_iv` is the regulator-facing
+dossier a compliance function files on a recurring obligation — `01`'s verb split in the
+commercial repo, applied to the two profiles that would otherwise look interchangeable.
+
+**Nothing here waits on anything there.** The dependency runs one way and it is thin: M18's
+columns unblock a commercial profile, which is exactly what the never-needs-a-column rule
+predicts — when the commercial tier wants a schema, core is the only place it can land, and
+core ships it under Apache-2.0 like everything else.
 
 **One behaviour change to plan for.** M15 makes `DELETE` **refuse** on held or
 retention-floored subjects (`409 failed_precondition`). Every other task in M13–M16 is
@@ -439,19 +481,27 @@ drift is computed at read time rather than stored.
 **Depends on:** M2 (per-dialect store) · M5 (API contract) · M6 (console).
 **Phase:** 1, plus its half of phase 3.
 
-- [ ] `classification` table (`16.7.1`) — per-dialect migrations, `MetadataStore` port
-      methods, `ON DELETE CASCADE` from `model`
+- [ ] `classification` table (`16.7.1`) — **PK `(model_id, regime)`, one row per model per
+      regime**, per-dialect migrations, `MetadataStore` port methods, `ON DELETE CASCADE`
+      from `model`
+- [ ] Per-dialect **`CHECK` tying each enum group to the discriminator**: `regime='eu_ai_act'`
+      requires `eu_system_risk_class` non-null and every other regime's group null. This is
+      what keeps a sparse column set honest rather than merely wide
 - [ ] Fields `eu_system_risk_class` / `eu_gpai_tier` carry the **`eu_` prefix** (`16.3.1`);
       `intended_purpose`, `basis`, `classified_at`, `review_due_at` stay unprefixed —
       jurisdictional vs shared is part of the contract, not a naming preference
 - [ ] `source` is always `declared`; **no `derived` path exists in the schema** so a future
       producer cannot write one (`16.7.2`)
-- [ ] `PUT`/`GET /v1/models/{m}/classification` — full replace, not `PATCH` (`16.8`); audit
-      action `classification.set` in the same transaction
+- [ ] `PUT`/`GET /v1/models/{m}/classifications/{regime}` + `GET …/classifications` — full
+      replace, not `PATCH` (`16.8`); **the regime is in the path**, so writing one regime's
+      assessment cannot see or touch another's; audit action `classification.set` records the
+      regime, in the same transaction
 - [ ] Validation (`16.6`): enum membership; class ⇒ `intendedPurpose`; high-risk ⇒ `basis`;
       `reviewDueAt > now`; `classifiedAt`/`classifiedBy` server-set and request values ignored
 - [ ] **Drift predicate** (`16.5`) as a read-time computation — four disjuncts, each
-      returning its own reason; `staleReasons[]` returns *every* one that fired
+      returning its own reason; `staleReasons[]` returns *every* one that fired. It measures
+      against **that regime's own `classified_at`**, which is the point of the per-regime key:
+      an MRM write must never clear an EU staleness (`16.3.2`)
 - [ ] `classificationState` is three-valued (`unclassified`/`stale`/`current`), not a boolean
       — `unclassified` is not a kind of stale (`16.4`)
 - [ ] Inventory filter on `GET /v1/models?euSystemRiskClass=&euGpaiTier=&classificationState=`
@@ -460,25 +510,34 @@ drift is computed at read time rather than stored.
 - [ ] OpenAPI updated; scalar filters work on both engines
 - [ ] Tests: each drift clause fires independently; `unclassified ≠ stale`; every validation
       rule; the deliberate false positive in clause 3 (`updated_at` on the production version)
-      is asserted as intended behaviour, not fixed
+      is asserted as intended behaviour, not fixed; **regime isolation** — writing an `mrm` row
+      leaves the `eu_ai_act` row's `classified_at` and staleness untouched (the defect the
+      per-regime key exists to prevent); the CHECK rejects a cross-regime enum on both dialects
 
-## M14 — Evidence Export ⬜
+## M14 — Evidence Export ⬜ ⧉
 
 **Goal:** one call produces the dossier a regulator asks for, from facts `02`–`11` already
 hold, with every unfilled heading emitted as explicit data (`18`).
-**Acceptance:** generating an `annex_iv` bundle twice **across a clock change** yields
-byte-identical output; `gapSummary` reports `{held:2, partial:5, notHeld:3}`; all three
-not-held sections are present with their fixed notes rather than absent.
+**Acceptance:** generating an `annex_xii` bundle twice **across a clock change** yields
+byte-identical output; every heading the registry cannot fill is present as
+`not_held_by_registry` with its fixed note rather than absent; a bundle for an unclassified
+model is refused.
 **Depends on:** M13 (the class every bundle carries) · M11 (insights, evaluations) ·
 M15 (the retention floor it echoes) · M16 (review state a filing may cite).
-**Phase:** 2 (annex-xii), the other half of 3, then 6 (annex-iv).
+**Phase:** 2 (annex-xii), the other half of 3.
+**⧉ Split (§ Boundary):** core ships the **mechanism plus one profile**. The profile *library*
+is commercial, so `annex_iv` moves with it — and the mechanism must therefore be good enough
+that a profile can be written entirely from outside, against `/v1` (M21).
 
 - [ ] `evidence_bundle` table (`18.8.1`) — records that a bundle was produced and its digest;
       **the body is not stored**, since it is a pure function of facts plus profile and a
       stored copy could disagree with the source
 - [ ] `gap_counts` frozen at generation — the one exception, so "we filed with three gaps in
       March" stays answerable after those gaps are filled
-- [ ] Profile registry with `annex_xii` first (`18.3`) — the obligation in force since Aug 2025
+- [ ] Profile registry with `annex_xii` (`18.3`) — the obligation in force since Aug 2025, and
+      the one profile core ships. The **registry is the seam**: a profile is a table of *their
+      heading ← our field* plus fixtures (`18.2.1`), and nothing about it may require access
+      core does not already publish
 - [ ] Canonical serialization per `11.4.5`, with `bundle.digest` and `bundle.generatedAt`
       **excluded from the hashed form** (a digest cannot cover itself; a timestamp defeats
       reproducibility)
@@ -489,15 +548,14 @@ M15 (the retention floor it echoes) · M16 (review state a filing may cite).
       artifacts under `artifacts/`, fetched through `05` signed URLs
 - [ ] Gap notes as **constants in the binary** (`18.6`), so the same gap reads identically in
       every install and can be matched by a consumer
-- [ ] `annex_iv` profile (`18.4`) — 2 held / 5 partial / 3 not held, and that is the correct
-      result, not a shortfall
 - [ ] Errors: bundle for an unclassified model ⇒ `409 reason:"unclassified"` rather than a
-      bundle with a null class
+      bundle with a null class; unknown profile ⇒ `400` naming the profiles this install has
 - [ ] Console (`18.10`): bundle history with digests and frozen gap counts; **`gapSummary`
       renders as a checklist, never a failure state** — a red badge would train users to
       distrust a truthful bundle
-- [ ] Tests: byte-identical regeneration; gap counts per profile; every not-held section
-      present; zip contents resolve
+- [ ] Tests: byte-identical regeneration across a clock change; `annex_xii` gap counts; every
+      not-held section present with its constant note; zip contents resolve; an out-of-tree
+      fixture profile registers and generates, proving the seam is a seam
 
 ## M15 — Retention, Legal Hold & Audit Sealing ⬜
 
@@ -624,30 +682,39 @@ resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
   version — the normal case — is unaffected; the distribution spec has no portable
   conditional manifest PUT that would fix it properly.
 
-## M18 — Assurance Profiles ⬜
+## M18 — Install-Scope Bundles ⬜ ⧉
 
-**Goal:** ISO/IEC 42001 and NIST AI RMF answered from facts already stored (`21`).
-**Acceptance:** `POST /v1/evidence {profile, asOf}` returns an `18.5` bundle at install scope;
-re-running with the same `asOf` is byte-identical; both profiles report honest partial coverage.
+**Goal:** bundles whose subject is the **install**, not a version (`21.3`) — the one mechanism
+the profile seam did not already have.
+**Acceptance:** `POST /v1/evidence {profile, asOf}` at install scope round-trips through
+`evidence_bundle` with `version_id` null; re-running with the same `asOf` is byte-identical
+across a clock change; a version-scoped profile requested at install scope is refused.
 **Depends on:** M14 (the bundle mechanism). **Phase:** 8.
-**Why first:** it is the cheapest of the three — **zero new tables** — and ISO/IEC 42001 is the
-certificate buyers actually ask to see.
+**⧉ Split (§ Boundary):** `21` is the one compliance doc that is **all profiles and zero
+schema**, so `iso_42001` and `nist_ai_rmf` are commercial. What is left here is the part that
+is a column — and a column can only ever be core.
 
-- [ ] **Install scope** (`21.3`) — the one new mechanism: `subject.scope = "install"`,
-      `evidence_bundle.scope` + nullable `version_id` + `as_of` (`21.7.2`)
+**Scheduling note, and it is the one place the boundary reaches into this file.** The only
+consumers of install scope today are two commercial profiles, so this milestone is
+**demand-triggered**: it lands when the first install-scope profile is scheduled, not before.
+That is the never-needs-a-column rule working as designed — when the commercial tier wants
+schema, core is where it lands, Apache-2.0 like everything else, usable by anyone who writes
+their own profile against it.
+
+- [ ] **Install scope** (`21.3`): `subject.scope = "install"`, `evidence_bundle.scope` +
+      nullable `version_id` + `as_of` (`21.7.2`) — per-dialect migrations, the `02.3.3`
+      single-table discriminator pattern reused
 - [ ] `asOf` **required, never defaulted to now** (`21.3.1`) — a bundle that cannot be
       regenerated is not evidence
-- [ ] `iso_42001` profile — nine control objectives A.2–A.10; **objective identifiers and our
-      evidence only, never ISO control text** (`21.4.1`), which is copyrighted and paywalled
-- [ ] `nist_ai_rmf` profile — mapped at **category** level, not subcategory (`21.5.1`): 72
-      subcategories would produce a document that is mostly `not_held_by_registry`
-- [ ] Wrong-scope request (`annex_iv` at install scope, or the reverse) → `400` with
+- [ ] Wrong-scope request (a version profile at install scope, or the reverse) → `400` with
       `reason:"wrong_scope"`; coercing either would emit a confident, meaningless document
-- [ ] Console: install-scope Compliance page; gap list renders as a checklist, never a score
+- [ ] Console: install-scope Compliance page shell; gap list renders as a checklist, never a
+      score. Renders whatever profiles the install has, including none
 - [ ] Tests: byte-identical regeneration at a fixed `asOf` across a clock change; scope
-      mismatch rejected; **assert zero new tables** — the claim `21.6` makes
+      mismatch rejected both directions; `version_id` null holds on both dialects; an
+      install-scope fixture profile generates end-to-end
 
-## M19 — Model Risk Management ⬜
+## M19 — Model Risk Management ⬜ ⧉
 
 **Goal:** one field set serving SR 26-2, PRA SS1/23 and OSFI E-23 (`20`).
 **Acceptance:** `GET /v1/models?mrmTier=tier_1&mrmState=stale` returns a tier-1 model whose
@@ -656,9 +723,15 @@ production version has had no evaluation since promotion, with reason
 **Depends on:** M13 (the `classification` row), M14 (the bundle). **Phase:** 9.
 **Why it may go first:** the only regime in `15` governing budget that already exists rather
 than a deadline that is coming.
+**⧉ Split (§ Boundary):** the `mrm` bundle profile is commercial. Every fact it reads — tier,
+validations, the monitoring gap — is core, which is the whole argument: **knowing** a tier-1
+model has gone unmonitored is free forever; filing the supervisory pack about it is the
+product.
 
-- [ ] `mrm_tier` + `mrm_basis` on `classification` (`20.8.1`) — collecting on `16.3.1`'s
-      prefixed-column promise; two columns, no migration of what is there
+- [ ] **One new column and one new `regime` value** (`20.8.1`): `mrm_tier` on `classification`,
+      `regime` gains `mrm`, the `16.7.1` CHECK gains a branch. An MRM assessment is the row
+      `(model_id, 'mrm')`. There is **no `mrm_basis`** — the shared `basis` column is answered
+      again on that row, which is what per-regime rows bought (`20.4`)
 - [ ] `out_of_scope` tier with **required basis** — the SR 26-2 genAI carve-out is *declared*,
       never inferred (`20.3`); the registry does not decide what a regulation covers
 - [ ] `validation` table (`20.8.2`) — append-only, a **judgement** not a measurement, kept
@@ -670,18 +743,21 @@ than a deadline that is coming.
       failure all three regimes exist to catch
 - [ ] Independence **evidenced, not enforced** (`20.6`): flag when `validated_by` equals the
       version author; never refuse the write
-- [ ] `mrm` profile (`20.10`) — 3 held / 1 partial / 1 not held
+- [ ] `PUT`/`GET /v1/models/{m}/classifications/mrm`; inventory filter
+      `GET /v1/models?mrmTier=&mrmState=`
 - [ ] Server-set `validatedBy` / `validatedAt`; client-supplied values → `400`
 - [ ] Tests: each stale clause; conditional-without-conditions rejected; latest-row-per-version;
       independence flag on a self-validated version
 
-## M20 — Change Control Plans ⬜
+## M20 — Change Control Plans ⬜ ⧉
 
 **Goal:** a declared change envelope, and conformance against what actually shipped (`22`).
 **Acceptance:** declare a plan allowing `["identical","reweighted"]`, publish a version whose
 `11.4` verdict is `rescaled`, and it appears in `GET /v1/change-plans/conformance?status=outside_plan`
 with its basis — **and the publish is not blocked**.
 **Depends on:** M14, and `11.4` fingerprints. **Phase:** 10.
+**⧉ Split (§ Boundary):** the `pccp` profile is commercial; the `change_plan` table and the
+conformance predicate are core, because they are a column and a query over it.
 
 - [ ] `change_plan` table (`22.6.1`) — append-only; superseding writes a new row and stamps
       `effective_to`, because *which plan was in force when that version shipped* is the question
@@ -694,8 +770,40 @@ with its basis — **and the publish is not blocked**.
 - [ ] `uncovered` ≠ `outside_plan` (`22.4.2`) — a version predating the plan is not a violation
 - [ ] Overlapping live plans rejected with `409 plan_overlap`, so "which plan" stays
       single-valued
-- [ ] `pccp` profile (`22.8`); `basis` on every queue row so a reader sees *why*, not just the label
+- [ ] `basis` on every queue row so a reader sees *why*, not just the label
 - [ ] **Publish is never blocked** (`22.5`) — a registry refusing a publish on a derived legal
       judgement would be wrong often and routed around fast
 - [ ] Tests: each conformance branch; supersession keeps history; overlap rejected; publish
       succeeds while `outside_plan`
+
+---
+
+## M21 — Boundary Guarantees ⬜
+
+**Goal:** make `24` checkable in CI rather than aspirational. Two contracts carry the entire
+open-core split — a configurable actor header and a `/v1` complete enough to rebuild any
+bundle from outside — and both are properties core **already has and must not lose**.
+**Acceptance:** an out-of-tree process, holding no privileged access, rebuilds an `annex_xii`
+bundle byte-for-byte from `/v1` alone; a custom `LINEAGE_ACTOR_HEADER` is honoured end-to-end
+into the audit trail; the tree builds with no feature-gating build tags.
+**Depends on:** M5 (the `/v1` contract) · M14 (something to rebuild).
+**Why this exists:** neither is new work. The risk is a future refactor quietly taking one
+away — a profile that reaches into a private query, or a hard-coded header — and nobody
+noticing until the promise in `24` is already broken.
+
+- [ ] **Rebuild-from-outside test.** A test binary that talks to a live server over HTTP only
+      reconstructs an `annex_xii` bundle and asserts the digest matches `POST …:evidence`. If
+      it ever needs an in-process call, that is a `/v1` gap to close, not a test to relax
+- [ ] **Actor-header conformance test.** A non-default `LINEAGE_ACTOR_HEADER` is honoured;
+      the value is recorded **verbatim** in `audit_event`; core makes no authorisation
+      decision from it (`00.2.4`) — which is exactly why a front door that replaces the header
+      is sufficient, and why core needs no authz hook to support one
+- [ ] Document the header in `03` as an **integration contract**, not a convenience: its name
+      is configurable, its value is trusted, and changing either is a breaking change
+- [ ] **No dormant commercial code**: a CI check that the build has no feature-gating build
+      tags and no licence check anywhere in the tree — the claim `24.1` makes and invites
+      readers to verify
+- [ ] **Never-gated smoke**: the default OSS build starts on Postgres, resolves, fetches,
+      signs URLs and seals an audit epoch — `24.3`'s list, asserted rather than promised
+- [ ] Tests run in CI on every PR, not as a release gate; a boundary checked quarterly is a
+      boundary already broken
