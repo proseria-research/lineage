@@ -47,13 +47,12 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M17 done;
-    class M15,M16,M19,M20,M21 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M15,M17 done;
+    class M16,M19,M20,M21 todo;
 ```
 
-**Next up:** M15 — retention, legal hold and Merkle sealing. With evidence export moved out
-(§ Boundary), the remaining core work is the record itself, and sealing is what makes that
-record worth citing. M16 follows, then M19/M20 by demand.
+**Next up:** M16 — EU modification review, the last of the EU set. Then M19/M20 by demand,
+and M21 whenever there is room: it is what stands behind `24 §4.3` (§ Boundary).
 
 ## Status Summary
 
@@ -78,7 +77,7 @@ reference already written against it.
 | M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
 | M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
 | M13 | EU risk classification & drift | `16` | ✅ |
-| M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
+| M15 | Retention, legal hold, Merkle audit sealing | `19` | ✅ |
 | M16 | EU modification review (Art. 25) | `17` | ⬜ |
 | M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ ⧉ |
 | M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ ⧉ |
@@ -87,7 +86,7 @@ reference already written against it.
 **M14 and M18 are not in this table.** Evidence export (`18`, `21`) moved wholly commercial —
 see [§ Boundary](#boundary). They are tracked in the commercial repo.
 
-**Open work:** M15 and M16, the rest of the EU set specced in `15`–`19` (`ddf4654`; M13 has
+**Open work:** M16, the last of the EU set specced in `15`–`19` (`ddf4654`; M13 and M15 have
 shipped), then M19–M20, the non-EU regimes specced in `20`–`22`, plus **M21, now load-bearing**
 rather than a guard (§ Boundary). No blocked decisions —
 `00.11.11`–`16` are all resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed
@@ -112,7 +111,7 @@ they are the commercial repo's work. M19 and M20 keep everything except their on
 | Milestone | Stays here | Goes there |
 |---|---|---|
 | M13 ✅ | classification, drift predicate, inventory query | — |
-| M15 | retention floor, legal hold, Merkle sealing | — |
+| M15 ✅ | retention floor, legal hold, Merkle sealing | — |
 | M16 | the modification-review queue | — |
 | M19 | `mrm_tier`, `validation`, `stage_changed_at`, the `mrmState` predicate | the `mrm` profile |
 | M20 | `change_plan`, the conformance predicate, the queue | the `pccp` profile |
@@ -137,8 +136,9 @@ kept in the test suite. Same guarantee, and now the only thing standing behind `
 refactor; it is now the sole mechanism keeping the free registry honest about what a paying
 client can do that you cannot.
 
-**One behaviour change to plan for.** M15 makes `DELETE` **refuse** on held or
-retention-floored subjects (`409 failed_precondition`). Every other task in M13–M16 is
+**One behaviour change, now shipped.** M15 makes `DELETE` **refuse** on held or
+retention-floored subjects (`409 failed_precondition`). It is inert on upgrade — the floor
+defaults to `0` and nothing is held until someone places a hold. Every other task in M13–M16 is
 purely additive — new tables, new endpoints, no existing behaviour altered. See §00.11.13.
 
 ---
@@ -517,7 +517,7 @@ resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
 # Compliance & Evidence (M13, M15, M16)
 
 Specced in `15`–`19` (`ddf4654`). `15` is the regime landscape and framing; it ships no code.
-**M13 has shipped; M15 and M16 are next.** M14 left for the commercial repo with the rest of
+**M13 and M15 have shipped; M16 is next.** M14 left for the commercial repo with the rest of
 `18` — the section below is kept as a pointer, not as work.
 
 **The stance, which constrains every task here:** Lineage is an *evidence substrate*, not a
@@ -612,48 +612,43 @@ None of it is built here, and core gains no table or endpoint on its behalf.
 What core still owes it is **`/v1` completeness** — every profile is assembled from outside, so
 a gap in the public API breaks the promise in `24 §4.3`. That obligation is **M21**.
 
-## M15 — Retention, Legal Hold & Audit Sealing ⬜
+## M15 — Retention, Legal Hold & Audit Sealing ✅
 
 **Goal:** evidence survives, and the audit log can prove it was not rewritten (`19`).
-**Acceptance:** `DELETE` on a held model returns `409` with `reason:"legal_hold"`; editing a
-row inside a sealed epoch makes `:verify` report `root_mismatch` at that epoch; deleting one
-makes it report `leaf_count_mismatch`; `:proof` for a sealed row verifies against its root.
-**Depends on:** M2 · M5. Independent of M13 and M16 — schedule by value, not by blockers.
-**Phase:** 4 (hold + floor), 7 (sealing).
+**Acceptance (met):** `DELETE` on a held model returns `409` with `reason:"legal_hold"`;
+editing a row inside a sealed epoch makes `:verify` report `root_mismatch` at that epoch;
+deleting one makes it report `leaf_count_mismatch`; `:proof` for a sealed row verifies against
+its root.
+**Depends on:** M2 · M5. **Phase:** 4 (hold + floor), 7 (sealing).
 
-### 15a — Legal hold & retention floor (phase 4)
+### 15a — Legal hold & retention floor ✅
 
-- [ ] `legal_hold` on `model` / `model_version`; `hold.set` / `hold.release` as **separate
-      audited actions** — clearing a hold is the event an auditor cares about
-- [ ] **⚠ The non-additive change:** `DELETE` refuses on a held subject, or one younger than
-      the configured floor, with `409 failed_precondition` + `details.reason`. Existing
-      teardown automation may need a retry branch (§00.11.13)
-- [ ] Transitive: a hold on a model covers its versions, refused with the model in `heldBy`
-- [ ] Hold blocks **destruction only** — `PATCH`, transitions, and archival still work
-- [ ] Retention config (`19.4`) echoed at `/healthz` **and in every bundle**, so a filing can
-      cite the floor the registry actually ran under; `0` disables and is a real choice
-- [ ] `POST …:hold` / `…:release`; `reason` recorded on the audit event, not the row
+- [x] `held_since` / `held_by` on `model` / `model_version`; `hold.set` / `hold.release` as
+      separate audited actions
+- [x] **⚠ The non-additive change:** `DELETE` refuses on a held subject, or one younger than
+      the configured floor, with `409 failed_precondition` + `details.reason` (§00.11.13)
+- [x] Inheritance **both ways**, refusal naming the holder in `heldSubject`
+- [x] Hold blocks **destruction only** — `PATCH`, transitions, publish and archival still work
+- [x] Retention config echoed at `/healthz` **and `GET /v1/retention`**; `0` disables
+- [x] `POST …:hold` / `…:release`; `reason` recorded on the audit event, not the row
 
-### 15b — Merkle epoch sealing (phase 7)
+### 15b — Merkle epoch sealing ✅
 
-- [ ] `audit_event.epoch = floor(at / sealIntervalMs)` — derived from the row's own clock,
-      **reading no other row**. This is what keeps the write path free of coordination
-- [ ] `audit_epoch` table (`19.6.1`) — one Merkle root per closed window, epochs chained by
-      `prev_root`; append-only and never updated
-- [ ] Background sealer with `sealGraceSeconds`, so a transaction begun inside a window
-      commits before its epoch closes
-- [ ] RFC 6962 construction (`19.5.1`): domain-separated leaf/node hashing, leaves ordered by
-      ULID `id`, odd node promoted
-- [ ] Defaults **on** (`19.5.2`) — the write cost that justified opt-in belonged to the
-      per-row chain design, not to the goal; axiom 7 says auditable by default
-- [ ] `GET /v1/audit:verify` reporting `root_mismatch` / `leaf_count_mismatch` /
-      `prev_root_mismatch`, plus `openEpochSince`
-- [ ] `GET /v1/audit/{id}:proof` — `O(log n)` inclusion path, so a third party verifies one
-      event without reading the log
-- [ ] The open epoch is **reported, not glossed** (`19.5.3`): `:proof` inside it returns
-      `409 reason:"epoch_unsealed"` with `sealsAt`
-- [ ] Tests: tamper detection for edit / delete / whole-epoch removal; proof verification;
-      enabling mid-life starts at the current epoch and does **not** backfill
+- [x] `audit_event.epoch` derived from the row's own clock, **reading no other row**
+- [x] `audit_epoch` table — one root per closed window, chained by `prev_root`, append-only
+- [x] Background sealer with `sealGraceSeconds`
+- [x] Domain-separated leaf/node hashing, leaves ordered by ULID `id`, odd node promoted
+- [x] Defaults **on**
+- [x] `GET /v1/audit:verify`; `GET /v1/audit/{id}:proof`
+- [x] The open epoch is reported, not glossed: `409 reason:"epoch_unsealed"` with `sealsAt`
+- [x] Tests: tamper detection for edit / delete / whole-epoch removal / removal at the head;
+      proof verification; no backfill
+
+### Still open
+
+- [ ] Console (`19.8`): hold marker on detail pages, delete disabled with the reason inline;
+      attestation status on the ops/health view
+- [ ] Helm values for `retention.*` and `auditAttestation.*`
 
 ## M16 — EU Modification Review ⬜
 

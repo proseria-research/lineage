@@ -68,15 +68,15 @@ repository alongside the code. The **Tier** column says which are part of the fr
 | Capability | What it provides | Tier | Status |
 | --- | --- | --- | --- |
 | **Risk classification** | A recorded classification per model and per framework, with the reasoning, the author and the review date attached — and automatic detection when a retrain, a promotion or a lapsed review date leaves it out of date | Free | **Available** |
-| **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | Free | In design |
+| **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | Free | **Available** |
 | **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared | Free | In design |
 | **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | Free | In design |
 | **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | Free | In design |
 | **Evidence export** | Documentation generated in a framework's own structure — EU Annex IV and XII, ISO/IEC 42001, NIST AI RMF, supervisory model risk, FDA change control — with any section the registry cannot supply explicitly identified | Commercial | In design |
 
 If you are evaluating Lineage against a compliance deadline, please plan on the basis of this
-table. The registry, its audit record and risk classification are production-ready; the rest
-is specified and not yet built.
+table. The registry, its audit record, risk classification, and retention and legal hold are
+production-ready; the rest is specified and not yet built.
 
 Note the split: **recording and detecting** are free at every level, including the drift
 detection that is the hard part. What the commercial tier adds is the rendering step — turning
