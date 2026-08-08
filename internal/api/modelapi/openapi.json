@@ -1986,6 +1986,109 @@
           }
         }
       }
+    },
+    "/v1/audit:verify": {
+      "get": {
+        "operationId": "verifyAudit",
+        "tags": [
+          "retention"
+        ],
+        "summary": "Recompute every sealed epoch and check the chain",
+        "description": "A detected break returns 200 with ok:false, not an error status: the request succeeded and the answer is bad news. A 4xx would be indistinguishable from the endpoint itself being broken.",
+        "parameters": [
+          {
+            "name": "fromEpoch",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Lower bound. A bounded scan does not treat its own lower bound as a removed epoch."
+          },
+          {
+            "name": "toEpoch",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Upper bound; omit for unbounded."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification report, clean or broken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "details.reason is attestation_disabled",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit/{id}:proof": {
+      "get": {
+        "operationId": "proveAudit",
+        "tags": [
+          "retention"
+        ],
+        "summary": "Inclusion proof for one audit event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proof",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InclusionProof"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such event",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "details.reason is epoch_unsealed (with sealsAt — the epoch is still open), not_attested (the row predates attestation; permanent), or attestation_disabled",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2818,7 +2921,12 @@
           "summary": {
             "type": "string"
           },
-          "data": {}
+          "data": {},
+          "epoch": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The sealing window this row belongs to (§19.5). Absent means the row is not attested — written before sealing existed, or while it was disabled. Enabling attestation does not backfill."
+          }
         }
       },
       "ModelPage": {
@@ -3898,6 +4006,119 @@
           "minArchivedVersionDays": {
             "type": "integer",
             "description": "Floor DELETE enforces, on both models and versions."
+          }
+        }
+      },
+      "AttestationConfig": {
+        "type": "object",
+        "description": "Merkle epoch sealing configuration (§19.4). On by default.",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "sealIntervalSeconds": {
+            "type": "integer",
+            "description": "Sealing period, and the bound on the unsealed window: rows in the currently-open epoch are not yet protected."
+          },
+          "sealGraceSeconds": {
+            "type": "integer",
+            "description": "Delay past an epoch's end before sealing it, so a transaction begun inside the window commits first. Must be shorter than the interval."
+          }
+        }
+      },
+      "VerifyBreak": {
+        "type": "object",
+        "description": "The first disagreement found. Names what disagreed, because \"the audit log is broken\" is not actionable.",
+        "properties": {
+          "epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "root_mismatch",
+              "leaf_count_mismatch",
+              "prev_root_mismatch"
+            ],
+            "description": "root_mismatch — a row inside the epoch was edited. leaf_count_mismatch — a row was deleted (or added). prev_root_mismatch — an epoch was removed wholesale."
+          },
+          "expected": {
+            "description": "What the seal recorded."
+          },
+          "found": {
+            "description": "What a recompute over the rows present now produced."
+          },
+          "sealedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "VerifyResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "attestationStartedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start of the earliest window any row was covered by. Rows older than this are outside the guarantee — enabling attestation does not backfill, because a backfilled root proves nothing."
+          },
+          "epochsChecked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "leavesChecked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "openEpochSince": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start of the window still accepting writes. Rows in it are NOT yet protected — there is no root to disagree with. Bounded by sealIntervalSeconds, and reported rather than glossed."
+          },
+          "firstBreak": {
+            "$ref": "#/components/schemas/VerifyBreak"
+          }
+        }
+      },
+      "InclusionProof": {
+        "type": "object",
+        "description": "An O(log n) inclusion path, so a third party can verify one event without reading the log.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "leafHash": {
+            "type": "string",
+            "description": "sha256(0x00 ‖ canonical(row)). Included so a verifier can confirm its own canonicalization matches the server's before trusting the path."
+          },
+          "leafIndex": {
+            "type": "integer"
+          },
+          "leafCount": {
+            "type": "integer",
+            "description": "Leaves in the epoch. With leafIndex it determines which side each sibling is on, so the path carries hashes only."
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sibling hashes, leaf to root."
+          },
+          "root": {
+            "type": "string"
+          },
+          "sealedAt": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       }

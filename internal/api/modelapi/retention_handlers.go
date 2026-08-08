@@ -2,6 +2,8 @@ package modelapi
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/proseria-research/lineage/internal/api"
 	"github.com/proseria-research/lineage/internal/domain"
@@ -67,4 +69,56 @@ func (r *Router) holdAction(w http.ResponseWriter, req *http.Request, subjectTyp
 // "what someone believes was configured" is exactly the failure mode §19.4 calls out.
 func (r *Router) retention(w http.ResponseWriter, _ *http.Request) {
 	api.WriteJSON(w, http.StatusOK, r.svc.Retention())
+}
+
+// ---- Attestation (§19.7.2, §19.7.3) ----
+
+//	GET /v1/audit:verify[?fromEpoch=&toEpoch=]
+//	GET /v1/audit/{id}:proof
+
+func (r *Router) verifyAudit(w http.ResponseWriter, req *http.Request) {
+	from := intQuery(req, "fromEpoch")
+	to := intQuery(req, "toEpoch")
+	res, err := r.svc.VerifyAudit(req.Context(), from, to)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	// A detected break is a **200 with ok:false**, not an error status. The request
+	// succeeded; the answer is bad news. A 4xx/5xx here would be indistinguishable from the
+	// endpoint being broken, which is the one confusion a tamper-evidence report cannot
+	// afford.
+	api.WriteJSON(w, http.StatusOK, res)
+}
+
+// auditAction handles `{id}:proof`, parsed from the trailing segment the way model and
+// version colon-actions are (§03.1).
+func (r *Router) auditAction(w http.ResponseWriter, req *http.Request) {
+	seg := req.PathValue("idAction")
+	id, action, ok := strings.Cut(seg, ":")
+	if !ok {
+		api.WriteError(w, domain.Invalid("unknown audit action '"+seg+"'"))
+		return
+	}
+	switch action {
+	case "proof":
+		p, err := r.svc.ProveAudit(req.Context(), id)
+		writeOr(w, http.StatusOK, p, err)
+	default:
+		api.WriteError(w, domain.Invalid("unknown action ':"+action+"'"))
+	}
+}
+
+// intQuery reads a non-negative integer query parameter; absent or unparseable is 0, which
+// every caller treats as "unbounded".
+func intQuery(req *http.Request, key string) int64 {
+	v := req.URL.Query().Get(key)
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }

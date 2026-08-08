@@ -304,3 +304,54 @@ func trimSHA256(s string) string {
 	}
 	return s
 }
+
+// ---- Verification (§19.7.2) ----
+
+// VerifyBreak names the first disagreement found. Reporting *what* disagreed is the point:
+// "the audit log is broken" is not actionable, and "epoch 29738 sealed 17 leaves and now
+// holds 16" tells an operator exactly where to look.
+type VerifyBreak struct {
+	Epoch    int64  `json:"epoch"`
+	Kind     string `json:"kind"`
+	Expected any    `json:"expected,omitempty"`
+	Found    any    `json:"found,omitempty"`
+	SealedAt int64  `json:"sealedAt,omitempty"`
+}
+
+// VerifyResult is :verify's answer.
+//
+// It reports the covered window as well as the verdict. An `ok: true` that quietly omitted
+// what it had *not* checked would be the most misleading answer this endpoint could give —
+// see OpenEpochSince.
+type VerifyResult struct {
+	OK bool `json:"ok"`
+	// AttestationStartedAt is the start of the earliest window any row was covered by
+	// (§19.5.4). Zero when nothing has ever been attested. Rows older than this are outside
+	// the guarantee, and saying so is the honest report — enabling attestation does not
+	// backfill.
+	AttestationStartedAt int64 `json:"attestationStartedAt"`
+	EpochsChecked        int64 `json:"epochsChecked"`
+	LeavesChecked        int64 `json:"leavesChecked"`
+	// OpenEpochSince is the start of the window still accepting writes. Rows in it are **not
+	// yet protected** (§19.5.3) — there is no root to disagree with. That gap is bounded by
+	// sealIntervalSeconds and is the price of keeping coordination off the write path; it is
+	// reported rather than glossed so nobody has to assume it.
+	OpenEpochSince int64        `json:"openEpochSince"`
+	FirstBreak     *VerifyBreak `json:"firstBreak"`
+}
+
+// InclusionProof lets a third party verify one event without reading the log (§19.7.3) —
+// the thing a per-row chain could not do cheaply.
+type InclusionProof struct {
+	ID    string `json:"id"`
+	Epoch int64  `json:"epoch"`
+	// LeafHash is included so a verifier can confirm its own canonicalization of the row
+	// matches the server's before trusting the path. Without it, a mismatch caused by a
+	// disagreement over AuditLeafBytes is indistinguishable from tampering.
+	LeafHash  string   `json:"leafHash"`
+	LeafIndex int      `json:"leafIndex"`
+	LeafCount int      `json:"leafCount"`
+	Path      []string `json:"path"`
+	Root      string   `json:"root"`
+	SealedAt  int64    `json:"sealedAt"`
+}
