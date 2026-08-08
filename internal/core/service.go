@@ -22,6 +22,7 @@ type Service struct {
 	tracer    domain.Tracer
 	signTTL   time.Duration
 	uploadTTL time.Duration
+	retention domain.RetentionConfig // §19.4; zero value = floors disabled, see WithRetention
 
 	mu      sync.Mutex                // guards pending
 	pending map[string]*pendingUpload // in-flight uploads keyed by uploadId (§05.6)

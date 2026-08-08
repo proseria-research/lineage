@@ -67,6 +67,11 @@ func (s *Service) DeleteModel(ctx context.Context, actor, name string, force boo
 	if err != nil {
 		return err
 	}
+	// Evidence first (§19.3.1). Deliberately ahead of the force-able guard below, and
+	// deliberately not force-able itself — see guardDelete.
+	if err := s.guardDelete(ctx, domain.SubjectModel, m.ID); err != nil {
+		return err
+	}
 	if !force {
 		n, err := s.store.CountVersionsInStage(ctx, m.ID, domain.StageProduction)
 		if err != nil {
@@ -127,6 +132,9 @@ func (s *Service) PatchVersion(ctx context.Context, actor, model, version string
 func (s *Service) DeleteVersion(ctx context.Context, actor, model, version string, force bool) error {
 	v, err := s.store.GetVersion(ctx, model, version)
 	if err != nil {
+		return err
+	}
+	if err := s.guardDelete(ctx, domain.SubjectVersion, v.ID); err != nil {
 		return err
 	}
 	if v.Stage == domain.StageProduction && !force {
