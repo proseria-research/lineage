@@ -25,8 +25,9 @@ type Config struct {
 	GC            GCConfig
 	Cache         CacheConfig
 	Tracing       TracingConfig
-	Retention     domain.RetentionConfig // §19.4 — the delete floor, echoed at /healthz and /v1
-	ActorHeader   string                 // trusted identity header for audit (§00 axiom 4)
+	Retention     domain.RetentionConfig   // §19.4 — the delete floor, echoed at /healthz and /v1
+	Attestation   domain.AttestationConfig // §19.5 — Merkle epoch sealing over the audit log
+	ActorHeader   string                   // trusted identity header for audit (§00 axiom 4)
 }
 
 // TracingConfig configures OTLP span export (§09.4). Empty endpoint = tracing off, which is
@@ -134,9 +135,21 @@ func Load() (Config, error) {
 			MinAuditAgeDays:        envIntStrict("LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS", 0, &errs),
 			MinArchivedVersionDays: envIntStrict("LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS", 0, &errs),
 		},
+		// §19.5.2 — on by default. Unlike the retention floor this *is* the binary's default
+		// too: sealing costs one derived integer on the write path, it breaks nothing that
+		// worked before, and axiom 7 says auditable by default. LINEAGE_AUDIT_ATTESTATION=off
+		// turns it off deliberately.
+		Attestation: domain.AttestationConfig{
+			Enabled:             env("LINEAGE_AUDIT_ATTESTATION", "on") != "off",
+			SealIntervalSeconds: envIntStrict("LINEAGE_SEAL_INTERVAL_SECONDS", domain.DefaultAttestation.SealIntervalSeconds, &errs),
+			SealGraceSeconds:    envIntStrict("LINEAGE_SEAL_GRACE_SECONDS", domain.DefaultAttestation.SealGraceSeconds, &errs),
+		},
 		ActorHeader: env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
 	}
 	if err := c.Retention.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := c.Attestation.Validate(); err != nil {
 		errs = append(errs, err)
 	}
 	if len(errs) > 0 {
