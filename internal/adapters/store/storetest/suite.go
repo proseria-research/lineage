@@ -165,18 +165,12 @@ func Run(t *testing.T, store domain.MetadataStore) {
 
 	runInsights(t, store, v15.ID)
 
-	// Risk classifications (§16.7.1). Asserted through a type switch because the SQL
-	// adapters gain ComplianceStore in a later step; once all three have it, the port is
-	// embedded in MetadataStore and this guard goes away.
-	if cs, ok := store.(domain.ComplianceStore); ok {
-		other := &domain.Model{ID: domain.NewID(), Name: "churn-predictor", State: domain.StateActive, CreatedAt: now, UpdatedAt: now}
-		if err := store.CreateModel(ctx, other); err != nil {
-			t.Fatalf("CreateModel for classification isolation: %v", err)
-		}
-		runClassifications(t, cs, m.ID, other.ID)
-	} else {
-		t.Log("adapter does not implement domain.ComplianceStore yet; skipping §16 classification cases")
+	// Risk classifications (§16.7.1).
+	other := &domain.Model{ID: domain.NewID(), Name: "churn-predictor", State: domain.StateActive, CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateModel(ctx, other); err != nil {
+		t.Fatalf("CreateModel for classification isolation: %v", err)
 	}
+	runClassifications(t, store, m.ID, other.ID)
 
 	// Delete a draft version, then the model (cascade).
 	v16 := mkVersion(m.ID, "1.6.0")
