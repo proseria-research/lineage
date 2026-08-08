@@ -80,7 +80,13 @@ type AuditEpoch struct {
 	// evidence of a removal. What proves nothing was removed is that the chain links.
 	PrevRoot  string `json:"prevRoot,omitempty"`
 	LeafCount int64  `json:"leafCount"`
-	SealedAt  int64  `json:"sealedAt"`
+	// IntervalMillis is the window width this root was computed under. Not in §19.6.1, and
+	// the reason it is here: changing sealIntervalSeconds on a log that already has seals
+	// re-numbers future epochs, and a widened interval can produce an index that was sealed
+	// long ago. The extra row would surface as leaf_count_mismatch — indistinguishable from
+	// tampering. Recording the width makes the misconfiguration say what it is.
+	IntervalMillis int64 `json:"intervalMillis"`
+	SealedAt       int64 `json:"sealedAt"`
 }
 
 // EpochOf assigns a row to a window from its own timestamp (§19.5.1). It reads no other row,

@@ -405,9 +405,9 @@ func (s *Store) ListLineage(ctx context.Context, versionID string) ([]*domain.Li
 
 func (s *Store) AppendAudit(ctx context.Context, e *domain.AuditEvent) error {
 	_, err := s.db.ExecContext(ctx, s.rb(
-		`INSERT INTO audit_event (id,at,actor,action,subject_type,subject_id,summary,data)
-		 VALUES (?,?,?,?,?,?,?,?)`),
-		e.ID, e.At, e.Actor, e.Action, e.SubjectType, e.SubjectID, e.Summary, jsonText(e.Data))
+		`INSERT INTO audit_event (`+auditCols+`)
+		 VALUES (?,?,?,?,?,?,?,?,?)`),
+		e.ID, e.At, e.Actor, e.Action, e.SubjectType, e.SubjectID, e.Summary, jsonText(e.Data), epochArg(e.Epoch))
 	return err
 }
 
@@ -509,7 +509,7 @@ func (s *Store) DeleteDeployment(ctx context.Context, id string) error {
 // ---- Audit feed ----
 
 func (s *Store) ListAudit(ctx context.Context, subjectType, subjectID string, o domain.ListOptions) ([]*domain.AuditEvent, string, error) {
-	q := `SELECT id,at,actor,action,subject_type,subject_id,summary,data FROM audit_event WHERE 1=1`
+	q := `SELECT ` + auditCols + ` FROM audit_event WHERE 1=1`
 	var args []any
 	if subjectType != "" {
 		q += ` AND subject_type=?`
@@ -616,10 +616,17 @@ func scanDeployment(sc scanner) (*domain.Deployment, error) {
 func scanAudit(sc scanner) (*domain.AuditEvent, error) {
 	var e domain.AuditEvent
 	var data sql.NullString
-	if err := sc.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.SubjectType, &e.SubjectID, &e.Summary, &data); err != nil {
+	var epoch sql.NullInt64
+	if err := sc.Scan(&e.ID, &e.At, &e.Actor, &e.Action, &e.SubjectType, &e.SubjectID, &e.Summary, &data, &epoch); err != nil {
 		return nil, err
 	}
 	e.Data = fromNull(data)
+	// NULL is "not attested" and must stay nil: 0 is a real epoch, so defaulting would make
+	// an uncovered row look sealed (§19.6).
+	if epoch.Valid {
+		v := epoch.Int64
+		e.Epoch = &v
+	}
 	return &e, nil
 }
 
