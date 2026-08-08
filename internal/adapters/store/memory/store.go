@@ -61,7 +61,7 @@ func (s *Store) CreateModel(_ context.Context, m *domain.Model) error {
 	if _, ok := s.modelByNm[m.Name]; ok {
 		return domain.Exists("model '" + m.Name + "' already exists")
 	}
-	s.models[m.ID] = m
+	s.models[m.ID] = deepCopy(m)
 	s.modelByNm[m.Name] = m.ID
 	return nil
 }
@@ -69,9 +69,12 @@ func (s *Store) CreateModel(_ context.Context, m *domain.Model) error {
 func (s *Store) GetModel(_ context.Context, nameOrID string) (*domain.Model, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.lookupModel(nameOrID)
+	m, err := s.lookupModel(nameOrID)
+	return deepCopy(m), err
 }
 
+// lookupModel returns the *live* row. It is internal-only: every exported read copies before
+// handing the result out (see clone.go).
 func (s *Store) lookupModel(nameOrID string) (*domain.Model, error) {
 	if id, ok := s.modelByNm[nameOrID]; ok {
 		return s.models[id], nil
@@ -103,7 +106,7 @@ func (s *Store) ListModels(_ context.Context, o domain.ListOptions) ([]*domain.M
 	}
 	sortByCreated(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID })
 	items, next := domain.Page(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID }, o.PageToken, o.PageSize)
-	return items, next, nil
+	return deepCopyAll(items), next, nil
 }
 
 func (s *Store) UpdateModel(_ context.Context, m *domain.Model) error {
@@ -113,12 +116,13 @@ func (s *Store) UpdateModel(_ context.Context, m *domain.Model) error {
 	if !ok {
 		return domain.NotFound("model not found")
 	}
+	stored := deepCopy(m)
 	// The hold is not a writable field: only SetHold moves it (§19.3.1). This adapter swaps
 	// the whole entity, so without carrying it over, any metadata PATCH built from a copy
 	// taken before the hold — or one that simply left the field nil — would release it. The
 	// SQL adapters get this from the column list; here it has to be explicit.
-	m.LegalHold = cur.LegalHold
-	s.models[m.ID] = m
+	stored.LegalHold = cur.LegalHold
+	s.models[m.ID] = stored
 	return nil
 }
 
@@ -159,7 +163,7 @@ func (s *Store) CreateVersion(_ context.Context, v *domain.ModelVersion) error {
 			v.Model = m.Name
 		}
 	}
-	s.versions[v.ID] = v
+	s.versions[v.ID] = deepCopy(v)
 	return nil
 }
 
@@ -172,7 +176,7 @@ func (s *Store) GetVersion(_ context.Context, model, version string) (*domain.Mo
 	}
 	for _, v := range s.versions {
 		if v.ModelID == m.ID && v.Name == version {
-			return v, nil
+			return deepCopy(v), nil
 		}
 	}
 	return nil, domain.NotFound("version '" + version + "' not found")
@@ -182,7 +186,7 @@ func (s *Store) GetVersionByID(_ context.Context, id string) (*domain.ModelVersi
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if v, ok := s.versions[id]; ok {
-		return v, nil
+		return deepCopy(v), nil
 	}
 	return nil, domain.NotFound("version '" + id + "' not found")
 }
@@ -212,7 +216,7 @@ func (s *Store) ListVersions(_ context.Context, model string, o domain.ListOptio
 	}
 	sortByCreated(out, func(v *domain.ModelVersion) (int64, string) { return v.CreatedAt, v.ID })
 	items, next := domain.Page(out, func(v *domain.ModelVersion) (int64, string) { return v.CreatedAt, v.ID }, o.PageToken, o.PageSize)
-	return items, next, nil
+	return deepCopyAll(items), next, nil
 }
 
 func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
@@ -222,8 +226,9 @@ func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
 	if !ok {
 		return domain.NotFound("version not found")
 	}
-	v.LegalHold = cur.LegalHold // not writable through an update; see UpdateModel
-	s.versions[v.ID] = v
+	stored := deepCopy(v)
+	stored.LegalHold = cur.LegalHold // not writable through an update; see UpdateModel
+	s.versions[v.ID] = stored
 	return nil
 }
 
@@ -329,7 +334,7 @@ func (s *Store) Resolve(_ context.Context, model string, sel domain.Selector) (*
 		return nil, domain.Precondition("no version matches selector", nil)
 	}
 	sort.Slice(match, func(i, j int) bool { return match[i].CreatedAt > match[j].CreatedAt })
-	return match[0], nil // newest wins for non-singleton
+	return deepCopy(match[0]), nil // newest wins for non-singleton
 }
 
 // ---- Artifacts ----
@@ -353,7 +358,7 @@ func (s *Store) CreateArtifact(_ context.Context, a *domain.Artifact) error {
 			return domain.Exists("artifact '" + a.Name + "' already exists")
 		}
 	}
-	s.artifacts[a.ID] = a
+	s.artifacts[a.ID] = deepCopy(a)
 	return nil
 }
 
@@ -362,7 +367,7 @@ func (s *Store) GetArtifact(_ context.Context, versionID, name string) (*domain.
 	defer s.mu.RUnlock()
 	for _, a := range s.artifacts {
 		if a.VersionID == versionID && a.Name == name {
-			return a, nil
+			return deepCopy(a), nil
 		}
 	}
 	return nil, domain.NotFound("artifact '" + name + "' not found")
@@ -378,7 +383,7 @@ func (s *Store) ListArtifacts(_ context.Context, versionID string) ([]*domain.Ar
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
+	return deepCopyAll(out), nil
 }
 
 func (s *Store) UpdateArtifact(_ context.Context, a *domain.Artifact) error {
@@ -387,7 +392,7 @@ func (s *Store) UpdateArtifact(_ context.Context, a *domain.Artifact) error {
 	if _, ok := s.artifacts[a.ID]; !ok {
 		return domain.NotFound("artifact not found")
 	}
-	s.artifacts[a.ID] = a
+	s.artifacts[a.ID] = deepCopy(a)
 	return nil
 }
 
@@ -406,7 +411,7 @@ func (s *Store) DeleteArtifact(_ context.Context, id string) error {
 func (s *Store) AddLineageEdge(_ context.Context, e *domain.LineageEdge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.lineage[e.ID] = e
+	s.lineage[e.ID] = deepCopy(e)
 	return nil
 }
 
@@ -419,7 +424,7 @@ func (s *Store) ListLineage(_ context.Context, versionID string) ([]*domain.Line
 			out = append(out, e)
 		}
 	}
-	return out, nil
+	return deepCopyAll(out), nil
 }
 
 func (s *Store) DeleteLineageEdge(_ context.Context, id, versionID string) error {
@@ -438,7 +443,7 @@ func (s *Store) DeleteLineageEdge(_ context.Context, id, versionID string) error
 func (s *Store) CreateDeployment(_ context.Context, d *domain.Deployment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.deployments[d.ID] = d
+	s.deployments[d.ID] = deepCopy(d)
 	return nil
 }
 
@@ -446,7 +451,7 @@ func (s *Store) GetDeployment(_ context.Context, id string) (*domain.Deployment,
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if d, ok := s.deployments[id]; ok {
-		return d, nil
+		return deepCopy(d), nil
 	}
 	return nil, domain.NotFound("deployment '" + id + "' not found")
 }
@@ -461,7 +466,7 @@ func (s *Store) ListDeployments(_ context.Context, versionID string) ([]*domain.
 		}
 	}
 	sortByCreated(out, func(d *domain.Deployment) (int64, string) { return d.CreatedAt, d.ID })
-	return out, nil
+	return deepCopyAll(out), nil
 }
 
 func (s *Store) UpdateDeployment(_ context.Context, d *domain.Deployment) error {
@@ -470,7 +475,7 @@ func (s *Store) UpdateDeployment(_ context.Context, d *domain.Deployment) error 
 	if _, ok := s.deployments[d.ID]; !ok {
 		return domain.NotFound("deployment not found")
 	}
-	s.deployments[d.ID] = d
+	s.deployments[d.ID] = deepCopy(d)
 	return nil
 }
 
@@ -487,7 +492,7 @@ func (s *Store) DeleteDeployment(_ context.Context, id string) error {
 func (s *Store) AppendAudit(_ context.Context, e *domain.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.audit = append(s.audit, e)
+	s.audit = append(s.audit, deepCopy(e))
 	return nil
 }
 
@@ -506,7 +511,7 @@ func (s *Store) ListAudit(_ context.Context, subjectType, subjectID string, o do
 	}
 	sortByCreated(out, func(e *domain.AuditEvent) (int64, string) { return e.At, e.ID })
 	items, next := domain.Page(out, func(e *domain.AuditEvent) (int64, string) { return e.At, e.ID }, o.PageToken, o.PageSize)
-	return items, next, nil
+	return deepCopyAll(items), next, nil
 }
 
 // ---- helpers ----
