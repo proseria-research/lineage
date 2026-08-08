@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ClassifyDialog } from "@/components/ClassifyDialog";
 import type { Classification, ClassificationState, EUSystemRiskClass, StaleReason } from "@/lib/api";
 
 // Risk-classification rendering (§16.9). Three rules run through everything here:
@@ -38,10 +41,14 @@ export const STALE_REASON_TEXT: Record<StaleReason, string> = {
   derivation_since: "a modification review was opened since it was classified",
 };
 
+/** A badge for a bare class value, for headings and legends that have no row behind them. */
+export function ClassBadge({ cls }: { cls: EUSystemRiskClass }) {
+  return <Badge variant={CLASS_VARIANT[cls]}>{CLASS_LABEL[cls]}</Badge>;
+}
+
 /** The declared class, or an explicit `unclassified` when there is no row. */
 export function RiskClassBadge({ c }: { c: Classification | null }) {
-  const cls: EUSystemRiskClass = c?.euSystemRiskClass ?? "unclassified";
-  return <Badge variant={CLASS_VARIANT[cls]}>{CLASS_LABEL[cls]}</Badge>;
+  return <ClassBadge cls={c?.euSystemRiskClass ?? "unclassified"} />;
 }
 
 /**
@@ -91,15 +98,49 @@ const fmt = (ms?: number) => (ms ? new Date(ms).toISOString().slice(0, 10) : "�
  * The Compliance panel (§16.9). Shown on the version page, where the question is whether
  * the model being promoted is governed and whether that assessment still holds.
  */
-export function CompliancePanel({ c }: { c: Classification | null }) {
+export function CompliancePanel({
+  c,
+  model,
+  onSaved,
+}: {
+  c: Classification | null;
+  // When given, the panel can be acted on where it is read — a reader who notices a stale
+  // classification on the page they are about to promote from should not have to go
+  // elsewhere to fix it.
+  model?: string;
+  onSaved?: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const action = model ? (
+    <Button size="sm" variant={c ? "outline" : "default"} onClick={() => setEditing(true)}>
+      {c ? "Re-classify" : "Classify"}
+    </Button>
+  ) : null;
+  const dialog =
+    model && editing ? (
+      <ClassifyDialog
+        model={model}
+        current={c}
+        onClose={() => setEditing(false)}
+        onSaved={() => {
+          setEditing(false);
+          onSaved?.();
+        }}
+      />
+    ) : null;
+
   if (!c) {
     return (
       <div className="border border-border p-4">
-        <div className="mb-2 text-sm font-medium">Compliance · EU AI Act</div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium">Compliance · EU AI Act</div>
+          {action}
+        </div>
         <p className="text-sm text-muted-foreground">
           Not classified. Nobody has stated a risk class for this model — which is a real
           answer, not a low one.
         </p>
+        {dialog}
       </div>
     );
   }
@@ -110,9 +151,10 @@ export function CompliancePanel({ c }: { c: Classification | null }) {
           one (§16.9), and the reader should never have to guess whose rulebook this is. */}
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-medium">Compliance · EU AI Act</div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <RiskClassBadge c={c} />
           <StaleBadge state={c.state} />
+          {action}
         </div>
       </div>
 
@@ -151,6 +193,7 @@ export function CompliancePanel({ c }: { c: Classification | null }) {
           </ul>
         </div>
       )}
+      {dialog}
     </div>
   );
 }
