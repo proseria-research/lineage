@@ -64,3 +64,25 @@ func copyClassification(c *domain.RiskClassification) *domain.RiskClassification
 	}
 	return &cp
 }
+
+// DriftFactsFor mirrors the sqlstore aggregate: the newest version's creation time, and the
+// production version's last update (production is a singleton stage, §02.4). Zero means no
+// such version, which the §16.5 predicate reads as an absent fact.
+func (s *Store) DriftFactsFor(_ context.Context, modelID string) (domain.DriftFacts, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var f domain.DriftFacts
+	for _, v := range s.versions {
+		if v.ModelID != modelID {
+			continue
+		}
+		if v.CreatedAt > f.LatestVersionCreatedAt {
+			f.LatestVersionCreatedAt = v.CreatedAt
+		}
+		if v.Stage == domain.StageProduction && v.UpdatedAt > f.LatestProductionUpdatedAt {
+			f.LatestProductionUpdatedAt = v.UpdatedAt
+		}
+	}
+	// LatestOpenReviewCreatedAt stays zero until M16 (`17.4`).
+	return f, nil
+}

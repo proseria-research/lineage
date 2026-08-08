@@ -225,3 +225,28 @@ func stringsOf[T ~string](in []T) []string {
 	}
 	return out
 }
+
+// ---- Read model (§16.8.2) ----
+
+// ClassificationView is a stored row plus the state computed from it at read time (§16.5).
+// The two are separate types on purpose: State and StaleReasons are derived, never stored,
+// and giving the entity fields for them would create somewhere for a stale copy to live.
+//
+// It embeds by value for field access, but defines its own MarshalJSON — the embedded
+// RiskClassification has one, and a promoted MarshalJSON would otherwise hijack the encode
+// and silently drop the two fields this type exists to add.
+type ClassificationView struct {
+	RiskClassification
+	State        ClassificationState `json:"state"`
+	StaleReasons []string            `json:"staleReasons,omitempty"`
+}
+
+func (v ClassificationView) MarshalJSON() ([]byte, error) {
+	type inner RiskClassification
+	return json.Marshal(struct {
+		inner
+		Source       FactSource          `json:"source"`
+		State        ClassificationState `json:"state"`
+		StaleReasons []string            `json:"staleReasons,omitempty"`
+	}{inner(v.RiskClassification), RiskClassificationSource, v.State, v.StaleReasons})
+}
