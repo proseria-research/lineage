@@ -253,3 +253,9 @@ func (s *tracedStore) ListClassifications(ctx context.Context, modelID string) (
 		return s.next.ListClassifications(c, modelID)
 	})
 }
+
+func (s *tracedStore) DriftFactsFor(ctx context.Context, modelID string) (domain.DriftFacts, error) {
+	return do1(ctx, s.t, "store.DriftFactsFor", func(c context.Context) (domain.DriftFacts, error) {
+		return s.next.DriftFactsFor(c, modelID)
+	})
+}

@@ -107,3 +107,24 @@ func nullEnum(v string) any {
 	}
 	return v
 }
+
+// DriftFactsFor gathers the §16.5 aggregates in one pass over the model's versions. Both
+// MAXes come from the same scan, which the (model_id, stage) index from §02.6 already
+// supports — §16.5's claim that staleness stays a list query rather than a per-row audit
+// scan rests on this staying one statement.
+//
+// COALESCE to 0 means "no such row", which the predicate reads as an absent fact.
+func (s *Store) DriftFactsFor(ctx context.Context, modelID string) (domain.DriftFacts, error) {
+	var f domain.DriftFacts
+	err := s.db.QueryRowContext(ctx, s.rb(`
+		SELECT COALESCE(MAX(created_at), 0),
+		       COALESCE(MAX(CASE WHEN stage = 'production' THEN updated_at END), 0)
+		FROM model_version WHERE model_id = ?`), modelID,
+	).Scan(&f.LatestVersionCreatedAt, &f.LatestProductionUpdatedAt)
+	if err != nil {
+		return domain.DriftFacts{}, err
+	}
+	// LatestOpenReviewCreatedAt stays zero until M16 adds modification_review (`17.4`).
+	// Zero is also the honest answer for an install with no open reviews.
+	return f, nil
+}

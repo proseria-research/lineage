@@ -23,4 +23,12 @@ type ComplianceStore interface {
 	// ListClassifications returns every regime's row for a model, ordered by regime so the
 	// response is stable across adapters and reruns.
 	ListClassifications(ctx context.Context, modelID string) ([]*RiskClassification, error)
+	// DriftFactsFor gathers the aggregates the §16.5 clauses measure against. It lives here
+	// rather than on VersionStore because it is a compliance-shaped question that happens to
+	// read model_version — and keeping it beside its only consumer is what lets the drift
+	// predicate stay a pure function (§16.5.1).
+	//
+	// It is regime-independent: every clause compares against the *caller's* ClassifiedAt,
+	// so one fetch serves every regime's row for a model.
+	DriftFactsFor(ctx context.Context, modelID string) (DriftFacts, error)
 }
