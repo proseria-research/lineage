@@ -5,10 +5,11 @@
 > asks for records asks for them to still exist. Only the **default values** (3650 days, §4)
 > cite Art. 18, and those are config, not schema. Rule in `15.4.3`.
 >
-> Status: **Proposed**. Both decisions resolved — `00.11.13` ✅ deletion **refuses**;
+> Status: **Implemented** (M15). Both decisions resolved — `00.11.13` ✅ deletion **refuses**;
 > `00.11.14` ✅ tamper-evidence by **Merkle epoch sealing**, on by default. Makes evidence
 > survive: deletion refuses where the law requires retention, and the audit log proves it was
-> not rewritten. Posture is `15`; the bundle that cites the floor is `18`.
+> not rewritten. Posture is `15`. The floor is reported at `/healthz` **and**
+> `GET /v1/retention` (§4).
 
 ## 1. Scope
 
@@ -30,7 +31,7 @@ deletion — the spirit is there. Three gaps:
 | Gap | Addition |
 |---|---|
 | Deletion can destroy evidence | `legal_hold` on `model` / `model_version` (§3) |
-| No stated floor | Config keys (§4), reported at `/healthz` and in every bundle |
+| No stated floor | Config keys (§4), reported at `/healthz` and `GET /v1/retention` |
 | No tamper evidence | Merkle epoch sealing (§5) |
 
 ## 3. Legal Hold (`00.11.13` ✅)
@@ -44,9 +45,27 @@ exactly one thing.
   Clearing a hold is the event an auditor cares about, so it is never implicit and never a
   side effect of another operation.
 - **`DELETE` on a held subject ⇒ `409 failed_precondition`** with
-  `details: { reason: "legal_hold", heldSince, heldBy }`.
-- **Transitive down.** A hold on a `model` covers its versions; deleting a version under a
-  held model is refused with the model named in `details.heldBy`.
+  `details: { reason: "legal_hold", heldSince, heldBy }`. `heldBy` is the **actor** who set
+  it, as everywhere else in the system (`00.2.4`).
+- **`?force=true` overrides neither guard.** `03.4`'s force exists for the production-version
+  check, which protects an operator from their own mistake; a hold protects evidence *from*
+  the operator, and a flag that clears it is not a hold. The floor is excluded for a narrower
+  reason: an override that leaves no trace is not an override anyone can audit, and one flag
+  must not mean both "yes, I know it is in production" and "yes, I know it is legally
+  retained". They are independent checks, and the evidence guard runs first so a refusal never
+  offers a `force` hint that would not work.
+- **Inheritance runs both ways**, because both directions destroy evidence. The refusal names
+  the holder in `details.heldSubject` (`model/fraud-detector`, `version/fraud-detector@3`) —
+  without it the caller is told no and given nothing to release. A subject's **own** hold wins
+  when both apply: it is the more specific statement, and `heldSubject` is then absent.
+  - *down* — a hold on a `model` refuses deleting its versions.
+  - *up* — a hold on any version refuses deleting the model, whose cascade would destroy it.
+    This is the larger destruction of the two.
+- **Re-holding a held subject is refused** (`already_held`), not treated as a refresh. The date
+  a hold was placed is evidence; moving it forward silently would rewrite it.
+- **A reason is required in both directions.** It is one string, the event is permanent, and a
+  release with no recorded reason is exactly the record an auditor asks about and nobody can
+  reconstruct.
 - **Blocks destruction only.** Metadata `PATCH`, stage transitions, and archival all still
   work. A held model keeps moving through its lifecycle — a hold is not a freeze.
 - **Independent of `state`.** `model.state = ARCHIVED` is lifecycle; `legal_hold` is
@@ -54,8 +73,8 @@ exactly one thing.
 
 ```mermaid
 flowchart TB
-    d["DELETE /v1/models/{m}"] --> h{"legal_hold<br/>on model or ancestor?"}
-    h -->|yes| r1["<b>409</b> reason: legal_hold<br/>heldSince · heldBy"]
+    d["DELETE /v1/models/{m}"] --> h{"legal_hold on the subject,<br/>an ancestor, or anything<br/>the cascade destroys?"}
+    h -->|yes| r1["<b>409</b> reason: legal_hold<br/>heldSince · heldBy · heldSubject?"]
     h -->|no| f{"younger than<br/>retention floor? (§4)"}
     f -->|yes| r2["<b>409</b> reason: retention_floor<br/>floorDays · ageDays"]
     f -->|no| ok["delete, cascade per 02.5"]
@@ -78,16 +97,36 @@ compliance:
   auditAttestation:
     enabled: true                  # §5.2 — on by default; costs nothing on the write path
     sealIntervalSeconds: 60        # §5.3 — also the unsealed-window bound
-    sealGraceSeconds: 5
+    sealGraceSeconds: 5              # §5.5 — must be shorter than the interval
 ```
+
+Env equivalents: `LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS`,
+`LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS`, `LINEAGE_AUDIT_ATTESTATION` (`on`/`off`),
+`LINEAGE_SEAL_INTERVAL_SECONDS`, `LINEAGE_SEAL_GRACE_SECONDS`. All parse strictly — a value
+nobody can interpret fails startup rather than silently becoming a default, because a typo in
+a retention floor would otherwise turn into an install with no floor at all.
 
 - A `DELETE` targeting a subject younger than the floor is refused exactly like a hold, with
   `details.reason = "retention_floor"`, `floorDays`, `ageDays`.
-- `/healthz` and **every bundle** echo the configured values (`18.5` →
-  `bundle.retentionFloor`), so a filing can cite the floor the registry was actually running
-  under rather than the one someone believes was configured.
-- `0` disables a floor. It is a real choice for a dev install and must not be confused with an
-  unset value — the chart's default is `3650`, not empty.
+- **The floor measures the youngest record the delete would destroy**, not the subject's own
+  age. A model predates all of its versions, so measuring the model would let a decade-old one
+  be deleted the day after it published a version — cascading away a record one day into a
+  ten-year floor.
+- **`minAuditAgeDays` is reported, not enforced.** Nothing in core deletes an audit event
+  (`02.5` invariant 5 already retains them past their subject), so there is no guard to attach
+  it to. It is the number a filing cites.
+- `/healthz` **and `GET /v1/retention`** echo the configured values, so a filing can cite the
+  floor the registry was actually running under rather than the one someone believes was
+  configured. It is on `/v1` and not only the ops port because every fact must be reachable
+  through the public API — a client reading over HTTP has no access to `/healthz`.
+- `0` disables a floor. It is a real choice and must not be confused with an unset value. A
+  negative value is a startup error, never read as "extra disabled".
+- **The binary's own default is `0`; every way of actually running Lineage sets `3650`** — the
+  chart, and `make run`. The zero default exists so a `Service` built by a test or an
+  embedding program imposes nothing it was not asked to, not as the experience anyone gets.
+- **Starting over is a fresh registry, not a batch of deletes.** Nothing overrides the floor,
+  so a tool that needs an empty registry gets one by discarding state, not by asking the
+  registry to destroy retained records. The seed loader is additive for exactly this reason.
 
 ## 5. Tamper-Evident Audit — Merkle Epoch Sealing (`00.11.14` ✅)
 
@@ -125,10 +164,16 @@ internal node:
 ```
 leaf(row)      = sha256( 0x00 ‖ canonical(row) )
 node(l, r)     = sha256( 0x01 ‖ l ‖ r )
-canonical(row) = at ‖ actor ‖ action ‖ subject_type ‖ subject_id ‖ data
+canonical(row) = id ‖ at ‖ actor ‖ action ‖ subject_type ‖ subject_id ‖ summary ‖ data
 ```
 
-Fields joined with `\x00` and canonicalized per `11.4.5`. Leaves are ordered by `audit_event.id`
+Fields joined with `\x00` and canonicalized per `11.4.5`.
+
+**The leaf commits to the whole row.** Anything left out can be rewritten while the log still
+verifies clean. `summary` is the line a human reads in the console; omitting it would allow
+every entry to be silently reworded. `id` is what an inclusion proof is looked up by. `epoch`
+is the one column deliberately excluded — moving a row between windows changes both leaf sets,
+so membership already covers it. Leaves are ordered by `audit_event.id`
 byte-wise ascending — ULIDs are already sortable by creation time (`02.1`), so the order is
 deterministic without a sequence. An odd node is promoted unchanged to the next level.
 
@@ -170,8 +215,26 @@ Attestation enabled after the fact **starts at the current epoch**. It does not 
 backfilled root proves nothing, since whoever could rewrite history could recompute the root
 over the rewrite.
 
-`:verify` reports `attestationStartedAt`, so the covered window is explicit rather than
-implied by the table's existence.
+`:verify` reports `attestationStartedAt`, derived from the earliest window any row actually
+carries — not a stored "enabled at", which would be a claim rather than a fact.
+
+### 5.5 Changing `sealIntervalSeconds` after sealing
+
+Re-numbering windows on a log that already has seals is a footgun, and a quiet one. A
+**widened** interval produces lower epoch indices, so a new row can land in a window sealed
+long ago; the extra leaf surfaces as `leaf_count_mismatch`, which reads exactly like tampering.
+
+Each `audit_epoch` therefore records the `interval_ms` its root was computed under, and the
+sealer **refuses to seal** when the configured interval differs from the last seal's
+(`reason: "seal_interval_changed"`). Refusing costs nothing — the rows are still there, and
+sealing resumes as soon as the interval is restored or the operator commits to the new one
+deliberately.
+
+Already-sealed epochs are unaffected either way: `epoch` is stored on the row at write and
+never recomputed, so a window's membership cannot change under it.
+
+`sealGraceSeconds` must be **shorter** than `sealIntervalSeconds`. Equal or longer means a
+window is still accepting writes when the next is due to seal.
 
 ## 6. Data Model
 
@@ -179,9 +242,20 @@ Additive columns on existing tables; no table changes shape (`02.7`).
 
 | Table | Column | Notes |
 |---|---|---|
-| `model` | `legal_hold` bool | default false (§3) |
-| `model_version` | `legal_hold` bool | default false |
-| `audit_event` | `epoch` int64? | `floor(at / sealIntervalMs)`, set at write. Null only for rows predating §5 |
+| `model` | `held_since` int64?, `held_by` str | NULL `held_since` **is** "not held" (§3) |
+| `model_version` | `held_since` int64?, `held_by` str | same |
+| `audit_event` | `epoch` int64? | `floor(at / sealIntervalMs)`, set at write. NULL = not attested — predates §5, or written while it was off |
+
+**There is no `legal_hold` boolean.** A flag beside a timestamp is two encodings of one fact,
+and an update that clears one and not the other leaves a row held by one column and free by
+the other. One nullable column cannot be half-set. It also avoids a portability wart: SQLite
+has no boolean and Postgres will not take `DEFAULT 0` for one.
+
+**`epoch` is NULL, never 0, when unattested.** 0 is a real epoch — the first minute of 1970 —
+so a defaulted zero would make a row that was never covered read as sealed.
+
+The hold columns appear in no `INSERT` and no `UPDATE` set-list; only `:hold` / `:release`
+write them. That is the schema half of "a `PATCH` can never set or clear a hold".
 
 ### 6.1 `audit_epoch` (one row per sealed window)
 
@@ -189,9 +263,13 @@ Additive columns on existing tables; no table changes shape (`02.7`).
 |---|---|---|
 | `epoch` | int64 | **PK** — the window index (§5.1) |
 | `root` | str | `sha256:` Merkle root over the epoch's leaves |
-| `prev_root` | str? | previous epoch's `root`; null at `attestationStartedAt` |
+| `prev_root` | str? | the previous **sealed** epoch's `root`, not epoch−1's; null at `attestationStartedAt` |
 | `leaf_count` | int64 | rows sealed — deletion changes this as well as the root |
+| `interval_ms` | int64 | the window width this root was computed under (§5.5) |
 | `sealed_at` | ts | |
+
+Empty windows are never sealed, so the chain **skips** them and a gap in epoch numbers is
+normal. What proves nothing was removed is that the chain links.
 
 Append-only and never updated. A sealed epoch is immutable by construction: re-sealing would
 be indistinguishable from tampering.
@@ -212,10 +290,17 @@ scanned.
 Model API (`:8081`, `/v1`), conventions per `03.1`.
 
 ```
-POST /v1/models/{m}:hold          ·  POST /v1/models/{m}:release
+POST /v1/models/{m}:hold               ·  POST /v1/models/{m}:release
 POST /v1/models/{m}/versions/{v}:hold  ·  …:release
+GET  /v1/retention
 GET  /v1/audit:verify
+GET  /v1/audit/{id}:proof
 ```
+
+A subject's own hold rides on the entity (`model.legalHold`, `modelVersion.legalHold`), so
+every existing `GET` already carries it and the console needs no second call. Inheritance is
+resolved at the delete guard and never written onto rows — releasing a model leaves no stale
+marks on its versions.
 
 Audit actions: `hold.set`, `hold.release` (`02.5` invariant 4).
 
@@ -239,6 +324,9 @@ GET /v1/audit:verify[?fromEpoch=&toEpoch=]
 Recomputes each sealed epoch's root from its rows and compares, then checks `prev_root`
 linkage between epochs.
 
+A detected break is **`200` with `ok: false`**, not an error status: the request succeeded and
+the answer is bad news. A `4xx` would be indistinguishable from the endpoint being broken.
+
 ```json
 { "ok": true,
   "attestationStartedAt": 1780000000000,
@@ -249,8 +337,15 @@ linkage between epochs.
 ```
 
 A break names the epoch and what disagreed — `root_mismatch` (a row was edited),
-`leaf_count_mismatch` (a row was deleted), or `prev_root_mismatch` (an epoch was removed
-wholesale):
+`leaf_count_mismatch` (a row was deleted or added), or `prev_root_mismatch` (an epoch was
+removed wholesale). Leaf count is reported in preference to the root when both changed:
+"17 sealed, 16 present" is the sharper diagnosis.
+
+**A full scan also checks that the first epoch has no `prev_root`.** The chain catches an
+epoch removed from the middle, because its successor stops matching. It cannot catch one
+removed from the *head* — there is no later epoch to disagree, and every survivor still
+verifies alone. The genesis check is the only thing that does. A bounded scan (`fromEpoch`)
+skips it, since there the predecessor is legitimately out of range.
 
 ```json
 { "ok": false,
@@ -268,6 +363,11 @@ Returns the `O(log n)` inclusion path — the sibling hashes from leaf to root, 
 sealed `root`. Lets a third party verify one event without reading the log, which is the thing
 a per-row chain could not do cheaply.
 
+Which side each sibling is on follows from `leafIndex` and `leafCount`, so the path carries
+hashes only. The response also carries `leafHash`, so a verifier can confirm its own
+canonicalization of the row matches before concluding anything — without it, a disagreement
+over §5.1 is indistinguishable from tampering.
+
 ### 7.4 Errors
 
 `03.9` vocabulary, no new codes — `details.reason` carries the specificity, which keeps that
@@ -275,18 +375,35 @@ error table stable.
 
 | Situation | Code | HTTP | `details` |
 |---|---|---|---|
-| `DELETE` on a held subject | `failed_precondition` | 409 | `reason: "legal_hold"`, `heldSince`, `heldBy` |
+| `DELETE` on a held subject | `failed_precondition` | 409 | `reason: "legal_hold"`, `heldSince`, `heldBy`, `heldSubject` when inherited |
 | `DELETE` inside the retention floor | `failed_precondition` | 409 | `reason: "retention_floor"`, `floorDays`, `ageDays` |
+| `:hold` on a subject already held | `failed_precondition` | 409 | `reason: "already_held"`, `heldSince`, `heldBy` (§3.1) |
 | `:release` on a subject not held | `failed_precondition` | 409 | `reason: "not_held"` |
+| `:hold` / `:release` with no `reason` | `invalid_argument` | 400 | — |
 | `:verify` / `:proof` when attestation is disabled | `failed_precondition` | 409 | `reason: "attestation_disabled"` |
 | `:proof` for a row in the open epoch | `failed_precondition` | 409 | `reason: "epoch_unsealed"`, `sealsAt` (§5.3) |
+| `:proof` for a row written before attestation | `failed_precondition` | 409 | `reason: "not_attested"` — permanent, not "come back later" (§5.4) |
+| sealing when `sealIntervalSeconds` changed | `failed_precondition` | — | `reason: "seal_interval_changed"` (§5.5); logged by the sealer, not returned to a caller |
 
 ## 8. Console (`06`)
 
-- A held subject shows a hold marker with `heldSince` and `heldBy` on its detail page, and the
-  delete action is disabled with the reason inline — not hidden.
-- Attestation status (`enabled`, `attestationStartedAt`, `openEpochSince`, last verify result) belongs on the ops/health
-  view (`09`), not on a model page. It is a property of the install.
+- A held subject shows a hold marker with `heldSince` and `heldBy` on its detail page, saying
+  what the hold blocks and — when inherited — **which subject is actually held**. Without the
+  holder's name the reader is told no and given nothing to release.
+- **Holds are placed and lifted from the console**, through the same core operations the
+  Model API exposes — so the required reason and the `hold.set` / `hold.release` events are
+  identical. A surface that can show a hold but only place one by curl is a report, not a
+  workspace. An *inherited* hold shows no release action: the button would clear the model,
+  which is not the subject the reader is looking at, so it names the holder instead.
+- The console exposes no destructive action, so there is nothing to disable. Were one added,
+  it would be disabled with the reason inline rather than hidden.
+- Attestation status (`enabled`, `attestationStartedAt`, `openEpochSince`, last verify result)
+  is a property of the **install**, so it stays off model pages. It sits on the install-level
+  compliance page: "can this record be trusted?" comes before "what does it say?"
+- The recompute is an **explicit action**, not part of a page load — verifying reads every
+  audit row ever written.
+- A clean verify is never reported alone. The open window and `attestationStartedAt` are shown
+  beside it, or `ok` would read as a wider guarantee than the one that holds (§5.3, §5.4).
 
 ## 9. Deferred
 
@@ -294,7 +411,7 @@ error table stable.
 |---|---|
 | Hold expiry dates | Post-v1. An expiring hold is a scheduler, and a hold that lapses silently is worse than one someone has to clear |
 | Per-model retention overrides | If an install needs two floors. One configured floor is the honest v1 |
-| External anchoring of an epoch root (timestamping authority, or a public log) | Post-v1, with signed bundles (`18.11`). The epoch root is already the right thing to anchor — one hash per interval, not per row |
+| External anchoring of an epoch root (timestamping authority, or a public log) | Post-v1. The epoch root is already the right thing to anchor — one hash per interval, not per row. |
 | Retention floor on artifacts in the backend | `05.8` GC already refuses to touch objects it did not write; a floor there is a storage-driver concern |
 
 ## 10. See Also
@@ -302,7 +419,6 @@ error table stable.
 | For | Doc |
 |---|---|
 | Posture, boundary, build order | `15` |
-| `bundle.retentionFloor`, `auditAttestation` | `18.5` |
 | Audit invariants, cascade rules | `02.5` |
 | Error codes, `details` conventions | `03.9` |
 | Chart values, config surface | `08` |
