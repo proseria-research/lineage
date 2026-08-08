@@ -21,6 +21,43 @@ export interface Overview {
   recent: AuditEvent[];
 }
 
+// Risk classification (§16). The class is always something a person declared; the console
+// shows it and shows when it has gone out of date, and never edits or infers one.
+export type Regime = "eu_ai_act";
+
+export type EUSystemRiskClass =
+  | "unclassified"
+  | "minimal"
+  | "limited"
+  | "high_annex_iii"
+  | "high_annex_i"
+  | "prohibited";
+
+export type EUGpaiTier = "none" | "gpai" | "gpai_systemic";
+
+export type ClassificationState = "unclassified" | "stale" | "current";
+
+export type StaleReason =
+  | "review_due_passed"
+  | "version_published_since"
+  | "production_changed_since"
+  | "derivation_since";
+
+export interface Classification {
+  modelId: string;
+  regime: Regime;
+  euGpaiTier?: EUGpaiTier;
+  euSystemRiskClass?: EUSystemRiskClass;
+  intendedPurpose?: string;
+  basis?: string;
+  classifiedAt: number;
+  classifiedBy?: string;
+  reviewDueAt?: number;
+  source: FactSource;
+  state: ClassificationState;
+  staleReasons?: StaleReason[];
+}
+
 export interface ModelRollup {
   id: string;
   name: string;
@@ -30,6 +67,9 @@ export interface ModelRollup {
   versionCount: number;
   production: string;
   updatedAt: number;
+  // null when nobody has classified this model. Absence is the `unclassified` state (§16.4)
+  // and must render as that word, never as `minimal` (§16.9).
+  classification: Classification | null;
 }
 
 export interface VersionSummary {
@@ -229,6 +269,9 @@ export interface VersionDetail {
   insight: VersionInsight | null;
   footprints: Footprint[];
   evaluations: Evaluation[];
+  // The *model's* classification, shown on the version page because this is where someone
+  // asks whether the thing they are about to promote is governed (§16.9).
+  classification: Classification | null;
 }
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -259,8 +302,13 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 
 export const api = {
   overview: () => getJSON<Overview>("/api/overview"),
-  models: (q = "") =>
-    getJSON<{ items: ModelRollup[]; nextPageToken: string }>(`/api/models${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  models: (q = "", filters: Record<string, string> = {}) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    for (const [k, v] of Object.entries(filters)) if (v) p.set(k, v);
+    const qs = p.toString();
+    return getJSON<{ items: ModelRollup[]; nextPageToken: string }>(`/api/models${qs ? `?${qs}` : ""}`);
+  },
   model: (m: string) => getJSON<ModelDetail>(`/api/models/${encodeURIComponent(m)}`),
   version: (m: string, v: string) =>
     getJSON<VersionDetail>(`/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}`),

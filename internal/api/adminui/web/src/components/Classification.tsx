@@ -1,0 +1,156 @@
+import { Badge } from "@/components/ui/badge";
+import type { Classification, ClassificationState, EUSystemRiskClass, StaleReason } from "@/lib/api";
+
+// Risk-classification rendering (§16.9). Three rules run through everything here:
+//
+//  1. `unclassified` shows as the word `unclassified`. It never renders as `minimal`, and a
+//     model with no row renders the same as one that says `unclassified` — both mean nobody
+//     has said yet (§16.3).
+//  2. Staleness is always shown *with its reason*. A bare "stale" badge sends the reader
+//     hunting; the reason is the part they can act on.
+//  3. Nothing here offers to fix anything. There is no "mark as current" — staleness clears
+//     only by writing a real new classification (§16.9).
+
+const CLASS_LABEL: Record<EUSystemRiskClass, string> = {
+  unclassified: "unclassified",
+  minimal: "minimal",
+  limited: "limited",
+  high_annex_iii: "high · Annex III",
+  high_annex_i: "high · Annex I",
+  prohibited: "prohibited",
+};
+
+// High risk and prohibited are the classes a reader must not skim past, so they take the
+// filled badge. Weight, not colour — the console is monochrome by design (§06).
+const CLASS_VARIANT: Record<EUSystemRiskClass, "solid" | "outline" | "muted" | "dashed"> = {
+  unclassified: "dashed",
+  minimal: "muted",
+  limited: "muted",
+  high_annex_iii: "solid",
+  high_annex_i: "solid",
+  prohibited: "solid",
+};
+
+export const STALE_REASON_TEXT: Record<StaleReason, string> = {
+  review_due_passed: "the review date has passed",
+  version_published_since: "a version was published since it was classified",
+  production_changed_since: "the production version changed since it was classified",
+  derivation_since: "a modification review was opened since it was classified",
+};
+
+/** The declared class, or an explicit `unclassified` when there is no row. */
+export function RiskClassBadge({ c }: { c: Classification | null }) {
+  const cls: EUSystemRiskClass = c?.euSystemRiskClass ?? "unclassified";
+  return <Badge variant={CLASS_VARIANT[cls]}>{CLASS_LABEL[cls]}</Badge>;
+}
+
+/**
+ * The staleness marker. Renders nothing for `current` — a page full of "ok" badges buries
+ * the two rows that matter.
+ */
+export function StaleBadge({ state }: { state: ClassificationState }) {
+  if (state !== "stale") return null;
+  return <Badge variant="outline">stale</Badge>;
+}
+
+/** Why it is stale, in words. Empty for anything that is not stale. */
+export function StaleReasons({ c }: { c: Classification | null }) {
+  if (!c || c.state !== "stale" || !c.staleReasons?.length) return null;
+  return (
+    <span className="text-muted-foreground">
+      {c.staleReasons.map((r) => STALE_REASON_TEXT[r] ?? r).join("; ")}
+    </span>
+  );
+}
+
+/** One inventory-table cell: class, staleness, and the reason on the line below. */
+export function ClassificationCell({ c }: { c: Classification | null }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <RiskClassBadge c={c} />
+        {c && <StaleBadge state={c.state} />}
+      </div>
+      <StaleReasons c={c} />
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-[0.6875rem] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+const fmt = (ms?: number) => (ms ? new Date(ms).toISOString().slice(0, 10) : "—");
+
+/**
+ * The Compliance panel (§16.9). Shown on the version page, where the question is whether
+ * the model being promoted is governed and whether that assessment still holds.
+ */
+export function CompliancePanel({ c }: { c: Classification | null }) {
+  if (!c) {
+    return (
+      <div className="border border-border p-4">
+        <div className="mb-2 text-sm font-medium">Compliance · EU AI Act</div>
+        <p className="text-sm text-muted-foreground">
+          Not classified. Nobody has stated a risk class for this model — which is a real
+          answer, not a low one.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border p-4">
+      {/* The section header is the regime: one section per regime once there is more than
+          one (§16.9), and the reader should never have to guess whose rulebook this is. */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-medium">Compliance · EU AI Act</div>
+        <div className="flex items-center gap-1.5">
+          <RiskClassBadge c={c} />
+          <StaleBadge state={c.state} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 text-sm sm:grid-cols-2">
+        <Field label="System risk class">{CLASS_LABEL[c.euSystemRiskClass ?? "unclassified"]}</Field>
+        <Field label="GPAI tier">{c.euGpaiTier ?? "—"}</Field>
+        <Field label="Intended purpose">
+          {c.intendedPurpose || <span className="text-muted-foreground">not stated</span>}
+        </Field>
+        <Field label="Basis">
+          {c.basis || <span className="text-muted-foreground">not stated</span>}
+        </Field>
+        <Field label="Classified">
+          <span className="font-mono text-xs">{fmt(c.classifiedAt)}</span>
+          {c.classifiedBy && <span className="text-muted-foreground"> by {c.classifiedBy}</span>}
+        </Field>
+        <Field label="Review due">
+          {c.reviewDueAt ? (
+            <span className="font-mono text-xs">{fmt(c.reviewDueAt)}</span>
+          ) : (
+            // Surfaced, not hidden: "no review scheduled" is something a reader should see.
+            <span className="text-muted-foreground">no review scheduled</span>
+          )}
+        </Field>
+      </div>
+
+      {c.state === "stale" && (
+        <div className="mt-4 border-t border-border pt-3 text-sm">
+          <div className="mb-1 text-[0.6875rem] uppercase tracking-wider text-muted-foreground">
+            Why this is stale
+          </div>
+          <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+            {(c.staleReasons ?? []).map((r) => (
+              <li key={r}>{STALE_REASON_TEXT[r] ?? r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

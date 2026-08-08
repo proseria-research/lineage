@@ -39,6 +39,10 @@ type modelRollup struct {
 	VersionCount int               `json:"versionCount"`
 	Production   string            `json:"production"`
 	UpdatedAt    int64             `json:"updatedAt"`
+	// Classification is null when nobody has classified this model under the regime. The
+	// console renders that as `unclassified`, never as `minimal` (§16.9) — which is only
+	// possible because the absence arrives as an absence rather than a default.
+	Classification *domain.ClassificationView `json:"classification"`
 }
 
 type versionSummary struct {
@@ -71,6 +75,10 @@ type versionDetailDTO struct {
 	Insight     *domain.VersionInsight `json:"insight"`
 	Footprints  []*domain.Footprint    `json:"footprints"`
 	Evaluations []*domain.Evaluation   `json:"evaluations"`
+	// Classification belongs to the *model*, not this version, and is shown here because
+	// the version page is where someone asks "is this thing I am about to promote governed,
+	// and is that assessment still good?" (§16.9). Null when unclassified.
+	Classification *domain.ClassificationView `json:"classification"`
 }
 
 // stageOrder gives transition buttons a stable, sensible order (promote paths first).
@@ -115,17 +123,29 @@ func (r *Router) overview(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// models backs both the model table and the §16.9 inventory view — they are the same page.
+// Unlike the Model API, this always carries the classification: the console is the inventory,
+// so the join is the point rather than an opt-in cost.
 func (r *Router) models(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	o := domain.ListOptions{Q: req.URL.Query().Get("q"), PageSize: bigPage, PageToken: req.URL.Query().Get("pageToken")}
-	items, next, err := r.svc.ListModels(ctx, o)
+	q := req.URL.Query()
+	o := domain.ListOptions{Q: q.Get("q"), PageSize: bigPage, PageToken: q.Get("pageToken")}
+
+	f := domain.ClassificationFilter{
+		Regime:            domain.RegimeEUAIAct,
+		EUSystemRiskClass: domain.EUSystemRiskClass(q.Get("euSystemRiskClass")),
+		EUGpaiTier:        domain.EUGpaiTier(q.Get("euGpaiTier")),
+	}
+	items, next, err := r.svc.ListInventory(ctx, o, f, domain.ClassificationState(q.Get("classificationState")))
 	if err != nil {
 		api.WriteError(w, err)
 		return
 	}
 	out := make([]modelRollup, 0, len(items))
-	for _, m := range items {
-		out = append(out, r.rollup(ctx, m))
+	for _, it := range items {
+		roll := r.rollup(ctx, it.Model)
+		roll.Classification = it.Classification
+		out = append(out, roll)
 	}
 	api.WriteJSON(w, http.StatusOK, map[string]any{"items": out, "nextPageToken": next})
 }
@@ -152,6 +172,10 @@ func (r *Router) modelDetail(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	roll := toRollup(m, len(vs), production)
+	// An unclassified model is not an error here: absence is the state (§16.4).
+	if c, cerr := r.svc.GetClassification(ctx, name, domain.RegimeEUAIAct); cerr == nil {
+		roll.Classification = c
+	}
 	api.WriteJSON(w, http.StatusOK, modelDetailDTO{Model: roll, Versions: summaries, Production: production})
 }
 
@@ -172,10 +196,13 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 	insight, _ := r.svc.GetInsight(ctx, model, version, true)
 	footprints, _ := r.svc.ListFootprints(ctx, model, version)
 	evals, _ := r.svc.ListEvaluations(ctx, model, version)
+	// Unclassified is a state, not a failure, so a not_found here becomes a null panel.
+	classification, _ := r.svc.GetClassification(ctx, model, domain.RegimeEUAIAct)
 	api.WriteJSON(w, http.StatusOK, versionDetailDTO{
 		Model: model, Version: toSummary(v), AllowedTargets: allowedTargets(v.Stage),
 		Artifacts: nz(arts), Lineage: nz(edges), Deployments: nz(deps), Audit: nz(audit),
 		Insight: insight, Footprints: nz(footprints), Evaluations: nz(evals),
+		Classification: classification,
 	})
 }
 

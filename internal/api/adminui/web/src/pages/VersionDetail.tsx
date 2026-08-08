@@ -9,6 +9,7 @@ import { StageTrack } from "@/components/StageTrack";
 import { Cube } from "@/components/Cube";
 import { LineageGraphView } from "@/components/LineageGraphView";
 import { InsightPanel } from "@/components/InsightPanel";
+import { CompliancePanel } from "@/components/Classification";
 import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
@@ -105,6 +106,12 @@ export default function VersionDetail() {
       </Card>
 
       {/* Composition facts reported by producers (§11.8) */}
+      {/* Compliance sits above Insights because it answers the question that gates the
+          others: is this model governed, and is that assessment still good? (§16.9) */}
+      <div className="mb-6">
+        <CompliancePanel c={data.classification} />
+      </div>
+
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />
 
       {/* One neighbourhood: provenance to the left, impact to the right (§07.3). */}
