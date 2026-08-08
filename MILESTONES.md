@@ -563,9 +563,14 @@ drift is computed at read time rather than stored.
 - [ ] OpenAPI updated; scalar filters work on both engines
 - [ ] Tests: each drift clause fires independently; `unclassified ≠ stale`; every validation
       rule; the deliberate false positive in clause 3 (`updated_at` on the production version)
-      is asserted as intended behaviour, not fixed; **regime isolation** — writing an `mrm` row
-      leaves the `eu_ai_act` row's `classified_at` and staleness untouched (the defect the
-      per-regime key exists to prevent); the CHECK rejects a cross-regime enum on both dialects
+      is asserted as intended behaviour, not fixed; the CHECK rejects an `eu_ai_act` row whose
+      `eu_system_risk_class` is null, on both dialects
+
+**Regime isolation is asserted in M19, not here.** The defect the per-regime key exists to
+prevent needs a second regime to be provoked at all, and `mrm` is M19's (`20.8.1`). Writing a
+regime this build does not define would exercise the CHECK rejecting it, which is a different
+claim. The M13 half — the key, and that one model's rows never reach another's — is tested
+here.
 
 ## M14 — Evidence Export ⬜ ⧉
 
@@ -752,6 +757,10 @@ product.
 - [ ] Server-set `validatedBy` / `validatedAt`; client-supplied values → `400`
 - [ ] Tests: each stale clause; conditional-without-conditions rejected; latest-row-per-version;
       independence flag on a self-validated version
+- [ ] **Regime isolation, deferred from M13** — writing the `mrm` row leaves the `eu_ai_act`
+      row's `classified_at` and staleness untouched. This is the defect the `(model_id, regime)`
+      key exists to prevent (`16.3.2`), and M19 is the first milestone with two regimes to
+      provoke it. Also: the CHECK rejects a cross-regime enum on both dialects
 
 ## M20 — Change Control Plans ⬜ ⧉
 
