@@ -22,7 +22,8 @@ type Service struct {
 	tracer    domain.Tracer
 	signTTL   time.Duration
 	uploadTTL time.Duration
-	retention domain.RetentionConfig // §19.4; zero value = floors disabled, see WithRetention
+	retention domain.RetentionConfig   // §19.4; zero value = floors disabled, see WithRetention
+	attest    domain.AttestationConfig // §19.5; zero value = sealing off, see WithAttestation
 
 	mu      sync.Mutex                // guards pending
 	pending map[string]*pendingUpload // in-flight uploads keyed by uploadId (§05.6)
@@ -299,8 +300,13 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 }
 
 func (s *Service) audit(ctx context.Context, actor, action, subjType, subjID, summary string, data json.RawMessage) {
+	at := domain.NowMillis()
 	_ = s.store.AppendAudit(ctx, &domain.AuditEvent{
-		ID: domain.NewID(), At: domain.NowMillis(), Actor: actor, Action: action,
+		ID: domain.NewID(), At: at, Actor: actor, Action: action,
 		SubjectType: subjType, SubjectID: subjID, Summary: summary, Data: data,
+		// The epoch is derived from this row's own clock and reads no other row (§19.5.1) —
+		// which is the whole reason the write path needs no coordination. Every audit write
+		// goes through here, so this is the only place it has to be right.
+		Epoch: s.epochFor(at),
 	})
 }

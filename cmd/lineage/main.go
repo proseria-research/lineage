@@ -110,7 +110,8 @@ func main() {
 	// adapters stay telemetry-free. Readiness keeps the undecorated store: probing every few
 	// seconds is not worth a span each time.
 	svc := core.New(tracing.Store(store, tracer), backends, backend.Name(), cache, bus,
-		core.WithMeter(m), core.WithTracer(tracer), core.WithRetention(cfg.Retention))
+		core.WithMeter(m), core.WithTracer(tracer),
+		core.WithRetention(cfg.Retention), core.WithAttestation(cfg.Attestation))
 	m.BindDomainGauges(func(ctx context.Context) metrics.DomainStats {
 		st, _ := svc.Stats(ctx)
 		return metrics.DomainStats{
@@ -122,9 +123,19 @@ func main() {
 		m.BindDBGauges(d.DB())
 	}
 
-	// Optional artifact GC sweeper (§05.8); no-op unless LINEAGE_STORAGE_GC=sweep.
+	// Background jobs share one cancellable root, stopped on shutdown.
 	rootCtx, cancelRoot := context.WithCancel(context.Background())
 	defer cancelRoot()
+	// Merkle epoch sealer (§19.5); no-op when attestation is off. Enabling it and running
+	// the sealer are one decision, made here — an install that stamped epochs nothing sealed
+	// would report a growing unsealed backlog forever.
+	svc.RunSealer(rootCtx)
+	if cfg.Attestation.Enabled {
+		log.Printf("attestation: sealing enabled (interval=%ds grace=%ds)",
+			cfg.Attestation.SealIntervalSeconds, cfg.Attestation.SealGraceSeconds)
+	}
+
+	// Optional artifact GC sweeper (§05.8); no-op unless LINEAGE_STORAGE_GC=sweep.
 	svc.RunGC(rootCtx, core.GCConfig{
 		Enabled:  cfg.GC.Mode == "sweep",
 		Prefix:   cfg.GC.Prefix,
@@ -139,7 +150,7 @@ func main() {
 	servers := []*http.Server{
 		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, tracer, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
 		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc).Handler())},
-		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready, map[string]any{"retention": svc.Retention()})},
+		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready, map[string]any{"retention": svc.Retention(), "auditAttestation": svc.Attestation()})},
 	}
 	names := []string{"model-api " + cfg.ModelAPIAddr, "admin-ui " + cfg.AdminAddr, "ops " + cfg.MetricsAddr}
 
@@ -157,7 +168,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	log.Print("shutting down")
-	cancelRoot() // stop the GC sweeper
+	cancelRoot() // stop the sealer and the GC sweeper
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for _, s := range servers {

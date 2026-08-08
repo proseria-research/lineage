@@ -1,6 +1,9 @@
 package domain
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
 
 // Error is a coded domain error that maps directly to an RFC 9457 problem+json
 // response (§03.9). Adapters/handlers translate Code → HTTP status.
@@ -50,4 +53,12 @@ func Precondition(msg string, details map[string]any) *Error {
 	return &Error{Code: CodeFailedPrecondition, Message: msg, Details: details}
 }
 func Unprocessable(msg string) *Error { return &Error{Code: CodeUnprocessable, Message: msg} }
-func Internal(msg string) *Error      { return &Error{Code: CodeInternal, Message: msg} }
+
+// IsNotFound reports whether err is a not_found from a port. Callers that treat absence as a
+// state rather than a failure — an unclassified model (§16.4), an unsealed chain (§19.6.1) —
+// need to say so without repeating the type assertion at every site.
+func IsNotFound(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Code == CodeNotFound
+}
+func Internal(msg string) *Error { return &Error{Code: CodeInternal, Message: msg} }
