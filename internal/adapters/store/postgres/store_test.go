@@ -47,6 +47,7 @@ func TestPostgresStore(t *testing.T) {
 	storetest.Run(t, s)
 	storetest.RunSQLConstraints(t, s)
 	storetest.RunInventory(t, s)
+	storetest.RunRetention(t, s)
 }
 
 // TestPostgresJSONFilters exercises the Postgres-only JSONB label + custom_properties

@@ -11,4 +11,5 @@ func TestMemoryStore(t *testing.T) {
 	store := memstore.New()
 	storetest.Run(t, store)
 	storetest.RunInventory(t, store)
+	storetest.RunRetention(t, store)
 }

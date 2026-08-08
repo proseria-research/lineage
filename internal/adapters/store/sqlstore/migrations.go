@@ -198,6 +198,23 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_classification_eu_class ON classification (regime, eu_system_risk_class)`,
 	`CREATE INDEX IF NOT EXISTS idx_classification_eu_tier ON classification (regime, eu_gpai_tier)`,
 	`CREATE INDEX IF NOT EXISTS idx_classification_review ON classification (regime, review_due_at)`,
+
+	// ---- Legal hold (§19.6) ----
+	// Additive columns; neither table changes shape (§02.7).
+	//
+	// **`held_since IS NULL` is "not held".** §19.6 tables a `legal_hold` boolean beside the
+	// provenance, but a flag next to a timestamp is two encodings of one fact and they
+	// eventually disagree — an UPDATE that clears one and not the other leaves a row that is
+	// held according to one column and free according to the other. One nullable column
+	// cannot be half-set. It also sidesteps a portability wart: SQLite has no boolean and
+	// Postgres will not take `DEFAULT 0` for one.
+	//
+	// No index (§19.6.2): hold is read by primary key on the delete path, and the model→
+	// versions sweep DeleteGuardFor does is already served by idx_version_model_stage.
+	`ALTER TABLE model ADD COLUMN held_since BIGINT`,
+	`ALTER TABLE model ADD COLUMN held_by TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE model_version ADD COLUMN held_since BIGINT`,
+	`ALTER TABLE model_version ADD COLUMN held_by TEXT NOT NULL DEFAULT ''`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.

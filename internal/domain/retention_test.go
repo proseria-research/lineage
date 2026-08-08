@@ -28,7 +28,7 @@ func TestCheckDeletable_NoHoldNoFloor(t *testing.T) {
 }
 
 func TestCheckDeletable_HoldRefuses(t *testing.T) {
-	g := DeleteGuard{Hold: Hold{Held: true, HeldSince: daysAgo(3), HeldBy: "counsel@acme.example"}}
+	g := DeleteGuard{Hold: &Hold{HeldSince: daysAgo(3), HeldBy: "counsel@acme.example"}}
 	err := CheckDeletable(g, RetentionConfig{}, rtNow)
 	if got := reasonOf(t, err); got != RefusedLegalHold {
 		t.Fatalf("reason = %q, want %q", got, RefusedLegalHold)
@@ -49,7 +49,7 @@ func TestCheckDeletable_InheritedHoldNamesTheAncestor(t *testing.T) {
 	// §19.3.1: refusing a version under a held model has to say which model, or the caller
 	// is told no and given nothing to release.
 	g := DeleteGuard{
-		Hold:        Hold{Held: true, HeldSince: daysAgo(3), HeldBy: "counsel@acme.example"},
+		Hold:        &Hold{HeldSince: daysAgo(3), HeldBy: "counsel@acme.example"},
 		HeldSubject: "model/fraud-detector",
 	}
 	err := CheckDeletable(g, RetentionConfig{}, rtNow)
@@ -92,7 +92,7 @@ func TestCheckDeletable_FloorPassesOldSubject(t *testing.T) {
 func TestCheckDeletable_HoldWinsOverFloor(t *testing.T) {
 	// Both apply. The caller hears about the hold, because that is the one a human decided
 	// and can release; the floor merely expires.
-	g := DeleteGuard{Hold: Hold{Held: true, HeldBy: "counsel@acme.example"}, NewestCreatedAt: daysAgo(1)}
+	g := DeleteGuard{Hold: &Hold{HeldBy: "counsel@acme.example"}, NewestCreatedAt: daysAgo(1)}
 	err := CheckDeletable(g, RetentionConfig{MinArchivedVersionDays: 3650}, rtNow)
 	if got := reasonOf(t, err); got != RefusedLegalHold {
 		t.Fatalf("reason = %q, want %q", got, RefusedLegalHold)

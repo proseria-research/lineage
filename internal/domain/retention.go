@@ -26,19 +26,29 @@ const (
 	RefusedNotHeld        = "not_held"
 )
 
-// Hold is a subject's legal-hold state together with its provenance (§19.7.1).
+// Subject types, as they appear in audit events and on the hold API's paths.
+const (
+	SubjectModel   = "model"
+	SubjectVersion = "model_version"
+)
+
+// Hold is a live legal hold and its provenance (§19.7.1).
 //
-// The row carries the boolean, when it was set, and who set it — and nothing else. The
-// *reason* for a hold ("Regulator inquiry REF-2026-118") goes on the audit event, not here.
-// A reason on the row would be overwritten by the next hold; on the event it is permanent,
-// which is what someone reconstructing the matter years later needs.
+// **A nil *Hold is "not held".** There is no Held bool: a boolean beside a timestamp is two
+// representations of one fact, and two representations eventually disagree. The pointer
+// cannot be half-set.
+//
+// The hold carries when it was set and who set it — and nothing else. The *reason*
+// ("Regulator inquiry REF-2026-118") goes on the audit event, not here. A reason on the row
+// would be overwritten by the next hold; on the event it is permanent, which is what someone
+// reconstructing the matter years later needs. Releasing clears the row for the same reason:
+// current state lives on the subject, history lives in the trail.
 //
 // HeldBy is the **actor** who set it, consistent with every other attribution in the system
-// (§00.2.4). When a hold is inherited from an ancestor, the ancestor is named separately —
-// see DeleteGuard.HeldSubject — rather than overloaded into this field.
+// (§00.2.4). When a hold is inherited rather than the subject's own, the holder is named
+// separately — see DeleteGuard.HeldSubject — rather than overloaded into this field.
 type Hold struct {
-	Held      bool   `json:"held"`
-	HeldSince int64  `json:"heldSince,omitempty"`
+	HeldSince int64  `json:"heldSince"`
 	HeldBy    string `json:"heldBy,omitempty"`
 }
 
@@ -75,16 +85,17 @@ func (c RetentionConfig) Validate() *Error {
 	return nil
 }
 
-// DeleteGuard is what a deletion would destroy, gathered by the caller.
+// DeleteGuard is what a deletion would destroy. The store gathers it (RetentionStore), since
+// resolving it means walking the model/version tree; this file only decides what to do about
+// it. That split is what keeps the predicate a pure function.
 type DeleteGuard struct {
-	// Hold is the **effective** hold: the subject's own, or the ancestor's when one is
-	// inherited. Resolving inheritance is the caller's job, because only the caller knows the
-	// shape of the tree; deciding what to do about it is this file's.
-	Hold Hold
-	// HeldSubject names the ancestor when the hold is inherited — "model/fraud-detector" —
-	// and is empty when the subject is held in its own right. §19.3.1 requires the model to
-	// be identified when a version is refused under it: without it the caller is told the
-	// delete is blocked and given nothing to release.
+	// Hold is the **effective** hold — the subject's own, or one it inherits — and nil when
+	// nothing holds this delete.
+	Hold *Hold
+	// HeldSubject names the holder when the hold is not the subject's own —
+	// "model/fraud-detector", "version/fraud-detector@3" — and is empty when it is. §19.3.1
+	// requires the model to be identified when a version is refused under it: without it the
+	// caller is told the delete is blocked and given nothing to release.
 	HeldSubject string
 	// NewestCreatedAt is the creation time of the **youngest record this delete destroys**,
 	// in epoch millis — not the subject's own.
@@ -110,7 +121,7 @@ type DeleteGuard struct {
 // protects evidence from the operator, and a flag that clears it is not a hold. The
 // production guard and this one are independent checks for exactly that reason.
 func CheckDeletable(g DeleteGuard, cfg RetentionConfig, now int64) *Error {
-	if g.Hold.Held {
+	if g.Hold != nil {
 		details := map[string]any{
 			"reason":    RefusedLegalHold,
 			"heldSince": g.Hold.HeldSince,
