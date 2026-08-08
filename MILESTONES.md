@@ -54,14 +54,14 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M17 done;
-    class M13,M14,M15,M16,M18,M19,M20,M21 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M17 done;
+    class M14,M15,M16,M18,M19,M20,M21 todo;
 ```
 
-**Next up:** M13 → M14 (phases 1–3 of `15.6`) is the shippable near-term slice — it answers
-the GPAI obligation that has been in force since Aug 2025, which is also the profile core
-ships (§ Boundary). M15 follows, because a retention story is what makes an evidence bundle
-credible rather than decorative.
+**Next up:** M14 (phases 2–3 of `15.6`), now that M13 has shipped the class every bundle
+carries. It answers the GPAI obligation that has been in force since Aug 2025, which is also
+the profile core ships (§ Boundary). M15 follows, because a retention story is what makes an
+evidence bundle credible rather than decorative.
 
 ## Status Summary
 
@@ -85,7 +85,7 @@ reference already written against it.
 | M11 | Model insights: fingerprint, footprint, evaluations | `11` | ✅ |
 | M12 | Version portrait: generated fingerprint + portrait marks | `12` | ✅ |
 | M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
-| M13 | EU risk classification & drift | `16` | ⬜ |
+| M13 | EU risk classification & drift | `16` | ✅ |
 | M14 | Evidence export: bundle mechanism + `annex_xii` | `18` | ⬜ ⧉ |
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ⬜ |
 | M16 | EU modification review (Art. 25) | `17` | ⬜ |
@@ -94,8 +94,9 @@ reference already written against it.
 | M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ ⧉ |
 | M21 | Boundary guarantees: the two contracts `24` rests on | `24` | ⬜ |
 
-**Open work:** M13–M16, the EU compliance set specced in `15`–`19` (`ddf4654`), then M18–M20,
-the non-EU regimes specced in `20`–`22`, plus M21 alongside M14. No blocked decisions —
+**Open work:** M14–M16, the rest of the EU compliance set specced in `15`–`19` (`ddf4654`; M13
+has shipped), then M18–M20, the non-EU regimes specced in `20`–`22`, plus M21 alongside M14.
+No blocked decisions —
 `00.11.11`–`16` are all resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed
 with **M17**.
 
@@ -509,10 +510,11 @@ resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
 
 ---
 
-# Next — Compliance & Evidence (M13–M16)
+# Compliance & Evidence (M13–M16)
 
 Specced in `15`–`19` (`ddf4654`). `15` is the regime landscape and framing; it ships no
-code. The four milestones below are the four capabilities it governs.
+code. The four milestones below are the four capabilities it governs. **M13 has shipped;
+M14–M16 are next.**
 
 **The stance, which constrains every task here:** Lineage is an *evidence substrate*, not a
 compliance product. It emits stored facts in a regulation's structure and **names every
@@ -523,7 +525,7 @@ articles (§15.3). A task that would blur one of those lines is out of scope, no
 **Sequencing** follows `15.6`. Phase numbers are annotated per task, since the phases
 interleave across docs while the milestones stay doc-aligned.
 
-## M13 — EU Risk Classification & Drift ⬜
+## M13 — EU Risk Classification & Drift ✅
 
 **Goal:** record how risky a model is — a **declared** operator claim, never an inference —
 and detect when that claim has gone out of date (`16`).
@@ -533,35 +535,56 @@ and detect when that claim has gone out of date (`16`).
 drift is computed at read time rather than stored.
 **Depends on:** M2 (per-dialect store) · M5 (API contract) · M6 (console).
 **Phase:** 1, plus its half of phase 3.
+**Done:** `a3ebc0a`…`8fa3030`. Acceptance verified live on the real SQLite binary, not only
+in tests. Store conformance green on memory, SQLite and real Postgres.
 
-- [ ] `classification` table (`16.7.1`) — **PK `(model_id, regime)`, one row per model per
-      regime**, per-dialect migrations, `MetadataStore` port methods, `ON DELETE CASCADE`
-      from `model`
-- [ ] Per-dialect **`CHECK` tying each enum group to the discriminator**: `regime='eu_ai_act'`
-      requires `eu_system_risk_class` non-null and every other regime's group null. This is
-      what keeps a sparse column set honest rather than merely wide
-- [ ] Fields `eu_system_risk_class` / `eu_gpai_tier` carry the **`eu_` prefix** (`16.3.1`);
+**Two corrections the work forced, both recorded where they belong.** The migrations are
+**shared, not per-dialect** — this tree keeps one portable list in `sqlstore` and puts only
+`Rebind`/`IsUniqueViolation`/`LockModelByVersionSQL`/`JSONContainsClause` behind the
+`Dialect`, so one migration served both engines. And `§16.6` said a client-supplied
+`classifiedAt`/`classifiedBy` was *ignored*; the shared decoder used by every other `/v1`
+write rejects unknown fields, so it is **`400`**, and the doc now says so.
+
+- [x] `classification` table (`16.7.1`) — **PK `(model_id, regime)`, one row per model per
+      regime**, `MetadataStore` port methods, `ON DELETE CASCADE` from `model`. One shared
+      migration, not per-dialect: the schema needs nothing behind the `Dialect`
+- [x] **`CHECK` tying each enum group to the discriminator**. One branch today, so it also
+      refuses a regime this build does not define — M19 adds the `mrm` branch beside it.
+      `nullEnum` keeps unused columns NULL rather than `''`, which would satisfy
+      `IS NOT NULL` and defeat the constraint from the inside
+- [x] Fields `eu_system_risk_class` / `eu_gpai_tier` carry the **`eu_` prefix** (`16.3.1`);
       `intended_purpose`, `basis`, `classified_at`, `review_due_at` stay unprefixed —
       jurisdictional vs shared is part of the contract, not a naming preference
-- [ ] `source` is always `declared`; **no `derived` path exists in the schema** so a future
-      producer cannot write one (`16.7.2`)
-- [ ] `PUT`/`GET /v1/models/{m}/classifications/{regime}` + `GET …/classifications` — full
+- [x] `source` is always `declared`; **no `derived` path exists in the schema, and none in the
+      struct** (`16.7.2`) — the entity has no settable field, and `MarshalJSON` emits the
+      constant, so a client sending `"source":"derived"` gets `declared` back
+- [x] `PUT`/`GET /v1/models/{m}/classifications/{regime}` + `GET …/classifications` — full
       replace, not `PATCH` (`16.8`); **the regime is in the path**, so writing one regime's
       assessment cannot see or touch another's; audit action `classification.set` records the
-      regime, in the same transaction
-- [ ] Validation (`16.6`): enum membership; class ⇒ `intendedPurpose`; high-risk ⇒ `basis`;
-      `reviewDueAt > now`; `classifiedAt`/`classifiedBy` server-set and request values ignored
-- [ ] **Drift predicate** (`16.5`) as a read-time computation — four disjuncts, each
-      returning its own reason; `staleReasons[]` returns *every* one that fired. It measures
-      against **that regime's own `classified_at`**, which is the point of the per-regime key:
-      an MRM write must never clear an EU staleness (`16.3.2`)
-- [ ] `classificationState` is three-valued (`unclassified`/`stale`/`current`), not a boolean
-      — `unclassified` is not a kind of stale (`16.4`)
-- [ ] Inventory filter on `GET /v1/models?euSystemRiskClass=&euGpaiTier=&classificationState=`
-- [ ] Console (`16.9`): inventory view with stale models marked **and their reason**; version
-      detail Compliance panel; `unclassified` never renders as `minimal`
-- [ ] OpenAPI updated; scalar filters work on both engines
-- [ ] Tests: each drift clause fires independently; `unclassified ≠ stale`; every validation
+      regime in structured data, not only in prose
+- [x] Validation (`16.6`): enum membership; class ⇒ `intendedPurpose`; high-risk ⇒ `basis`;
+      `reviewDueAt > now`. `classifiedAt`/`classifiedBy` are server-set and **rejected with
+      `400`** if sent — `ClassificationInput` has nowhere to put them, which is a stronger
+      guarantee than a strip step that the next new field can forget
+- [x] **Drift predicate** (`16.5`) as a read-time computation — four disjuncts, each
+      returning its own reason; `staleReasons[]` returns *every* one that fired. Written as a
+      **pure function over supplied facts**, so `20.7` can reuse the shape (`16.5.1`) and so
+      the inventory filter reuses the predicate rather than restating it in SQL.
+      Comparisons are strict: a publish in the same millisecond as the classification did not
+      happen *since* it, or classifying would report a model stale instantly
+- [x] `classificationState` is three-valued (`unclassified`/`stale`/`current`), not a boolean
+      — `unclassified` short-circuits before any clause runs (`16.4`)
+- [x] Inventory filter on `GET /v1/models?euSystemRiskClass=&euGpaiTier=&classificationState=`.
+      The enums push into SQL; the computed state filters in Go; paging happens last, so a
+      page is never short. **The join is opt-in** (a filter, or `include=classification`) —
+      `GET /v1/models` is a hot path and most callers ignore the field
+- [x] Console (`16.9`): the model table **is** the inventory view; stale rows carry their
+      reason in the same component as the badge, so neither can render without the other;
+      version detail Compliance panel; unclassified arrives as an explicit `null` and renders
+      as `unclassified`, never `minimal`. No "mark as current" anywhere
+- [x] OpenAPI updated (`compliance` tag, 6 schemas, 2 paths, 5 query params); scalar filters
+      work on both engines
+- [x] Tests: each drift clause fires independently; `unclassified ≠ stale`; every validation
       rule; the deliberate false positive in clause 3 (`updated_at` on the production version)
       is asserted as intended behaviour, not fixed; the CHECK rejects an `eu_ai_act` row whose
       `eu_system_risk_class` is null, on both dialects
