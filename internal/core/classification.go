@@ -129,3 +129,45 @@ func newView(c *domain.RiskClassification, facts domain.DriftFacts, now int64) *
 	state, reasons := domain.ClassificationStateOf(c, facts, now)
 	return &domain.ClassificationView{RiskClassification: *c, State: state, StaleReasons: reasons}
 }
+
+// ListInventory answers §16.8.2 — "which high-risk models do we have?" — in one call.
+//
+// The two enum filters are stored columns and are pushed into SQL. `state` is computed, so
+// it is applied here, over the same ClassificationStateOf every other read path uses; the
+// store deliberately returns facts rather than a state so the predicate exists once.
+//
+// Paging happens last, after the state filter, so a page is never short and never skips a
+// match. That is why the store's query is unpaginated.
+func (s *Service) ListInventory(ctx context.Context, o domain.ListOptions, f domain.ClassificationFilter, state domain.ClassificationState) ([]*domain.ModelInventoryItem, string, error) {
+	if f.Regime == "" {
+		f.Regime = domain.RegimeEUAIAct
+	}
+	if !domain.ValidRegime(f.Regime) {
+		return nil, "", domain.Invalid("unknown regime")
+	}
+	rows, err := s.store.ListInventory(ctx, o, f)
+	if err != nil {
+		return nil, "", err
+	}
+
+	now := domain.NowMillis()
+	items := make([]*domain.ModelInventoryItem, 0, len(rows))
+	for _, r := range rows {
+		st, reasons := domain.ClassificationStateOf(r.Classification, r.Facts, now)
+		if state != "" && st != state {
+			continue
+		}
+		item := &domain.ModelInventoryItem{Model: r.Model}
+		if r.Classification != nil {
+			item.Classification = &domain.ClassificationView{
+				RiskClassification: *r.Classification, State: st, StaleReasons: reasons,
+			}
+		}
+		items = append(items, item)
+	}
+
+	page, next := domain.Page(items, func(i *domain.ModelInventoryItem) (int64, string) {
+		return i.CreatedAt, i.ID
+	}, o.PageToken, o.PageSize)
+	return page, next, nil
+}

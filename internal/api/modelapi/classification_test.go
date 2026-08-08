@@ -3,6 +3,7 @@ package modelapi_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 )
@@ -235,4 +236,177 @@ func TestClassificationAppearsInTheAuditFeed(t *testing.T) {
 		return
 	}
 	t.Fatalf("no classification.set event in %v", body["items"])
+}
+
+// ---- Inventory (§16.8.2) ----
+
+// inventory seeds one high-risk model, one minimal, one never classified.
+func inventory(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := apiServer(t)
+	for _, n := range []string{"inv-high", "inv-minimal", "inv-bare"} {
+		if code, _ := do(t, srv, "POST", "/v1/models", `{"name":"`+n+`"}`, nil); code != http.StatusCreated {
+			t.Fatalf("create %s: %d", n, code)
+		}
+	}
+	put := func(model, class string) {
+		code, body := do(t, srv, "PUT", "/v1/models/"+model+"/classifications/eu_ai_act",
+			`{"euSystemRiskClass":"`+class+`","euGpaiTier":"none","intendedPurpose":"p","basis":"b"}`, nil)
+		if code != http.StatusOK {
+			t.Fatalf("classify %s: %d %v", model, code, body)
+		}
+	}
+	put("inv-high", "high_annex_iii")
+	put("inv-minimal", "minimal")
+	return srv
+}
+
+func names(t *testing.T, body map[string]any) []string {
+	t.Helper()
+	items, _ := body["items"].([]any)
+	out := []string{}
+	for _, it := range items {
+		m, _ := it.(map[string]any)
+		out = append(out, m["name"].(string))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Without a classification parameter, GET /v1/models is exactly what it always was — no
+// classification object, and none of the join cost.
+func TestModelListUnchangedWithoutAClassificationParam(t *testing.T) {
+	srv := inventory(t)
+	_, body := do(t, srv, "GET", "/v1/models", "", nil)
+	items, _ := body["items"].([]any)
+	if len(items) != 3 {
+		t.Fatalf("items = %d, want 3", len(items))
+	}
+	for _, it := range items {
+		if _, present := it.(map[string]any)["classification"]; present {
+			t.Fatalf("classification leaked into a plain model list: %v", it)
+		}
+	}
+}
+
+// ?include=classification asks for the column without narrowing on it.
+func TestIncludeClassification(t *testing.T) {
+	srv := inventory(t)
+	_, body := do(t, srv, "GET", "/v1/models?include=classification", "", nil)
+	if got := names(t, body); len(got) != 3 {
+		t.Fatalf("names = %v, want all three", got)
+	}
+	items, _ := body["items"].([]any)
+	var withRow, withoutRow int
+	for _, it := range items {
+		m, _ := it.(map[string]any)
+		c, present := m["classification"]
+		if !present {
+			withoutRow++
+			continue
+		}
+		withRow++
+		cm, _ := c.(map[string]any)
+		if cm["state"] == nil || cm["source"] != "declared" {
+			t.Fatalf("classification object: %v", cm)
+		}
+	}
+	if withRow != 2 || withoutRow != 1 {
+		t.Fatalf("with=%d without=%d, want 2/1 — absence is the unclassified state", withRow, withoutRow)
+	}
+}
+
+func TestInventoryEnumFilters(t *testing.T) {
+	srv := inventory(t)
+
+	_, body := do(t, srv, "GET", "/v1/models?euSystemRiskClass=high_annex_iii", "", nil)
+	if got := names(t, body); len(got) != 1 || got[0] != "inv-high" {
+		t.Fatalf("class filter = %v, want [inv-high]", got)
+	}
+	// Filtering on a stored enum cannot also mean "and everything nobody classified".
+	_, body = do(t, srv, "GET", "/v1/models?euGpaiTier=none", "", nil)
+	if got := names(t, body); len(got) != 2 {
+		t.Fatalf("tier filter = %v, want the two classified models", got)
+	}
+	_, body = do(t, srv, "GET", "/v1/models?euSystemRiskClass=prohibited", "", nil)
+	if got := names(t, body); len(got) != 0 {
+		t.Fatalf("filter matching nothing = %v", got)
+	}
+}
+
+// The §16.8.2 headline: which high-risk models have gone stale?
+func TestInventoryStateFilter(t *testing.T) {
+	srv := inventory(t)
+
+	// Everything is current to begin with.
+	_, body := do(t, srv, "GET", "/v1/models?classificationState=current", "", nil)
+	if got := names(t, body); len(got) != 2 {
+		t.Fatalf("current = %v, want the two classified models", got)
+	}
+	// `unclassified` is its own state, not a kind of stale (§16.4).
+	_, body = do(t, srv, "GET", "/v1/models?classificationState=unclassified", "", nil)
+	if got := names(t, body); len(got) != 1 || got[0] != "inv-bare" {
+		t.Fatalf("unclassified = %v, want [inv-bare]", got)
+	}
+	_, body = do(t, srv, "GET", "/v1/models?classificationState=stale", "", nil)
+	if got := names(t, body); len(got) != 0 {
+		t.Fatalf("stale = %v, want none yet", got)
+	}
+
+	time.Sleep(2 * time.Millisecond)
+	if code, _ := do(t, srv, "POST", "/v1/models/inv-high/versions", `{"name":"1.0.0"}`, nil); code != http.StatusCreated {
+		t.Fatal("publish failed")
+	}
+
+	// The combined query from §16.8.2, answered without a background job.
+	_, body = do(t, srv, "GET", "/v1/models?euSystemRiskClass=high_annex_iii&classificationState=stale", "", nil)
+	items, _ := body["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("high+stale = %v, want [inv-high]", names(t, body))
+	}
+	m, _ := items[0].(map[string]any)
+	c, _ := m["classification"].(map[string]any)
+	reasons, _ := c["staleReasons"].([]any)
+	if c["state"] != "stale" || len(reasons) != 1 || reasons[0] != "version_published_since" {
+		t.Fatalf("classification = %v", c)
+	}
+	// And the model that did not change is still current.
+	_, body = do(t, srv, "GET", "/v1/models?classificationState=current", "", nil)
+	if got := names(t, body); len(got) != 1 || got[0] != "inv-minimal" {
+		t.Fatalf("current after publish = %v, want [inv-minimal]", got)
+	}
+}
+
+// Paging happens after the computed-state filter, so a page is never padded with models
+// that do not match.
+func TestInventoryPagingIsAppliedAfterTheStateFilter(t *testing.T) {
+	srv := inventory(t)
+	_, body := do(t, srv, "GET", "/v1/models?classificationState=unclassified&pageSize=10", "", nil)
+	if got := names(t, body); len(got) != 1 || got[0] != "inv-bare" {
+		t.Fatalf("page = %v, want exactly the one match", got)
+	}
+	// Empty string, not null: that is what every /v1 list endpoint returns for "no more"
+	// (§16.8.2's example shows null, but the wire format predates M13 and is uniform).
+	if tok, _ := body["nextPageToken"].(string); tok != "" {
+		t.Fatalf("nextPageToken = %q, want empty", tok)
+	}
+}
+
+func TestInventoryRejectsUnknownFilterValues(t *testing.T) {
+	for _, q := range []string{
+		"euSystemRiskClass=high", "euGpaiTier=frontier",
+		"classificationState=fresh", "regime=uk_ai_bill",
+	} {
+		t.Run(q, func(t *testing.T) {
+			srv := inventory(t)
+			code, body := do(t, srv, "GET", "/v1/models?"+q, "", nil)
+			if code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (%v)", code, body)
+			}
+			details, _ := body["details"].(map[string]any)
+			if details["allowedValues"] == nil {
+				t.Fatalf("no allowedValues in %v", body)
+			}
+		})
+	}
 }

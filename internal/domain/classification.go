@@ -250,3 +250,15 @@ func (v ClassificationView) MarshalJSON() ([]byte, error) {
 		StaleReasons []string            `json:"staleReasons,omitempty"`
 	}{inner(v.RiskClassification), RiskClassificationSource, v.State, v.StaleReasons})
 }
+
+// ModelInventoryItem is a model list entry carrying its classification for one regime
+// (§16.8.2). Classification is nil when the model has no row for that regime — absence *is*
+// the `unclassified` state (§16.4), and inventing an empty row to carry the word would put a
+// classification in the response that nobody wrote.
+//
+// Model embeds safely here: it has no MarshalJSON of its own, so its fields flatten into the
+// item exactly as they do on GET /v1/models today.
+type ModelInventoryItem struct {
+	*Model
+	Classification *ClassificationView `json:"classification,omitempty"`
+}

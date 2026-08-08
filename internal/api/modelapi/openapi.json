@@ -73,6 +73,48 @@
                 "ARCHIVED"
               ]
             }
+          },
+          {
+            "name": "euSystemRiskClass",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/EUSystemRiskClass"
+            },
+            "description": "Stored column, pushed into SQL. Selects only models classified this way under the regime — never models nobody has classified."
+          },
+          {
+            "name": "euGpaiTier",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/EUGpaiTier"
+            }
+          },
+          {
+            "name": "classificationState",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ClassificationState"
+            },
+            "description": "Computed on every read, so this is not a stored filter. `unclassified` returns models with no row for the regime; it is not a kind of `stale`."
+          },
+          {
+            "name": "regime",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Regime"
+            },
+            "description": "Which regime the classification parameters apply to. Defaults to eu_ai_act."
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "classification"
+              ]
+            },
+            "description": "Set to `classification` to embed each model's classification without filtering on it. Omitted entirely, this endpoint runs the same query it always has — the classification join and its version aggregate are not paid for unless asked for."
           }
         ],
         "responses": {
@@ -81,12 +123,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ModelPage"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelPage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ModelInventoryPage"
+                    }
+                  ]
                 }
               }
             }
           }
-        }
+        },
+        "description": "Returns ModelInventoryPage instead when any classification parameter or include=classification is present."
       },
       "post": {
         "operationId": "createModel",
@@ -3502,6 +3552,33 @@
           }
         },
         "description": "Every regime's row for a model. Not paginated: regimes are a closed, small set."
+      },
+      "ModelInventoryItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Model"
+          }
+        ],
+        "description": "A model list entry carrying its classification for one regime. `classification` is absent when the model has no row for that regime — absence is the `unclassified` state, and inventing an empty row would put an assessment in the response that nobody wrote.",
+        "properties": {
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          }
+        }
+      },
+      "ModelInventoryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelInventoryItem"
+            }
+          },
+          "nextPageToken": {
+            "type": "string"
+          }
+        }
       }
     }
   }
