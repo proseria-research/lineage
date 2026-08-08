@@ -235,3 +235,21 @@ func (s *tracedStore) CreateEvaluation(ctx context.Context, e *domain.Evaluation
 func (s *tracedStore) ListEvaluations(ctx context.Context, versionID string) ([]*domain.Evaluation, error) {
 	return do1(ctx, s.t, "store.ListEvaluations", func(c context.Context) ([]*domain.Evaluation, error) { return s.next.ListEvaluations(c, versionID) })
 }
+
+// ---- Risk classification (§16) ----
+
+func (s *tracedStore) PutClassification(ctx context.Context, c *domain.RiskClassification) error {
+	return do0(ctx, s.t, "store.PutClassification", func(cc context.Context) error { return s.next.PutClassification(cc, c) })
+}
+
+func (s *tracedStore) GetClassification(ctx context.Context, modelID string, regime domain.Regime) (*domain.RiskClassification, error) {
+	return do1(ctx, s.t, "store.GetClassification", func(c context.Context) (*domain.RiskClassification, error) {
+		return s.next.GetClassification(c, modelID, regime)
+	})
+}
+
+func (s *tracedStore) ListClassifications(ctx context.Context, modelID string) ([]*domain.RiskClassification, error) {
+	return do1(ctx, s.t, "store.ListClassifications", func(c context.Context) ([]*domain.RiskClassification, error) {
+		return s.next.ListClassifications(c, modelID)
+	})
+}

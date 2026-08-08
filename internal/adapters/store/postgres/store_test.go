@@ -43,7 +43,9 @@ func pgStore(t *testing.T) *sqlstore.Store {
 
 // TestPostgresStore runs the full shared conformance suite against a real Postgres.
 func TestPostgresStore(t *testing.T) {
-	storetest.Run(t, pgStore(t))
+	s := pgStore(t)
+	storetest.Run(t, s)
+	storetest.RunSQLConstraints(t, s)
 }
 
 // TestPostgresJSONFilters exercises the Postgres-only JSONB label + custom_properties

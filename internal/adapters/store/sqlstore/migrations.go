@@ -169,6 +169,35 @@ var migrations = []string{
 		created_at BIGINT NOT NULL
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_eval_lookup ON evaluation (version_id, suite, metric, split)`,
+
+	// ---- Risk classification (§16.7.1) ----
+	// One row per model per regime. The composite PK is not tidiness: every §16.5 drift
+	// clause measures against this row's classified_at, so a second regime sharing the row
+	// would let an MRM write silently clear an EU staleness (§16.3.2).
+	//
+	// The CHECK ties each enum group to the discriminator, which is what keeps a sparse
+	// column set honest rather than merely wide. Today there is one branch, so it also
+	// rejects any regime this build does not define; M19 adds an `mrm` branch that asserts
+	// the EU group is null on those rows, and vice versa (`20.8.1`).
+	`CREATE TABLE IF NOT EXISTS classification (
+		model_id TEXT NOT NULL REFERENCES model(id) ON DELETE CASCADE,
+		regime TEXT NOT NULL,
+		eu_gpai_tier TEXT,
+		eu_system_risk_class TEXT,
+		intended_purpose TEXT NOT NULL DEFAULT '',
+		basis TEXT NOT NULL DEFAULT '',
+		classified_at BIGINT NOT NULL,
+		classified_by TEXT NOT NULL DEFAULT '',
+		review_due_at BIGINT,
+		PRIMARY KEY (model_id, regime),
+		CHECK (
+			(regime = 'eu_ai_act' AND eu_system_risk_class IS NOT NULL AND eu_gpai_tier IS NOT NULL)
+		)
+	)`,
+	// Every index leads with regime, so one regime's queries never scan another's rows (§16.7.3).
+	`CREATE INDEX IF NOT EXISTS idx_classification_eu_class ON classification (regime, eu_system_risk_class)`,
+	`CREATE INDEX IF NOT EXISTS idx_classification_eu_tier ON classification (regime, eu_gpai_tier)`,
+	`CREATE INDEX IF NOT EXISTS idx_classification_review ON classification (regime, review_due_at)`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.

@@ -15,4 +15,5 @@ func TestSQLiteStore(t *testing.T) {
 	}
 	defer store.Close()
 	storetest.Run(t, store)
+	storetest.RunSQLConstraints(t, store)
 }

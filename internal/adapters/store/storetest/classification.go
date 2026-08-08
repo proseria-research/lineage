@@ -113,3 +113,55 @@ func runClassifications(t *testing.T, cs domain.ComplianceStore, modelID, otherM
 	// ClassifiedAt anchor alone (§16.3.2) — is asserted in M19, which adds the second regime
 	// there is currently nothing to isolate from.
 }
+
+// RunSQLConstraints asserts the schema-level guarantees a SQL engine enforces and the memory
+// adapter structurally cannot, so it is called from the SQLite and Postgres tests rather than
+// from Run.
+//
+// The subject is the §16.7.1 CHECK tying each enum group to its discriminator. Domain
+// validation already rejects these writes (§16.6); the constraint is the second line, for a
+// caller that reaches the store without passing through it.
+func RunSQLConstraints(t *testing.T, store domain.MetadataStore) {
+	t.Helper()
+	ctx := context.Background()
+	now := domain.NowMillis()
+
+	m := &domain.Model{ID: domain.NewID(), Name: "constraint-subject", State: domain.StateActive, CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateModel(ctx, m); err != nil {
+		t.Fatalf("CreateModel: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		c    domain.RiskClassification
+	}{{
+		// The EU branch requires its own group populated. A null class here is how an
+		// `unclassified` model would look if `unclassified` were an absence rather than a
+		// value — and §16.3 is emphatic that it is a value.
+		name: "eu_ai_act row with a null eu_system_risk_class",
+		c:    domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeEUAIAct, EUGpaiTier: domain.EUGpaiNone},
+	}, {
+		name: "eu_ai_act row with a null eu_gpai_tier",
+		c:    domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeEUAIAct, EUSystemRiskClass: domain.EUClassMinimal},
+	}, {
+		// Today the CHECK has one branch, so it also refuses a regime this build does not
+		// define. M19 adds the `mrm` branch alongside it (`20.8.1`).
+		name: "a regime with no branch in the CHECK",
+		c:    domain.RiskClassification{ModelID: m.ID, Regime: "uk_ai_bill", ClassifiedAt: now},
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := tc.c
+			c.ClassifiedAt = now
+			if err := store.PutClassification(ctx, &c); err == nil {
+				t.Fatal("expected the CHECK to reject this row, but the write succeeded")
+			}
+		})
+	}
+
+	// A rejected write leaves nothing behind — the delete-then-insert runs in one transaction.
+	if list, err := store.ListClassifications(ctx, m.ID); err != nil || len(list) != 0 {
+		t.Fatalf("rejected writes left rows behind: %v len=%d", err, len(list))
+	}
+}
