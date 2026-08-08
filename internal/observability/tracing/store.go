@@ -259,3 +259,9 @@ func (s *tracedStore) DriftFactsFor(ctx context.Context, modelID string) (domain
 		return s.next.DriftFactsFor(c, modelID)
 	})
 }
+
+func (s *tracedStore) ListInventory(ctx context.Context, o domain.ListOptions, f domain.ClassificationFilter) ([]*domain.ModelInventoryRow, error) {
+	return do1(ctx, s.t, "store.ListInventory", func(c context.Context) ([]*domain.ModelInventoryRow, error) {
+		return s.next.ListInventory(c, o, f)
+	})
+}

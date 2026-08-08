@@ -31,4 +31,40 @@ type ComplianceStore interface {
 	// It is regime-independent: every clause compares against the *caller's* ClassifiedAt,
 	// so one fetch serves every regime's row for a model.
 	DriftFactsFor(ctx context.Context, modelID string) (DriftFacts, error)
+	// ListInventory returns every model matching o's model-level filters and f's stored-enum
+	// filters, each with its regime row and drift facts (§16.8.2).
+	//
+	// **Unpaginated on purpose.** The `classificationState` filter cannot be a SQL predicate
+	// — the state is computed, not stored — so the caller filters on it in Go and pages the
+	// survivors. Paging here instead would hand back short pages, or pages that skip
+	// matching models entirely. This mirrors how ListModels already treats labels it cannot
+	// push down.
+	ListInventory(ctx context.Context, o ListOptions, f ClassificationFilter) ([]*ModelInventoryRow, error)
+}
+
+// ModelInventoryRow is one model with everything needed to state its classification status
+// (§16.8.2): the model, its row for the regime asked about (nil when it has none), and the
+// drift facts to measure that row against.
+//
+// The store returns facts rather than a state. Computing the state here would mean writing
+// the §16.5 predicate a second time in SQL, and two implementations of a legal predicate in
+// two languages is exactly the arrangement that eventually disagrees. The caller runs
+// ClassificationStateOf, the same function every other read path uses.
+type ModelInventoryRow struct {
+	Model          *Model
+	Classification *RiskClassification // nil ⇒ unclassified under this regime
+	Facts          DriftFacts
+}
+
+// ClassificationFilter narrows an inventory query to stored enum values. The computed
+// state is deliberately absent: it is not a column, so it cannot be a SQL predicate.
+type ClassificationFilter struct {
+	Regime            Regime
+	EUSystemRiskClass EUSystemRiskClass
+	EUGpaiTier        EUGpaiTier
+}
+
+// Active reports whether any stored-column filter is set.
+func (f ClassificationFilter) Active() bool {
+	return f.EUSystemRiskClass != "" || f.EUGpaiTier != ""
 }

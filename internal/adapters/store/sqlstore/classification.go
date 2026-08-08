@@ -128,3 +128,115 @@ func (s *Store) DriftFactsFor(ctx context.Context, modelID string) (domain.Drift
 	// Zero is also the honest answer for an install with no open reviews.
 	return f, nil
 }
+
+// ListInventory answers "which high-risk models do we have?" in one statement (§16.8.2).
+//
+// The classification join is LEFT, so unclassified models are still returned — `unclassified`
+// is a state to filter *for*, not an absence to drop (§16.4). An enum filter turns the join
+// inner in effect, because a null column never equals a value; that is correct, since asking
+// for high_annex_iii cannot mean "and also the models nobody classified".
+//
+// The version aggregates come from a grouped subquery rather than correlated scalars so the
+// model rows stay distinct without a DISTINCT, and each engine gets one pass over
+// model_version using the (model_id, stage) index (§02.6, §16.5).
+func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domain.ClassificationFilter) ([]*domain.ModelInventoryRow, error) {
+	where, args, labelsPushed, err := s.modelWhere(o, "m")
+	if err != nil {
+		return nil, err
+	}
+
+	// The regime is bound first because it is inside the JOIN condition, not the WHERE:
+	// moving it to WHERE would turn the LEFT JOIN inner and hide unclassified models.
+	joinArgs := []any{string(f.Regime)}
+	q := `SELECT ` + prefixCols(modelCols, "m") + `,
+		       c.model_id, c.regime, c.eu_gpai_tier, c.eu_system_risk_class,
+		       c.intended_purpose, c.basis, c.classified_at, c.classified_by, c.review_due_at,
+		       COALESCE(v.latest_created, 0), COALESCE(v.latest_prod_updated, 0)
+		FROM model m
+		LEFT JOIN classification c ON c.model_id = m.id AND c.regime = ?
+		LEFT JOIN (
+			SELECT model_id,
+			       MAX(created_at) AS latest_created,
+			       MAX(CASE WHEN stage = 'production' THEN updated_at END) AS latest_prod_updated
+			FROM model_version GROUP BY model_id
+		) v ON v.model_id = m.id
+		WHERE 1=1` + where
+
+	if f.EUSystemRiskClass != "" {
+		q += ` AND c.eu_system_risk_class = ?`
+		args = append(args, string(f.EUSystemRiskClass))
+	}
+	if f.EUGpaiTier != "" {
+		q += ` AND c.eu_gpai_tier = ?`
+		args = append(args, string(f.EUGpaiTier))
+	}
+	q += ` ORDER BY m.created_at DESC, m.id DESC`
+
+	rows, err := s.db.QueryContext(ctx, s.rb(q), append(joinArgs, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []*domain.ModelInventoryRow{}
+	for rows.Next() {
+		m, c, facts, err := scanInventoryRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		// Labels the dialect could not push down are still filtered here, exactly as
+		// ListModels does — the shared modelWhere reports which case we are in.
+		if !labelsPushed && !hasLabels(m.Labels, o.Labels) {
+			continue
+		}
+		out = append(out, &domain.ModelInventoryRow{Model: m, Classification: c, Facts: facts})
+	}
+	return out, rows.Err()
+}
+
+func scanInventoryRow(rows *sql.Rows) (*domain.Model, *domain.RiskClassification, domain.DriftFacts, error) {
+	var (
+		m                                domain.Model
+		state, labels                    string
+		cp                               sql.NullString
+		cModelID, cRegime                sql.NullString
+		tier, class                      sql.NullString
+		purpose, basis, by               sql.NullString
+		classifiedAt, reviewDueAt        sql.NullInt64
+		latestCreated, latestProdUpdated int64
+	)
+	if err := rows.Scan(
+		&m.ID, &m.Name, &m.Description, &m.Owner, &state, &labels, &cp, &m.CreatedAt, &m.UpdatedAt,
+		&cModelID, &cRegime, &tier, &class, &purpose, &basis, &classifiedAt, &by, &reviewDueAt,
+		&latestCreated, &latestProdUpdated,
+	); err != nil {
+		return nil, nil, domain.DriftFacts{}, err
+	}
+	m.State = domain.ModelState(state)
+	m.Labels = unmarshalMap(labels)
+	m.CustomProperties = fromNull(cp)
+
+	facts := domain.DriftFacts{
+		LatestVersionCreatedAt:    latestCreated,
+		LatestProductionUpdatedAt: latestProdUpdated,
+		// LatestOpenReviewCreatedAt stays zero until M16 (`17.4`).
+	}
+	if !cModelID.Valid {
+		return &m, nil, facts, nil // no row for this regime — unclassified (§16.4)
+	}
+	c := &domain.RiskClassification{
+		ModelID:           cModelID.String,
+		Regime:            domain.Regime(cRegime.String),
+		EUGpaiTier:        domain.EUGpaiTier(tier.String),
+		EUSystemRiskClass: domain.EUSystemRiskClass(class.String),
+		IntendedPurpose:   purpose.String,
+		Basis:             basis.String,
+		ClassifiedAt:      classifiedAt.Int64,
+		ClassifiedBy:      by.String,
+	}
+	if reviewDueAt.Valid {
+		v := reviewDueAt.Int64
+		c.ReviewDueAt = &v
+	}
+	return &m, c, facts, nil
+}

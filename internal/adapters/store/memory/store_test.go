@@ -8,5 +8,7 @@ import (
 )
 
 func TestMemoryStore(t *testing.T) {
-	storetest.Run(t, memstore.New())
+	store := memstore.New()
+	storetest.Run(t, store)
+	storetest.RunInventory(t, store)
 }

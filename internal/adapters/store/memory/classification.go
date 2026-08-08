@@ -86,3 +86,42 @@ func (s *Store) DriftFactsFor(_ context.Context, modelID string) (domain.DriftFa
 	// LatestOpenReviewCreatedAt stays zero until M16 (`17.4`).
 	return f, nil
 }
+
+// ListInventory mirrors the sqlstore join in memory (§16.8.2). Unclassified models are kept
+// unless a stored-enum filter is set, since a null column never equals a value.
+func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domain.ClassificationFilter) ([]*domain.ModelInventoryRow, error) {
+	models, _, err := s.ListModels(ctx, domain.ListOptions{
+		// Reuse the model-level filtering, but not the paging: the caller pages after it has
+		// applied the computed-state filter.
+		Filters: o.Filters, Q: o.Q, Labels: o.Labels, CustomProps: o.CustomProps,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := []*domain.ModelInventoryRow{}
+	for _, m := range models {
+		c := s.classificationFor(m.ID, f.Regime)
+		if f.EUSystemRiskClass != "" && (c == nil || c.EUSystemRiskClass != f.EUSystemRiskClass) {
+			continue
+		}
+		if f.EUGpaiTier != "" && (c == nil || c.EUGpaiTier != f.EUGpaiTier) {
+			continue
+		}
+		facts, err := s.DriftFactsFor(ctx, m.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, &domain.ModelInventoryRow{Model: m, Classification: c, Facts: facts})
+	}
+	return out, nil
+}
+
+func (s *Store) classificationFor(modelID string, regime domain.Regime) *domain.RiskClassification {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if c, ok := s.classifications[modelID][regime]; ok {
+		return copyClassification(c)
+	}
+	return nil
+}
