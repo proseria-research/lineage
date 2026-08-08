@@ -93,6 +93,11 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{model}/classifications", r.listClassifications)
 
 	// Global audit feed, cross-model diff, OpenAPI contract
+	// Retention (§19.4). On /v1, not only /healthz: the floor is a fact a filing has to cite,
+	// and `24 §4.3` requires every fact to be reachable through the public API — an evidence
+	// exporter reading over HTTP has no access to the ops port.
+	mux.HandleFunc("GET /v1/retention", r.retention)
+
 	mux.HandleFunc("GET /v1/audit", r.auditFeed)
 	mux.HandleFunc("GET /v1/diff", r.globalDiff)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
@@ -182,6 +187,8 @@ func (r *Router) versionAction(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	switch action {
+	case "hold", "release":
+		r.holdAction(w, req, domain.SubjectVersion, action, version)
 	case "transition":
 		var body struct {
 			To     domain.Stage `json:"to"`
