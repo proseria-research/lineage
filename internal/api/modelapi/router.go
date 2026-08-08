@@ -86,6 +86,12 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/footprints", r.listFootprints)
 	mux.HandleFunc("GET /v1/models/{model}/diff", r.modelDiff)
 
+	// Risk classification (§16.8). PUT, not PATCH: you replace a regime's assessment whole,
+	// so an old basis can never sit underneath a brand-new class.
+	mux.HandleFunc("PUT /v1/models/{model}/classifications/{regime}", r.putClassification)
+	mux.HandleFunc("GET /v1/models/{model}/classifications/{regime}", r.getClassification)
+	mux.HandleFunc("GET /v1/models/{model}/classifications", r.listClassifications)
+
 	// Global audit feed, cross-model diff, OpenAPI contract
 	mux.HandleFunc("GET /v1/audit", r.auditFeed)
 	mux.HandleFunc("GET /v1/diff", r.globalDiff)
