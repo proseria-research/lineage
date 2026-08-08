@@ -23,14 +23,7 @@ func (s *Store) PutClassification(_ context.Context, c *domain.RiskClassificatio
 		byRegime = map[domain.Regime]*domain.RiskClassification{}
 		s.classifications[c.ModelID] = byRegime
 	}
-	cp := *c
-	// Copy the pointer's target too: the caller keeps its struct, and a shared *int64 would
-	// let a later edit of the request reach into stored state.
-	if c.ReviewDueAt != nil {
-		v := *c.ReviewDueAt
-		cp.ReviewDueAt = &v
-	}
-	byRegime[c.Regime] = &cp
+	byRegime[c.Regime] = deepCopy(c)
 	return nil
 }
 
@@ -41,7 +34,7 @@ func (s *Store) GetClassification(_ context.Context, modelID string, regime doma
 	if !ok {
 		return nil, domain.NotFound("no " + string(regime) + " classification recorded for this model")
 	}
-	return copyClassification(c), nil
+	return deepCopy(c), nil
 }
 
 func (s *Store) ListClassifications(_ context.Context, modelID string) ([]*domain.RiskClassification, error) {
@@ -50,19 +43,10 @@ func (s *Store) ListClassifications(_ context.Context, modelID string) ([]*domai
 	byRegime := s.classifications[modelID]
 	out := make([]*domain.RiskClassification, 0, len(byRegime))
 	for _, c := range byRegime {
-		out = append(out, copyClassification(c))
+		out = append(out, deepCopy(c))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Regime < out[j].Regime })
 	return out, nil
-}
-
-func copyClassification(c *domain.RiskClassification) *domain.RiskClassification {
-	cp := *c
-	if c.ReviewDueAt != nil {
-		v := *c.ReviewDueAt
-		cp.ReviewDueAt = &v
-	}
-	return &cp
 }
 
 // DriftFactsFor mirrors the sqlstore aggregate: the newest version's creation time, and the
@@ -121,7 +105,7 @@ func (s *Store) classificationFor(modelID string, regime domain.Regime) *domain.
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if c, ok := s.classifications[modelID][regime]; ok {
-		return copyClassification(c)
+		return deepCopy(c)
 	}
 	return nil
 }
