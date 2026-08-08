@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/proseria-research/lineage/internal/domain"
 )
@@ -97,26 +98,40 @@ func (s *Store) GetModel(ctx context.Context, nameOrID string) (*domain.Model, e
 	return m, err
 }
 
-func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain.Model, string, error) {
-	q := `SELECT ` + modelCols + ` FROM model WHERE 1=1`
-	var args []any
+// modelWhere builds the shared model-level filter clause. It is factored out so the
+// inventory query (§16.8.2) applies exactly the same state/q/label/custom-property rules as
+// ListModels rather than growing a second, drifting copy of them. `alias` is the table alias
+// the caller used for `model`.
+//
+// labelsPushed reports whether label matching made it into SQL; when it did not, the caller
+// must still check each scanned row with hasLabels.
+func (s *Store) modelWhere(o domain.ListOptions, alias string) (clause string, args []any, labelsPushed bool, err error) {
+	p := alias + "."
 	if st := o.Filters["state"]; st != "" {
-		q += ` AND state=?`
+		clause += ` AND ` + p + `state=?`
 		args = append(args, st)
 	}
 	if o.Q != "" {
-		q += ` AND name LIKE '%'||?||'%'`
+		clause += ` AND ` + p + `name LIKE '%'||?||'%'`
 		args = append(args, o.Q)
 	}
-	jc, ja, labelsPushed, err := s.jsonFilters(o, "labels", "custom_properties")
+	jc, ja, labelsPushed, err := s.jsonFilters(o, p+"labels", p+"custom_properties")
+	if err != nil {
+		return "", nil, false, err
+	}
+	for _, c := range jc {
+		clause += " AND " + c
+	}
+	return clause, append(args, ja...), labelsPushed, nil
+}
+
+func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain.Model, string, error) {
+	where, args, labelsPushed, err := s.modelWhere(o, "m")
 	if err != nil {
 		return nil, "", err
 	}
-	for _, c := range jc {
-		q += " AND " + c
-	}
-	args = append(args, ja...)
-	q += ` ORDER BY created_at DESC, id DESC`
+	q := `SELECT ` + prefixCols(modelCols, "m") + ` FROM model m WHERE 1=1` + where +
+		` ORDER BY m.created_at DESC, m.id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, "", err
@@ -636,4 +651,14 @@ func hasLabels(have, want map[string]string) bool {
 		}
 	}
 	return true
+}
+
+// prefixCols qualifies a comma-separated column list with a table alias, so one column
+// constant serves both an unaliased and a joined query.
+func prefixCols(cols, alias string) string {
+	parts := strings.Split(cols, ",")
+	for i, c := range parts {
+		parts[i] = alias + "." + strings.TrimSpace(c)
+	}
+	return strings.Join(parts, ",")
 }

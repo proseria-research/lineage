@@ -2,6 +2,7 @@ package storetest
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/proseria-research/lineage/internal/domain"
@@ -164,4 +165,127 @@ func RunSQLConstraints(t *testing.T, store domain.MetadataStore) {
 	if list, err := store.ListClassifications(ctx, m.ID); err != nil || len(list) != 0 {
 		t.Fatalf("rejected writes left rows behind: %v len=%d", err, len(list))
 	}
+}
+
+// RunInventory holds every adapter to identical §16.8.2 inventory semantics: the LEFT join
+// keeps unclassified models, a stored-enum filter drops them, and the drift facts come back
+// alongside so the caller can compute state without a second query per model.
+//
+// It builds its own models so it can run after Run's subject has been deleted.
+func RunInventory(t *testing.T, store domain.MetadataStore) {
+	t.Helper()
+	ctx := context.Background()
+	now := domain.NowMillis()
+
+	mk := func(name string) *domain.Model {
+		m := &domain.Model{ID: domain.NewID(), Name: name, State: domain.StateActive, CreatedAt: now, UpdatedAt: now}
+		if err := store.CreateModel(ctx, m); err != nil {
+			t.Fatalf("CreateModel %s: %v", name, err)
+		}
+		return m
+	}
+	high := mk("inv-high")
+	minimal := mk("inv-minimal")
+	mk("inv-unclassified") // deliberately never classified
+
+	classify := func(m *domain.Model, class domain.EUSystemRiskClass) {
+		c := &domain.RiskClassification{
+			ModelID: m.ID, Regime: domain.RegimeEUAIAct,
+			EUSystemRiskClass: class, EUGpaiTier: domain.EUGpaiNone,
+			IntendedPurpose: "p", Basis: "b", ClassifiedAt: now, ClassifiedBy: "risk@acme.example",
+		}
+		if err := store.PutClassification(ctx, c); err != nil {
+			t.Fatalf("PutClassification %s: %v", m.Name, err)
+		}
+	}
+	classify(high, domain.EUClassHighAnnexIII)
+	classify(minimal, domain.EUClassMinimal)
+
+	rowsByName := func(f domain.ClassificationFilter) map[string]*domain.ModelInventoryRow {
+		f.Regime = domain.RegimeEUAIAct
+		// Scoped by name: Run and RunSQLConstraints leave their own models in the store, and
+		// this exercises the shared model-level clause on every assertion rather than once.
+		rows, err := store.ListInventory(ctx, domain.ListOptions{Q: "inv-"}, f)
+		if err != nil {
+			t.Fatalf("ListInventory: %v", err)
+		}
+		out := map[string]*domain.ModelInventoryRow{}
+		for _, r := range rows {
+			out[r.Model.Name] = r
+		}
+		return out
+	}
+
+	// Unfiltered: every model comes back, classified or not. `unclassified` is a state to
+	// filter *for*, not an absence to drop (§16.4).
+	all := rowsByName(domain.ClassificationFilter{})
+	for _, name := range []string{"inv-high", "inv-minimal", "inv-unclassified"} {
+		if all[name] == nil {
+			t.Fatalf("unfiltered inventory missing %s: %v", name, keysOf(all))
+		}
+	}
+	if all["inv-unclassified"].Classification != nil {
+		t.Fatal("a never-classified model came back with a classification row")
+	}
+	if all["inv-high"].Classification == nil ||
+		all["inv-high"].Classification.EUSystemRiskClass != domain.EUClassHighAnnexIII {
+		t.Fatalf("classification not joined: %+v", all["inv-high"].Classification)
+	}
+
+	// A stored-enum filter selects exactly one and drops the unclassified model — asking for
+	// high_annex_iii cannot mean "and also everything nobody classified".
+	only := rowsByName(domain.ClassificationFilter{EUSystemRiskClass: domain.EUClassHighAnnexIII})
+	if len(only) != 1 || only["inv-high"] == nil {
+		t.Fatalf("class filter returned %v, want just inv-high", keysOf(only))
+	}
+	if tiered := rowsByName(domain.ClassificationFilter{EUGpaiTier: domain.EUGpaiNone}); len(tiered) != 2 {
+		t.Fatalf("tier filter returned %v, want the two classified models", keysOf(tiered))
+	}
+	if none := rowsByName(domain.ClassificationFilter{EUSystemRiskClass: domain.EUClassProhibited}); len(none) != 0 {
+		t.Fatalf("filter matching nothing returned %v", keysOf(none))
+	}
+
+	// A narrower model-level filter still applies, through the same shared clause.
+	named, err := store.ListInventory(ctx, domain.ListOptions{Q: "inv-high"}, domain.ClassificationFilter{Regime: domain.RegimeEUAIAct})
+	if err != nil || len(named) != 1 || named[0].Model.Name != "inv-high" {
+		t.Fatalf("q filter: %v rows=%d", err, len(named))
+	}
+
+	// Drift facts ride along: publishing a version must show up without a second query.
+	if all["inv-high"].Facts.LatestVersionCreatedAt != 0 {
+		t.Fatalf("no versions yet, got %d", all["inv-high"].Facts.LatestVersionCreatedAt)
+	}
+	v := &domain.ModelVersion{
+		ID: domain.NewID(), ModelID: high.ID, Name: "1.0.0", Stage: domain.StageProduction,
+		CreatedAt: now + 5_000, UpdatedAt: now + 5_000,
+	}
+	if err := store.CreateVersion(ctx, v); err != nil {
+		t.Fatalf("CreateVersion: %v", err)
+	}
+	after := rowsByName(domain.ClassificationFilter{})
+	f := after["inv-high"].Facts
+	if f.LatestVersionCreatedAt != now+5_000 {
+		t.Fatalf("latestVersionCreatedAt = %d, want %d", f.LatestVersionCreatedAt, now+5_000)
+	}
+	if f.LatestProductionUpdatedAt != now+5_000 {
+		t.Fatalf("latestProductionUpdatedAt = %d, want %d", f.LatestProductionUpdatedAt, now+5_000)
+	}
+	// One model's versions must not leak into another's facts — the join groups by model.
+	if after["inv-minimal"].Facts.LatestVersionCreatedAt != 0 {
+		t.Fatalf("version facts leaked across models: %+v", after["inv-minimal"].Facts)
+	}
+	// A row per model, not a row per version.
+	if len(after) != 3 {
+		t.Fatalf("expected 3 rows after adding a version, got %v", keysOf(after))
+	}
+
+}
+
+func keysOf(m map[string]*domain.ModelInventoryRow) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
