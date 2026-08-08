@@ -1,6 +1,7 @@
 package modelapi_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -160,5 +161,112 @@ func TestDeleteStillWorksWithoutAFloor(t *testing.T) {
 	srv := holdableServer(t, apiServer(t))
 	if code, _ := do(t, srv, "DELETE", "/v1/models/m/versions/1.0.0", "", nil); code != http.StatusNoContent {
 		t.Fatalf("DELETE = %d, want 204", code)
+	}
+}
+
+// ---- Attestation over HTTP (§19.7.2, §19.7.3) ----
+
+// sealingServer runs with attestation on and hands back the store, so a test can seal on a
+// driven clock and tamper the way someone with database access would.
+func sealingServer(t *testing.T) (*httptest.Server, *core.Service, *memstore.Store) {
+	t.Helper()
+	backend := fs.New("default", t.TempDir())
+	store := memstore.New()
+	svc := core.New(store,
+		map[string]domain.StorageBackend{backend.Name(): backend}, backend.Name(),
+		memcache.New(), events.New(), core.WithAttestation(domain.DefaultAttestation))
+	srv := httptest.NewServer(modelapi.New(svc, "X-Lineage-Actor").Handler())
+	t.Cleanup(srv.Close)
+	return srv, svc, store
+}
+
+func TestVerifyOverHTTP(t *testing.T) {
+	srv, svc, store := sealingServer(t)
+	ctx := context.Background()
+	if code, _ := do(t, srv, "POST", "/v1/models", `{"name":"m"}`, nil); code != http.StatusCreated {
+		t.Fatal("create model")
+	}
+	evs, _, err := svc.ListAudit(ctx, "", "", domain.ListOptions{PageSize: 10})
+	if err != nil || len(evs) == 0 {
+		t.Fatalf("ListAudit: %v", err)
+	}
+	e := evs[0]
+	cfg := domain.DefaultAttestation
+	if _, err := svc.SealDue(ctx, (*e.Epoch+1)*cfg.IntervalMillis()+cfg.GraceMillis()+1); err != nil {
+		t.Fatal(err)
+	}
+
+	code, body := do(t, srv, "GET", "/v1/audit:verify", "", nil)
+	if code != http.StatusOK || body["ok"] != true {
+		t.Fatalf("verify a clean log: %d %v", code, body)
+	}
+	// The report always states what it did not cover (§19.5.3).
+	if body["openEpochSince"] == nil || body["attestationStartedAt"] == nil {
+		t.Fatalf("verify must report its own coverage: %v", body)
+	}
+
+	// Tamper, then ask again. A break is 200 with ok:false — the request succeeded and the
+	// answer is bad news, which a 4xx would make indistinguishable from a broken endpoint.
+	if err := store.TamperAuditSummaryForTest(e.ID, "nothing happened"); err != nil {
+		t.Fatal(err)
+	}
+	code, body = do(t, srv, "GET", "/v1/audit:verify", "", nil)
+	if code != http.StatusOK {
+		t.Fatalf("a detected break must still be 200, got %d", code)
+	}
+	if body["ok"] != false {
+		t.Fatalf("verify after tampering: %v", body)
+	}
+	br, ok := body["firstBreak"].(map[string]any)
+	if !ok || br["kind"] != domain.BreakRootMismatch {
+		t.Fatalf("firstBreak = %v", body["firstBreak"])
+	}
+}
+
+func TestProofOverHTTP(t *testing.T) {
+	srv, svc, _ := sealingServer(t)
+	ctx := context.Background()
+	if code, _ := do(t, srv, "POST", "/v1/models", `{"name":"m"}`, nil); code != http.StatusCreated {
+		t.Fatal("create model")
+	}
+	evs, _, _ := svc.ListAudit(ctx, "", "", domain.ListOptions{PageSize: 10})
+	e := evs[0]
+	cfg := domain.DefaultAttestation
+
+	// Inside the open window the proof does not exist yet, and the refusal says when it will.
+	code, body := do(t, srv, "GET", "/v1/audit/"+e.ID+":proof", "", nil)
+	if code != http.StatusConflict {
+		t.Fatalf("proof in the open epoch = %d, want 409", code)
+	}
+	d := details(t, body)
+	if d["reason"] != "epoch_unsealed" || d["sealsAt"] == nil {
+		t.Fatalf("details = %v", d)
+	}
+
+	if _, err := svc.SealDue(ctx, (*e.Epoch+1)*cfg.IntervalMillis()+cfg.GraceMillis()+1); err != nil {
+		t.Fatal(err)
+	}
+	code, body = do(t, srv, "GET", "/v1/audit/"+e.ID+":proof", "", nil)
+	if code != http.StatusOK {
+		t.Fatalf("proof: %d %v", code, body)
+	}
+	if body["root"] == nil || body["leafHash"] == nil || body["leafCount"] == nil {
+		t.Fatalf("proof body must carry the root, the leaf hash and the count: %v", body)
+	}
+
+	if code, _ := do(t, srv, "GET", "/v1/audit/no-such-id:proof", "", nil); code != http.StatusNotFound {
+		t.Fatalf("proof for an unknown id = %d, want 404", code)
+	}
+	if code, _ := do(t, srv, "GET", "/v1/audit/"+e.ID+":nonsense", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("unknown audit action = %d, want 400", code)
+	}
+}
+
+func TestAttestationDisabledOverHTTP(t *testing.T) {
+	// apiServer builds a Service with no WithAttestation, so sealing is off.
+	srv := apiServer(t)
+	code, body := do(t, srv, "GET", "/v1/audit:verify", "", nil)
+	if code != http.StatusConflict || details(t, body)["reason"] != "attestation_disabled" {
+		t.Fatalf("verify with attestation off: %d %v", code, body)
 	}
 }

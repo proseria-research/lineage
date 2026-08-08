@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/hex"
 	"log"
 	"time"
 
@@ -178,4 +179,133 @@ func (s *Service) RunSealer(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// ---- Verification (§19.7.2, §19.7.3) ----
+
+// disabled is the shared refusal for both read endpoints. Answering "ok: true" with
+// attestation off would be the worst possible lie: nothing is sealed, so nothing disagrees.
+func (s *Service) attestationEnabled() *domain.Error {
+	if !s.attest.Enabled {
+		return domain.Precondition("audit attestation is disabled on this install",
+			map[string]any{"reason": "attestation_disabled"})
+	}
+	return nil
+}
+
+// VerifyAudit recomputes every sealed epoch's root from its rows and checks the chain
+// (§19.7.2). from/to bound the scan; a zero `to` means unbounded.
+func (s *Service) VerifyAudit(ctx context.Context, from, to int64) (domain.VerifyResult, error) {
+	var res domain.VerifyResult
+	if err := s.attestationEnabled(); err != nil {
+		return res, err
+	}
+	interval := s.attest.IntervalMillis()
+
+	if first, ok, err := s.store.FirstAttestedEpoch(ctx); err != nil {
+		return res, err
+	} else if ok {
+		res.AttestationStartedAt = first * interval
+	}
+	res.OpenEpochSince = domain.EpochOf(domain.NowMillis(), interval) * interval
+
+	epochs, err := s.store.ListEpochs(ctx, from, to)
+	if err != nil {
+		return res, err
+	}
+
+	var prev *domain.AuditEpoch
+	for i, e := range epochs {
+		rows, err := s.store.AuditEventsInEpoch(ctx, e.Epoch)
+		if err != nil {
+			return res, err
+		}
+		res.EpochsChecked++
+		res.LeavesChecked += int64(len(rows))
+
+		// Leaf count first: a deletion changes both the count and the root, and "17 sealed,
+		// 16 present" is a sharper diagnosis than "the root differs".
+		if int64(len(rows)) != e.LeafCount {
+			res.FirstBreak = &domain.VerifyBreak{Epoch: e.Epoch, Kind: domain.BreakLeafCountMismatch,
+				Expected: e.LeafCount, Found: int64(len(rows)), SealedAt: e.SealedAt}
+			return res, nil
+		}
+		if root := domain.MerkleRootOfEvents(rows); root != e.Root {
+			res.FirstBreak = &domain.VerifyBreak{Epoch: e.Epoch, Kind: domain.BreakRootMismatch,
+				Expected: e.Root, Found: root, SealedAt: e.SealedAt}
+			return res, nil
+		}
+
+		switch {
+		case prev != nil:
+			if e.PrevRoot != prev.Root {
+				res.FirstBreak = &domain.VerifyBreak{Epoch: e.Epoch, Kind: domain.BreakPrevRootMismatch,
+					Expected: prev.Root, Found: e.PrevRoot, SealedAt: e.SealedAt}
+				return res, nil
+			}
+		case i == 0 && from <= 0 && e.PrevRoot != "":
+			// A full scan starts at the genesis seal, which by construction has no
+			// predecessor. A prev_root here means the epoch it pointed at is gone — the
+			// "removed wholesale" case, and the only way to catch a removal at the *head* of
+			// the chain, where there is no later epoch to disagree with it.
+			//
+			// Skipped on a bounded scan, where the predecessor is legitimately out of range.
+			res.FirstBreak = &domain.VerifyBreak{Epoch: e.Epoch, Kind: domain.BreakPrevRootMismatch,
+				Expected: "", Found: e.PrevRoot, SealedAt: e.SealedAt}
+			return res, nil
+		}
+		prev = e
+	}
+
+	res.OK = true
+	return res, nil
+}
+
+// ProveAudit returns an inclusion proof for one event (§19.7.3).
+func (s *Service) ProveAudit(ctx context.Context, id string) (*domain.InclusionProof, error) {
+	if err := s.attestationEnabled(); err != nil {
+		return nil, err
+	}
+	e, err := s.store.GetAuditEvent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if e.Epoch == nil {
+		// Written before §19.5, or while attestation was off. There is no root that covers
+		// it and there never will be (§19.5.4), so this is a permanent answer, not a wait.
+		return nil, domain.Precondition("this event predates attestation and is not covered by any root",
+			map[string]any{"reason": "not_attested"})
+	}
+	interval := s.attest.IntervalMillis()
+
+	epochs, err := s.store.ListEpochs(ctx, *e.Epoch, *e.Epoch)
+	if err != nil {
+		return nil, err
+	}
+	if len(epochs) == 0 {
+		// The open epoch is reported, not glossed (§19.5.3): the caller is told when the
+		// proof becomes available rather than handed a 404 they cannot interpret.
+		return nil, domain.Precondition("the epoch containing this event has not been sealed yet",
+			map[string]any{
+				"reason":  "epoch_unsealed",
+				"epoch":   *e.Epoch,
+				"sealsAt": (*e.Epoch+1)*interval + s.attest.GraceMillis(),
+			})
+	}
+	sealed := epochs[0]
+
+	rows, err := s.store.AuditEventsInEpoch(ctx, *e.Epoch)
+	if err != nil {
+		return nil, err
+	}
+	path, index, found := domain.MerkleProofForEvents(rows, id)
+	if !found {
+		return nil, domain.Internal("audit event is not present in its own epoch")
+	}
+	return &domain.InclusionProof{
+		ID: id, Epoch: *e.Epoch,
+		LeafHash:  "sha256:" + hex.EncodeToString(domain.AuditLeafHash(e)),
+		LeafIndex: index, LeafCount: len(rows),
+		Path: path, Root: sealed.Root, SealedAt: sealed.SealedAt,
+	}, nil
 }

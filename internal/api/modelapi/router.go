@@ -99,6 +99,10 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/retention", r.retention)
 
 	mux.HandleFunc("GET /v1/audit", r.auditFeed)
+	// Attestation (§19.7). ':' is a literal path char to ServeMux, so :verify registers as
+	// its own route; :proof rides a catch segment because the id before it is a wildcard.
+	mux.HandleFunc("GET /v1/audit:verify", r.verifyAudit)
+	mux.HandleFunc("GET /v1/audit/{idAction}", r.auditAction)
 	mux.HandleFunc("GET /v1/diff", r.globalDiff)
 	mux.HandleFunc("GET /v1/openapi.json", r.openapi)
 	mux.HandleFunc("GET /v1/insight-schema.json", r.insightSchemaDoc)
