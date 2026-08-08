@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutGrid, Boxes, Activity, Search } from "lucide-react";
+import { LayoutGrid, Boxes, ScrollText, Activity, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Wordmark } from "@/components/Logo";
@@ -8,6 +8,7 @@ import { Wordmark } from "@/components/Logo";
 const nav = [
   { to: "/", label: "Overview", icon: LayoutGrid, end: true },
   { to: "/models", label: "Models", icon: Boxes, end: false },
+  { to: "/compliance", label: "Compliance", icon: ScrollText, end: false },
   { to: "/activity", label: "Activity", icon: Activity, end: false },
 ];
 

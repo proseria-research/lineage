@@ -246,6 +246,32 @@ func (r *Router) transition(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// setClassification is the console's second write, after `transition` (§16.9). It calls the
+// same core operation the Model API does, so validation, the server-set anchor and the
+// `classification.set` audit event are identical — the console is a client of the same rules,
+// not a bypass around them.
+//
+// A form is the point: a compliance reader who can see that a model is unclassified but can
+// only fix it with a curl is reading a report, not doing a job.
+func (r *Router) setClassification(w http.ResponseWriter, req *http.Request) {
+	regime := domain.Regime(req.PathValue("regime"))
+	if !domain.ValidRegime(regime) {
+		api.WriteError(w, domain.Invalid("unknown regime '"+string(regime)+"'"))
+		return
+	}
+	var in core.ClassificationInput
+	if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+		api.WriteError(w, domain.Invalid("invalid JSON: "+err.Error()))
+		return
+	}
+	v, err := r.svc.SetClassification(req.Context(), r.actor(req), req.PathValue("model"), regime, in)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, v)
+}
+
 // lineageGraph traverses provenance (upstream) or impact (downstream) for the console's
 // version-detail graph view (§06.2, §07.3).
 func (r *Router) lineageGraph(w http.ResponseWriter, req *http.Request) {

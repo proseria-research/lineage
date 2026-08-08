@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,5 +193,113 @@ func TestModelDetailBFFClassification(t *testing.T) {
 	m, _ = body["model"].(map[string]any)
 	if m["classification"] != nil {
 		t.Fatalf("unclassified model detail: %v", m["classification"])
+	}
+}
+
+// ---- The console write (§16.9) ----
+
+func putBFF(t *testing.T, srv *httptest.Server, path, body string) (int, map[string]any) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPut, srv.URL+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Lineage-Actor", "officer@acme.example")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+// The console can classify a model, and it goes through the same core operation the Model
+// API uses — so the anchor, the audit event and the validation are identical. A read-only
+// compliance page is a report nobody can act on.
+func TestConsoleCanClassify(t *testing.T) {
+	srv := complianceSetup(t)
+
+	// "bare" starts with no row at all.
+	if got := classificationsByModel(t, getBFF(t, srv, "/api/models")); got["bare"] != nil {
+		t.Fatalf("precondition: bare should be unclassified, got %v", got["bare"])
+	}
+
+	code, body := putBFF(t, srv, "/api/models/bare/classifications/eu_ai_act", `{
+		"euSystemRiskClass":"high_annex_iii","euGpaiTier":"none",
+		"intendedPurpose":"Triage of inbound claims.","basis":"Annex III 5(a).","reviewDueAt":null
+	}`)
+	if code != http.StatusOK {
+		t.Fatalf("PUT = %d %v", code, body)
+	}
+	if body["euSystemRiskClass"] != "high_annex_iii" || body["state"] != "current" {
+		t.Fatalf("response: %v", body)
+	}
+	// Attribution comes from the actor header, not the form.
+	if body["classifiedBy"] != "officer@acme.example" {
+		t.Fatalf("classifiedBy = %v", body["classifiedBy"])
+	}
+
+	// And it is visible on the next read, with no reload of anything server-side.
+	got := classificationsByModel(t, getBFF(t, srv, "/api/models"))
+	if got["bare"] == nil || got["bare"]["euSystemRiskClass"] != "high_annex_iii" {
+		t.Fatalf("after classify: %v", got["bare"])
+	}
+}
+
+// Re-classifying is the only way a staleness clears (§16.9) — there is no "mark as current".
+func TestConsoleReclassifyClearsStaleness(t *testing.T) {
+	srv := complianceSetup(t)
+	if got := classificationsByModel(t, getBFF(t, srv, "/api/models")); got["high"]["state"] != "stale" {
+		t.Fatalf("precondition: high should be stale, got %v", got["high"]["state"])
+	}
+
+	time.Sleep(2 * time.Millisecond)
+	code, body := putBFF(t, srv, "/api/models/high/classifications/eu_ai_act", `{
+		"euSystemRiskClass":"high_annex_iii","euGpaiTier":"none",
+		"intendedPurpose":"Card-not-present scoring.","basis":"Annex III 5(b); re-reviewed."
+	}`)
+	if code != http.StatusOK {
+		t.Fatalf("PUT = %d %v", code, body)
+	}
+	if body["state"] != "current" {
+		t.Fatalf("state after re-classification = %v, want current", body["state"])
+	}
+}
+
+// The form mirrors §16.6 client-side, but the server is the enforcement point — a request
+// that slips past the form still fails, with the coded status the console renders.
+func TestConsoleClassifyValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"a stated class with no purpose", `{"euSystemRiskClass":"minimal","euGpaiTier":"none"}`, http.StatusUnprocessableEntity},
+		{"high risk with no basis", `{"euSystemRiskClass":"high_annex_i","euGpaiTier":"none","intendedPurpose":"p"}`, http.StatusUnprocessableEntity},
+		{"unknown class", `{"euSystemRiskClass":"severe","euGpaiTier":"none"}`, http.StatusBadRequest},
+		{"review date in the past", `{"euSystemRiskClass":"minimal","euGpaiTier":"none","intendedPurpose":"p","reviewDueAt":1}`, http.StatusBadRequest},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := complianceSetup(t)
+			code, body := putBFF(t, srv, "/api/models/bare/classifications/eu_ai_act", tc.body)
+			if code != tc.want {
+				t.Fatalf("status = %d, want %d (%v)", code, tc.want, body)
+			}
+			if body["detail"] == nil {
+				t.Fatalf("no problem+json detail for the console to show: %v", body)
+			}
+		})
+	}
+}
+
+func TestConsoleClassifyUnknownRegime(t *testing.T) {
+	srv := complianceSetup(t)
+	code, _ := putBFF(t, srv, "/api/models/bare/classifications/uk_ai_bill", `{"euSystemRiskClass":"minimal","euGpaiTier":"none","intendedPurpose":"p"}`)
+	if code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", code)
 	}
 }

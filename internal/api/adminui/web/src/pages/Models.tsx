@@ -7,105 +7,60 @@ import { ClassificationCell } from "@/components/Classification";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
 
-// The model table is also the §16.9 inventory view — the "it takes us weeks to work out
-// which AI systems are in production" question is asked of the same list, so it is answered
-// on the same page rather than in a separate compliance silo.
+// The model table stays the "what do we have" page. It carries the risk class because that is
+// a property of the model a reader wants at a glance — but the compliance *workflow* (grouping
+// by exposure, the drift queue, the counts) lives on /compliance, so this page is not two
+// pages fighting for one table.
+//
+// The classification filters are still honoured from the URL, so a link from the Compliance
+// page lands on a filtered table. There are no filter controls here; the header says what is
+// being filtered so a filtered view never looks like the whole list.
 
-const CLASS_FILTERS: { value: string; label: string }[] = [
-  { value: "", label: "All classes" },
-  { value: "high_annex_iii", label: "High · Annex III" },
-  { value: "high_annex_i", label: "High · Annex I" },
-  { value: "prohibited", label: "Prohibited" },
-  { value: "limited", label: "Limited" },
-  { value: "minimal", label: "Minimal" },
-  { value: "unclassified", label: "Unclassified" },
-];
+const FILTER_KEYS = ["euSystemRiskClass", "euGpaiTier", "classificationState"] as const;
 
-const STATE_FILTERS: { value: string; label: string }[] = [
-  { value: "", label: "Any state" },
-  { value: "stale", label: "Stale" },
-  { value: "current", label: "Current" },
-  // Its own option, never folded into "stale" (§16.4).
-  { value: "unclassified", label: "Unclassified" },
-];
-
-function Select({
-  value,
-  onChange,
-  options,
-  label,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  label: string;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="label-caps text-muted-foreground">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="border border-border bg-transparent px-2 py-1 text-sm"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
+const FILTER_LABEL: Record<(typeof FILTER_KEYS)[number], string> = {
+  euSystemRiskClass: "risk class",
+  euGpaiTier: "GPAI tier",
+  classificationState: "status",
+};
 
 export default function Models() {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const q = params.get("q") ?? "";
-  // `unclassified` selected as a *class* means the row says so; selected as a *state* means
-  // there may be no row at all. Both are legitimate questions, so both filters exist.
-  const cls = params.get("euSystemRiskClass") ?? "";
-  const state = params.get("classificationState") ?? "";
+  const filters = Object.fromEntries(
+    FILTER_KEYS.map((k) => [k, params.get(k) ?? ""]).filter(([, v]) => v),
+  ) as Record<string, string>;
 
   const { data, error, loading } = useAsync(
-    () => api.models(q, { euSystemRiskClass: cls, classificationState: state }),
-    [q, cls, state],
+    () => api.models(q, filters),
+    [q, filters.euSystemRiskClass, filters.euGpaiTier, filters.classificationState],
   );
 
-  const setFilter = (key: string) => (v: string) => {
-    const next = new URLSearchParams(params);
-    if (v) next.set(key, v);
-    else next.delete(key);
-    setParams(next);
-  };
-
-  const filtered = cls || state;
-  const staleCount = data?.items.filter((m) => m.classification?.state === "stale").length ?? 0;
+  const active = Object.entries(filters).map(
+    ([k, v]) => `${FILTER_LABEL[k as (typeof FILTER_KEYS)[number]]} ${v.replace(/_/g, " ")}`,
+  );
+  if (q) active.unshift(`name “${q}”`);
+  const sub = active.length ? `Filtered by ${active.join(" · ")}` : "System of record for every model";
 
   return (
     <div>
       <PageHeader
         title="Models"
-        sub={q ? `Filtered by “${q}”` : "System of record for every model"}
+        sub={sub}
+        right={
+          active.length ? (
+            <Link to="/models" className="text-sm underline underline-offset-4">
+              Clear filters
+            </Link>
+          ) : undefined
+        }
       />
-
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <Select label="Risk class" value={cls} onChange={setFilter("euSystemRiskClass")} options={CLASS_FILTERS} />
-        <Select label="Status" value={state} onChange={setFilter("classificationState")} options={STATE_FILTERS} />
-        {staleCount > 0 && (
-          // A count, not a warning. A truthful "these need another look" must not read as a
-          // failure the registry is accusing anyone of (§16.2).
-          <span className="text-sm text-muted-foreground">
-            {staleCount} classification{staleCount === 1 ? "" : "s"} to revisit
-          </span>
-        )}
-      </div>
-
       {loading ? (
         <Loading />
       ) : error ? (
         <ErrorNote error={error} />
       ) : !data || data.items.length === 0 ? (
-        <Empty>No models{q || filtered ? " match these filters" : " yet"}.</Empty>
+        <Empty>No models{active.length ? " match these filters" : " yet"}.</Empty>
       ) : (
         <Card>
           <Table>
@@ -129,6 +84,8 @@ export default function Models() {
                     </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{m.owner || "—"}</TableCell>
+                  {/* Badge and reason travel together even here — a bare "stale" with no
+                      reason is the thing §16.9 says not to ship. */}
                   <TableCell className="text-sm">
                     <ClassificationCell c={m.classification} />
                   </TableCell>

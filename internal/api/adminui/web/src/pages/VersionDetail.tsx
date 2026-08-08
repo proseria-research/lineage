@@ -109,7 +109,7 @@ export default function VersionDetail() {
       {/* Compliance sits above Insights because it answers the question that gates the
           others: is this model governed, and is that assessment still good? (§16.9) */}
       <div className="mb-6">
-        <CompliancePanel c={data.classification} />
+        <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
       </div>
 
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />

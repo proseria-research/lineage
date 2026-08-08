@@ -300,6 +300,35 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+async function putJSON<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let detail = `${r.status} ${r.statusText}`;
+    try {
+      const p = await r.json();
+      if (p.detail) detail = p.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return r.json() as Promise<T>;
+}
+
+// What a person can set. classifiedAt / classifiedBy / source are the server's and are
+// rejected if sent, so they are absent here too.
+export interface ClassificationInput {
+  euSystemRiskClass: EUSystemRiskClass;
+  euGpaiTier: EUGpaiTier;
+  intendedPurpose: string;
+  basis: string;
+  reviewDueAt: number | null;
+}
+
 export const api = {
   overview: () => getJSON<Overview>("/api/overview"),
   models: (q = "", filters: Record<string, string> = {}) => {
@@ -316,6 +345,11 @@ export const api = {
     postJSON<VersionSummary>(
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/transition`,
       { to, reason },
+    ),
+  setClassification: (m: string, input: ClassificationInput) =>
+    putJSON<Classification>(
+      `/api/models/${encodeURIComponent(m)}/classifications/eu_ai_act`,
+      input,
     ),
   graph: (m: string, v: string, direction: "upstream" | "downstream" | "both") =>
     getJSON<LineageGraph>(
