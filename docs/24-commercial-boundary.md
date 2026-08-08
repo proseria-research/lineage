@@ -87,6 +87,37 @@ it runs between *holding a fact* and *shaping it into a regulator's document*:
 So: **knowing** you have nine stale high-risk models is free, and always will be. **Producing
 the filing** for them, across a library of frameworks, on a schedule, signed, is the product.
 
+### 4.2 The profiles, by name
+
+§4.1 draws the line per document. This is the same line as a roster, so *which* profiles are
+commercial is checkable rather than inferable. Five of six.
+
+| Profile | Document it produces | Scope | Spec | Tier |
+|---|---|---|---|---|
+| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | version | `18.3` | **core** |
+| `annex_iv` | EU high-risk technical documentation (Art. 11) | version | `18.3` | commercial |
+| `mrm` | Supervisory pack — SR 26-2 · PRA SS1/23 · OSFI E-23 | version | `20` | commercial |
+| `pccp` | FDA predetermined change control plan | version | `22` | commercial |
+| `iso_42001` | ISO/IEC 42001 AIMS | install | `21` | commercial |
+| `nist_ai_rmf` | NIST AI RMF | install | `21` | commercial |
+
+**`annex_xii` is core for a reason, not by lottery.** It is the document an engineer produces
+per release for their downstream integrators, on an obligation already in force, and the
+registry holds nearly all of it (`18.3`). The commercial ones are what a compliance function
+files against a recurring obligation — `01`'s verb split, applied to two profiles that would
+otherwise look interchangeable.
+
+**A profile is a mapping table, not a capability.** It is their heading ← our field, plus
+fixtures (`18.2.1`), and it may require nothing core does not already publish on `/v1`. So the
+commercial tier here is a *maintained set* of mappings, kept current as regulators revise
+them — not access to your own facts. Anyone can write any of these profiles themselves,
+against the same public API, and core is tested to make sure that stays true.
+
+**One column, and it is the only one.** Install scope (`21.7.2`) exists because two commercial
+profiles need it. Being a column, it can live nowhere but here — so it ships in core under
+Apache-2.0, usable by anyone writing their own install-scope profile. Nothing else in §4
+requires a change to core at all.
+
 ## 5. Standing Commitments
 
 | | |
