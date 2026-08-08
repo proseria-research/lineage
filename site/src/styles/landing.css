@@ -225,9 +225,11 @@ code {
 	transform: scaleX(-1);
 }
 
-/* Narrow screens keep the two most useful destinations rather than dropping
-   navigation altogether. The icons stay — they cost almost no width. */
-@media (max-width: 860px) {
+/* Narrow screens shed destinations from the middle out, keeping Quickstart and
+   Compliance — how to run it, and why you would. The icons stay: they cost almost
+   no width. Nth-child indices track the order in SiteHeader.astro:
+   1 Quickstart · 2 Concepts · 3 Compliance · 4 Guides · 5 API. */
+@media (max-width: 1020px) {
 	.masthead__inner {
 		gap: 1rem;
 	}
@@ -235,7 +237,7 @@ code {
 		gap: 0.9rem;
 	}
 	.masthead__nav a:nth-child(2),
-	.masthead__nav a:nth-child(4) {
+	.masthead__nav a:nth-child(5) {
 		display: none;
 	}
 	.masthead__end {
@@ -243,9 +245,15 @@ code {
 	}
 }
 
+@media (max-width: 760px) {
+	.masthead__nav a:nth-child(4) {
+		display: none;
+	}
+}
+
 /* Phone widths: the wordmark, one destination and the two icons is all that fits on a
-   360px row without it wrapping. Nothing is stranded — the hero's own first action is
-   the quickstart, and the footer carries the full map of the site. */
+   360px row without it wrapping. Compliance is the one kept, because the quickstart is
+   also the hero's first action and the footer carries the full map of the site. */
 @media (max-width: 600px) {
 	.masthead__inner {
 		gap: 0.75rem;
@@ -254,7 +262,7 @@ code {
 	.wordmark {
 		font-size: 1.05rem;
 	}
-	.masthead__nav a:nth-child(3) {
+	.masthead__nav a:nth-child(1) {
 		display: none;
 	}
 }
@@ -690,6 +698,183 @@ code {
 	/* The response scrolls either way; a smaller face just means fewer lines have to. */
 	.exchange__response {
 		font-size: 0.7rem;
+	}
+}
+
+/* ---- Audit ledger --------------------------------------------------------- */
+
+/* The same frame as the delivery exchange, because they are the two machine surfaces
+   and a reader should recognise the second from the first. */
+.ledger {
+	margin: 0;
+	border: var(--ln-frame) solid var(--ln-rule-strong);
+	background: var(--ln-paper-raised);
+}
+.ledger__head {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.85rem 1rem;
+	border-bottom: var(--ln-frame) solid var(--ln-rule-strong);
+	font-size: 0.78rem;
+	overflow-x: auto;
+}
+.ledger__head code {
+	white-space: nowrap;
+}
+.ledger__rows {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+/* Three rows of decreasing weight: the verb, then what it did, then when. A reader
+   scanning for one action never has to read the summaries to find it. */
+.ledger__row {
+	display: grid;
+	gap: 0.2rem;
+	padding: 0.75rem 1rem;
+	border-bottom: 1.5px solid var(--ln-rule);
+	font-family: var(--ln-mono);
+}
+.ledger__row:last-child {
+	border-bottom: 0;
+}
+.ledger__top {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+}
+.ledger__action {
+	font-size: 0.76rem;
+	font-weight: 600;
+	color: var(--ln-ink);
+	overflow-wrap: anywhere;
+}
+.ledger__actor {
+	margin-left: auto;
+	font-size: 0.66rem;
+	color: var(--ln-ink-faint);
+	white-space: nowrap;
+}
+.ledger__summary {
+	font-size: 0.7rem;
+	color: var(--ln-ink-muted);
+	overflow-wrap: anywhere;
+}
+.ledger__at {
+	font-size: 0.63rem;
+	color: var(--ln-ink-faint);
+}
+/* The promotion is the event everything else exists to explain, so it carries the
+   production accent — the same green a production card gets on the board. */
+.ledger__row[data-accent='true'] {
+	background: var(--ln-production-wash);
+	box-shadow: inset 3px 0 0 var(--ln-production);
+}
+.ledger__row[data-accent='true'] .ledger__action {
+	color: var(--ln-production);
+}
+.ledger__foot {
+	margin: 0;
+	padding: 0.85rem 1rem;
+	border-top: var(--ln-frame) solid var(--ln-rule);
+	font-size: 0.85rem;
+	color: var(--ln-ink-muted);
+}
+
+@media (max-width: 600px) {
+	.ledger__head,
+	.ledger__row,
+	.ledger__foot {
+		padding-inline: 0.85rem;
+	}
+	/* The actor no longer fits beside a long dotted verb; drop it onto its own line
+	   rather than letting an email address force the card wider than the screen. */
+	.ledger__top {
+		flex-wrap: wrap;
+		gap: 0.15rem 0.75rem;
+	}
+	.ledger__actor {
+		margin-left: 0;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+}
+
+/* ---- Roadmap ------------------------------------------------------------- */
+
+.roadmap {
+	list-style: none;
+	margin: 0 0 clamp(2rem, 4vw, 3rem);
+	padding: 0;
+	border: var(--ln-frame) solid var(--ln-rule-strong);
+	background: var(--ln-paper-raised);
+	counter-reset: none;
+}
+.roadmap__item {
+	display: grid;
+	gap: 0.5rem;
+	padding: clamp(1.1rem, 2.4vw, 1.6rem) clamp(1rem, 2.4vw, 1.6rem);
+	border-bottom: 1.5px solid var(--ln-rule);
+}
+.roadmap__item:last-child {
+	border-bottom: 0;
+}
+.roadmap__head {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.5rem 0.85rem;
+	margin: 0;
+}
+.roadmap__title {
+	font-family: var(--ln-display);
+	font-weight: 600;
+	font-size: 1.2rem;
+	letter-spacing: -0.015em;
+}
+/* Amber, not green: staging is the colour this palette already uses for "on its way,
+   not there yet", and reading it as shipped is the one misreading that would matter. */
+.roadmap__status {
+	margin-left: auto;
+	font-family: var(--ln-mono);
+	font-size: 0.64rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ln-staging);
+	border: 1.5px solid var(--ln-staging);
+	padding: 0.15rem 0.45rem;
+	white-space: nowrap;
+}
+.roadmap__body {
+	margin: 0;
+	font-size: 0.94rem;
+	color: var(--ln-ink-muted);
+	max-width: 74ch;
+}
+.roadmap__notes {
+	display: grid;
+	gap: 1rem;
+	max-width: 74ch;
+}
+.roadmap__notes p {
+	margin: 0;
+	font-size: 0.94rem;
+	color: var(--ln-ink-muted);
+}
+.roadmap__notes strong {
+	color: var(--ln-ink);
+	font-weight: 600;
+}
+
+@media (max-width: 560px) {
+	/* A display-face title and a mono chip cannot share a 360px row. The status drops
+	   below the title rather than squeezing the name of the capability. */
+	.roadmap__status {
+		margin-left: 0;
+		order: 3;
+		flex-basis: 100%;
+		width: max-content;
 	}
 }
 
