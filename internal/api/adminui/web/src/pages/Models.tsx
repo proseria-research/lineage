@@ -84,8 +84,8 @@ export default function Models() {
                     </Link>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{m.owner || "—"}</TableCell>
-                  {/* Badge and reason travel together even here — a bare "stale" with no
-                      reason is the thing §16.9 says not to ship. */}
+                  {/* Class at a glance; the stale badge links through to the worklist,
+                      where the reason and the fix are. */}
                   <TableCell className="text-sm">
                     <ClassificationCell c={m.classification} />
                   </TableCell>

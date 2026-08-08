@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClassifyDialog } from "@/components/ClassifyDialog";
@@ -9,8 +10,10 @@ import type { Classification, ClassificationState, EUSystemRiskClass, StaleReaso
 //  1. `unclassified` shows as the word `unclassified`. It never renders as `minimal`, and a
 //     model with no row renders the same as one that says `unclassified` — both mean nobody
 //     has said yet (§16.3).
-//  2. Staleness is always shown *with its reason*. A bare "stale" badge sends the reader
-//     hunting; the reason is the part they can act on.
+//  2. A "stale" badge is never a dead end. Where there is room — the compliance worklist,
+//     the version panel — the reason is spelled out beside it. Where there is not (a table
+//     cell), the badge links to the worklist, which is where the reason and the fix live.
+//     What §16.9 rules out is marking something stale and leaving the reader to hunt.
 //  3. Nothing here offers to fix anything. There is no "mark as current" — staleness clears
 //     only by writing a real new classification (§16.9).
 
@@ -60,25 +63,23 @@ export function StaleBadge({ state }: { state: ClassificationState }) {
   return <Badge variant="outline">stale</Badge>;
 }
 
-/** Why it is stale, in words. Empty for anything that is not stale. */
-export function StaleReasons({ c }: { c: Classification | null }) {
-  if (!c || c.state !== "stale" || !c.staleReasons?.length) return null;
-  return (
-    <span className="text-muted-foreground">
-      {c.staleReasons.map((r) => STALE_REASON_TEXT[r] ?? r).join("; ")}
-    </span>
-  );
-}
-
-/** One inventory-table cell: class, staleness, and the reason on the line below. */
+/**
+ * One table cell: the class, and a staleness marker that leads somewhere.
+ *
+ * The reason text lives on the compliance worklist rather than here — in a table it wrapped
+ * to a second line and broke the row rhythm for a detail most readers scanning the model
+ * list are not acting on. The badge stays clickable so the reader is one step from the
+ * reason and the fix.
+ */
 export function ClassificationCell({ c }: { c: Classification | null }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5">
-        <RiskClassBadge c={c} />
-        {c && <StaleBadge state={c.state} />}
-      </div>
-      <StaleReasons c={c} />
+    <div className="flex items-center gap-1.5">
+      <RiskClassBadge c={c} />
+      {c?.state === "stale" && (
+        <Link to="/compliance" title="Why this is stale" className="hover:opacity-70">
+          <StaleBadge state={c.state} />
+        </Link>
+      )}
     </div>
   );
 }
