@@ -182,9 +182,14 @@ regimes are configuration. Until then they're two implementations that agree, an
 | Anything other than `unclassified` needs a non-empty `intendedPurpose` | `422 unprocessable` — nobody can review a class with no stated purpose |
 | `high_annex_iii` and `high_annex_i` also need a non-empty `basis` | `422 unprocessable` |
 | `reviewDueAt`, if given, must be in the future | `400 invalid_argument` |
-| `classifiedAt` is set by the server; `classifiedBy` comes from `X-Lineage-Actor` | values sent in the request are ignored |
+| `classifiedAt` is set by the server; `classifiedBy` comes from `X-Lineage-Actor` | `400 invalid_argument` — sending either is rejected, not silently dropped |
 
 These are the existing `03.9` error codes — no new ones.
+
+The last row follows `03`'s house rule that unknown fields are rejected rather than dropped,
+and there is no request field for either value to land in. A caller trying to set the audit
+attribution on a legal field has misunderstood something worth being told about — a silent
+no-op here, where every other write returns `400`, would hide it.
 
 ## 7. Data Model
 
