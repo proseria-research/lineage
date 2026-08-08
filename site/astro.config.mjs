@@ -57,6 +57,7 @@ export default defineConfig({
 						{ label: 'Quickstart', slug: 'start/quickstart' },
 						{ label: 'Core concepts', slug: 'start/concepts' },
 						{ label: 'Register your first model', slug: 'start/first-model' },
+						{ label: 'Compliance & evidence', slug: 'start/compliance' },
 					],
 				},
 				{ label: 'Registry', items: [{ autogenerate: { directory: 'guides' } }] },

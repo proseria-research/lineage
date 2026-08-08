@@ -98,6 +98,77 @@ const rings = RING_ORDER.map((name, index) => ({
 	arcs: ringArcs(hashes[name], index),
 }));
 
+/*
+ * A slice of the audit trail, using the action verbs the binary actually emits
+ * (internal/core). Every one of these rows is written in the same transaction as
+ * the change it describes, which is the property the whole evidence story rests on.
+ */
+const ledger = [
+	{
+		at: '2026-06-14 09:12:03Z',
+		action: 'version.create',
+		actor: 'release-bot@acme',
+		summary: 'fraud-detector 1.4.0',
+		accent: false,
+	},
+	{
+		at: '2026-06-14 09:12:41Z',
+		action: 'artifact.register',
+		actor: 'release-bot@acme',
+		summary: 'model.onnx · sha256:9f2c4a10… · 431.7 MB',
+		accent: false,
+	},
+	{
+		at: '2026-06-14 09:13:07Z',
+		action: 'lineage.add',
+		actor: 'pipeline@acme',
+		summary: 'trained_on s3://datasets/txn/q2-2026/',
+		accent: false,
+	},
+	{
+		at: '2026-06-16 17:41:55Z',
+		action: 'evaluation.create',
+		actor: 'eval-runner@acme',
+		summary: 'fraud-holdout · auc 0.947 · split q2-2026',
+		accent: false,
+	},
+	{
+		at: '2026-06-18 11:02:19Z',
+		action: 'version.stage_changed',
+		actor: 'risk@acme',
+		summary: 'fraud-detector 1.4.0: staging → production',
+		accent: true,
+	},
+];
+
+/*
+ * The regulatory build-out — specced in docs/15–22, tracked as M13–M16. All four are still
+ * ⬜, so the section is framed as a roadmap and each item is labelled as such. The internal
+ * milestone ids stay out of public copy.
+ */
+const buildout = [
+	{
+		title: 'Risk classification',
+		body: 'Record the risk classification your team has assigned to each model, with the reasoning and the review date attached, and see automatically when a retrain or a promotion has left that assessment out of date.',
+		status: 'In design',
+	},
+	{
+		title: 'Evidence export',
+		body: 'Generate the documentation a framework asks for directly from the registry, in its own structure, with every section the registry cannot supply clearly identified rather than left blank.',
+		status: 'In design',
+	},
+	{
+		title: 'Retention and legal hold',
+		body: 'Place a hold on models and versions that form part of an active matter, enforce a configurable retention floor, and provide cryptographic assurance that the audit trail has not been altered.',
+		status: 'In design',
+	},
+	{
+		title: 'Modification review',
+		body: 'Route significant derivations to a reviewer, with the measured architectural change shown alongside the intent your team declared, so that a fine-tune never reaches production unexamined.',
+		status: 'In design',
+	},
+];
+
 const ownership = [
 	{
 		title: 'One binary',
@@ -128,7 +199,7 @@ const sections = [
 		links: [
 			{ label: 'Quickstart', href: '/start/quickstart/' },
 			{ label: 'Core concepts', href: '/start/concepts/' },
-			{ label: 'Register your first model', href: '/start/first-model/' },
+			{ label: 'Compliance & evidence', href: '/start/compliance/' },
 		],
 	},
 	{
@@ -147,6 +218,15 @@ const sections = [
 			{ label: 'Resolving a model', href: '/delivery/resolve/' },
 			{ label: 'KServe', href: '/delivery/kserve/' },
 			{ label: 'Custom runtimes', href: '/delivery/custom-runtimes/' },
+		],
+	},
+	{
+		title: 'Evidence',
+		blurb: 'The record of who changed what, when, and on what basis.',
+		links: [
+			{ label: 'The audit trail', href: '/guides/audit-trail/' },
+			{ label: 'Deployments', href: '/guides/deployments/' },
+			{ label: 'Compliance posture', href: '/start/compliance/' },
 		],
 	},
 	{
@@ -181,7 +261,7 @@ const sections = [
 
 <Marketing
 	title="Lineage — the self-hostable model registry"
-	description="Lineage is the system of record for ML/AI models: registry, lifecycle governance, typed provenance, and one-call delivery to your serving stack. Self-hosted, in a single Go binary."
+	description="Lineage is the system of record for ML/AI models, and the evidence substrate underneath model compliance: immutable versions, an append-only audit trail, typed provenance, and one-call delivery. Self-hosted, in a single Go binary."
 >
 	{/* Runs during parse, before anything below the fold is painted, so a revealed
 	    section never flashes in at full opacity first. */}
@@ -208,15 +288,16 @@ const sections = [
 		<div class="shell hero__inner">
 			<div class="hero__copy">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hostable model registry</p>
-				<h1 class="hero__title">Ship models like you ship code.</h1>
+				<h1 class="hero__title">Ship models you can account for.</h1>
 				<p class="hero__lede">
-					Versioned, staged, promoted, and auditable. Lineage is the registry of record for every
-					model your teams run, hosted on your own infrastructure.
+					Lineage is the registry of record for every model your teams run — versioned, staged,
+					promoted, and fully attributed. It captures the evidence your governance and compliance
+					programmes depend on, on infrastructure you control.
 				</p>
 
 				<div class="hero__actions">
 					<a class="button button--solid" href="/start/quickstart/">Read the quickstart</a>
-					<a class="button" href="https://github.com/proseria-research/lineage">Source on GitHub</a>
+					<a class="button" href="/start/compliance/">Compliance &amp; evidence</a>
 				</div>
 
 				<div class="terminal">
@@ -243,48 +324,53 @@ const sections = [
 	<section class="band">
 		<div class="shell split" data-reveal>
 			<div class="split__copy">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>delivery</p>
-				<h2 class="section__title">Serving systems resolve in one call.</h2>
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>evidence</p>
+				<h2 class="section__title">Compliance rests on facts your registry already holds.</h2>
 				<p>
-					Serving systems never need to know how your registry is laid out. They ask for a model at
-					a stage and get back everything needed to pull it: a native storage URI, a freshly signed
-					URL, the digest, the size, and the model format.
+					The EU AI Act, ISO/IEC 42001, NIST AI RMF and supervisory model risk guidance differ in
+					structure and vocabulary, but they ask for the same underlying facts about each model you
+					operate: what exists, what changed, who approved it, what produced it, and how it was
+					evaluated. Only the presentation is specific to the framework.
 				</p>
 				<p>
-					Responses carry an <code>ETag</code>, so a client that polls without missing an update
-					receives a <code>304</code>. Cache entries are invalidated when a promotion occurs rather
-					than when a timer expires.
+					Lineage captures those facts as part of everyday work, not as a separate exercise. Every
+					change writes an audit event in the same transaction as the change itself, attributed to
+					the identity your perimeter supplies. Events are append-only and are retained beyond the
+					life of the model they describe.
+				</p>
+				<p>
+					The result is a complete, continuous record — available the moment it is asked for, rather
+					than reconstructed under deadline.
 				</p>
 				<p class="split__link">
-					<a href="/delivery/resolve/">How resolution works →</a>
+					<a href="/start/compliance/">How Lineage maps to each framework →</a>
 				</p>
 			</div>
 
-			<div class="exchange">
-				<div class="exchange__request">
+			<figure class="ledger">
+				<figcaption class="ledger__head">
 					<span class="tag tag--verb">GET</span>
-					<code>/v1/models/fraud-detector/resolve?stage=production</code>
-				</div>
-				<pre class="exchange__response"><code>{`{
-  "model": "fraud-detector",
-  "version": "1.4.0",
-  "stage": "production",
-  "artifacts": [
-    {
-      "name": "model.onnx",
-      "storageUri": "s3://models/fraud-detector/1.4.0/model.onnx",
-      "signedUrl": "https://s3.eu-west-1.amazonaws.com/...",
-      "digest": "sha256:9f2c4a10...",
-      "sizeBytes": 431717888,
-      "modelFormat": { "name": "onnx", "version": "1.16" }
-    }
-  ]
-}`}</code></pre>
-				<p class="exchange__foot">
-					Alternatively, configure KServe with <code>lineage://fraud-detector/production</code> once
-					and let the storage initializer resolve it at pull time.
+					<code>/v1/models/fraud-detector/audit</code>
+				</figcaption>
+				<ol class="ledger__rows">
+					{
+						ledger.map((row) => (
+							<li class="ledger__row" data-accent={String(row.accent)}>
+								<span class="ledger__top">
+									<span class="ledger__action">{row.action}</span>
+									<span class="ledger__actor">{row.actor}</span>
+								</span>
+								<span class="ledger__summary">{row.summary}</span>
+								<span class="ledger__at">{row.at}</span>
+							</li>
+						))
+					}
+				</ol>
+				<p class="ledger__foot">
+					Every event is written in the same transaction as the change it describes, attributed, and
+					never modified or removed.
 				</p>
-			</div>
+			</figure>
 		</div>
 	</section>
 
@@ -295,8 +381,8 @@ const sections = [
 				<h2 class="section__title">Trace what produced a model, and what depends on it.</h2>
 				<p class="section__lede">
 					Provenance is recorded as typed edges rather than free-text tags. Trace upstream to
-					explain how a model was built, or downstream from a bad dataset to find every version and
-					deployment affected by it.
+					explain how a model was built — the question every technical file begins with — or
+					downstream from a dataset to identify every version and deployment it reached.
 				</p>
 			</div>
 
@@ -323,6 +409,11 @@ const sections = [
 					Because the levels are separable, a diff resolves to a verdict by table lookup rather than
 					by judgement. Producers that submit only the cheap header-derived hashes still get an
 					answer: the diff narrows the candidates and names the level it was missing.
+				</p>
+				<p>
+					This is what a change review needs. Whether a retrain moved only the weights or reshaped
+					the architecture separates a routine release from one that warrants attention, and the
+					distinction is measured rather than asserted.
 				</p>
 				<p class="split__link">
 					<a href="/guides/version-diff/">How version diff works →</a>
@@ -380,12 +471,107 @@ const sections = [
 	<section class="band band--sunk">
 		<div class="shell" data-reveal>
 			<div class="section__head">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>roadmap</p>
+				<h2 class="section__title">From evidence to documentation.</h2>
+				<p class="section__lede">
+					The registry captures the underlying evidence today. The next phase of work turns that
+					evidence into the documentation specific frameworks ask for. These capabilities are in
+					active design with published specifications, and are not yet available.
+				</p>
+			</div>
+
+			<ol class="roadmap">
+				{
+					buildout.map((item) => (
+						<li class="roadmap__item">
+							<p class="roadmap__head">
+								<span class="roadmap__title">{item.title}</span>
+								<span class="roadmap__status">{item.status}</span>
+							</p>
+							<p class="roadmap__body">{item.body}</p>
+						</li>
+					))
+				}
+			</ol>
+
+			<div class="roadmap__notes">
+				<p>
+					<strong>Sequenced against the regulatory calendar.</strong> The EU AI Act's obligations
+					for general-purpose models have applied since August 2025, with the high-risk regime
+					following in December 2027. Support is being built in that order.
+				</p>
+				<p>
+					<strong>Designed in the open.</strong> The full specifications for this work — including
+					precisely what each export will and will not contain — are published in the repository
+					alongside the code, so you can evaluate the approach before it ships.
+				</p>
+				<p>
+					<strong>Governance stays in the core.</strong> Recording classifications, detecting when
+					one has gone out of date, the audit trail and its integrity guarantees, and evidence
+					export remain part of the free, Apache-2.0 product.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="band">
+		<div class="shell split" data-reveal>
+			<div class="split__copy">
+				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>delivery</p>
+				<h2 class="section__title">Serving systems resolve in one call.</h2>
+				<p>
+					Serving systems never need to know how your registry is laid out. They ask for a model at
+					a stage and get back everything needed to pull it: a native storage URI, a freshly signed
+					URL, the digest, the size, and the model format.
+				</p>
+				<p>
+					Responses carry an <code>ETag</code>, so a client that polls without missing an update
+					receives a <code>304</code>. Cache entries are invalidated when a promotion occurs rather
+					than when a timer expires.
+				</p>
+				<p class="split__link">
+					<a href="/delivery/resolve/">How resolution works →</a>
+				</p>
+			</div>
+
+			<div class="exchange">
+				<div class="exchange__request">
+					<span class="tag tag--verb">GET</span>
+					<code>/v1/models/fraud-detector/resolve?stage=production</code>
+				</div>
+				<pre class="exchange__response"><code>{`{
+  "model": "fraud-detector",
+  "version": "1.4.0",
+  "stage": "production",
+  "artifacts": [
+    {
+      "name": "model.onnx",
+      "storageUri": "s3://models/fraud-detector/1.4.0/model.onnx",
+      "signedUrl": "https://s3.eu-west-1.amazonaws.com/...",
+      "digest": "sha256:9f2c4a10...",
+      "sizeBytes": 431717888,
+      "modelFormat": { "name": "onnx", "version": "1.16" }
+    }
+  ]
+}`}</code></pre>
+				<p class="exchange__foot">
+					Alternatively, configure KServe with <code>lineage://fraud-detector/production</code> once
+					and let the storage initializer resolve it at pull time.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="band band--sunk">
+		<div class="shell" data-reveal>
+			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hosted</p>
 				<h2 class="section__title">Runs entirely on your own infrastructure.</h2>
 				<p class="section__lede">
 					Self-hosting is the primary way to run Lineage rather than a reduced tier of it. Metadata
 					sits in your database, weights sit in your bucket, and both stay portable: standard
-					relational tables and native object-store URIs.
+					relational tables and native object-store URIs. Your audit record stays within your own
+					perimeter.
 				</p>
 			</div>
 
@@ -435,7 +621,8 @@ const sections = [
 			<h2 class="closer__title">Get started</h2>
 			<p class="closer__lede">
 				Run Lineage locally in about a minute, or install the Helm chart into a cluster and point it
-				at your Postgres instance and your object store.
+				at your Postgres instance and your object store. The record begins with the first version
+				you publish.
 			</p>
 			<div class="hero__actions">
 				<a class="button button--solid" href="/start/quickstart/">Quickstart</a>
