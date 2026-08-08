@@ -40,6 +40,10 @@
     {
       "name": "compliance",
       "description": "Risk classification under a named regulatory regime. The class is always something a person declared; the registry never infers one, and never changes or blocks anything when a classification goes out of date."
+    },
+    {
+      "name": "retention",
+      "description": "Legal hold and the retention floor (§19). Every mechanism here is a refusal or an attestation — nothing deletes."
     }
   ],
   "paths": {
@@ -249,7 +253,14 @@
             "description": "Deleted"
           },
           "409": {
-            "$ref": "#/components/responses/Problem"
+            "description": "Refused. details.reason is legal_hold (with heldSince, heldBy and, when inherited, heldSubject), retention_floor (with floorDays, ageDays), or the pre-existing production-version guard. A legal hold is NOT overridable with ?force=true.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -529,7 +540,14 @@
             "description": "Deleted"
           },
           "409": {
-            "$ref": "#/components/responses/Problem"
+            "description": "Refused. details.reason is legal_hold (with heldSince, heldBy and, when inherited, heldSubject), retention_floor (with floorDays, ageDays), or the pre-existing production-version guard. A legal hold is NOT overridable with ?force=true.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -1712,6 +1730,262 @@
           }
         }
       }
+    },
+    "/v1/models/{model}:hold": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        }
+      ],
+      "post": {
+        "operationId": "holdModel",
+        "tags": [
+          "retention"
+        ],
+        "summary": "Place a legal hold on a model",
+        "description": "Refuses any subsequent DELETE of this model, and of anything its deletion would destroy. Blocks destruction only: PATCH, transitions and archival keep working (§19.3.1).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "reason missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "details.reason is already_held (on :hold) or not_held (on :release)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models/{model}:release": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        }
+      ],
+      "post": {
+        "operationId": "releaseModel",
+        "tags": [
+          "retention"
+        ],
+        "summary": "Release a legal hold on a model",
+        "description": "A separate, audited action. Clearing a hold is the event an auditor cares about, so it is never implicit and never a side effect of another operation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "reason missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "details.reason is already_held (on :hold) or not_held (on :release)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/versions/{version}:hold": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        },
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "post": {
+        "operationId": "holdVersion",
+        "tags": [
+          "retention"
+        ],
+        "summary": "Place a legal hold on a version",
+        "description": "Refuses any subsequent DELETE of this version, and of anything its deletion would destroy. Blocks destruction only: PATCH, transitions and archival keep working (§19.3.1).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "reason missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "details.reason is already_held (on :hold) or not_held (on :release)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/versions/{version}:release": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        },
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "post": {
+        "operationId": "releaseVersion",
+        "tags": [
+          "retention"
+        ],
+        "summary": "Release a legal hold on a version",
+        "description": "A separate, audited action. Clearing a hold is the event an auditor cares about, so it is never implicit and never a side effect of another operation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "reason missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "details.reason is already_held (on :hold) or not_held (on :release)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retention": {
+      "get": {
+        "operationId": "getRetention",
+        "tags": [
+          "retention"
+        ],
+        "summary": "The retention floor in force",
+        "description": "What this process is actually running under, not what a chart intended. A filing that cites a retention period cites this number. Also echoed at /healthz on the ops port; it is on /v1 so a client with only HTTP access to the registry can read it.",
+        "responses": {
+          "200": {
+            "description": "Configured floor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionConfig"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1849,6 +2123,9 @@
           "updatedAt": {
             "type": "integer",
             "format": "int64"
+          },
+          "legalHold": {
+            "$ref": "#/components/schemas/Hold"
           }
         }
       },
@@ -1936,6 +2213,9 @@
           "updatedAt": {
             "type": "integer",
             "format": "int64"
+          },
+          "legalHold": {
+            "$ref": "#/components/schemas/Hold"
           }
         }
       },
@@ -3577,6 +3857,47 @@
           },
           "nextPageToken": {
             "type": "string"
+          }
+        }
+      },
+      "Hold": {
+        "type": "object",
+        "description": "A live legal hold. Absent means not held — there is no boolean beside the timestamp. The *reason* for the hold is on the audit event, not here: the row carries current state, the trail carries why (§19.7.1).",
+        "properties": {
+          "heldSince": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the hold was placed, epoch-millis. Never refreshed — re-holding a held subject is refused rather than moving this date."
+          },
+          "heldBy": {
+            "type": "string",
+            "description": "The actor who placed it, from the identity header."
+          }
+        }
+      },
+      "HoldRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why the hold is being placed or lifted, e.g. \"Regulator inquiry REF-2026-118\". Required in both directions: it is recorded on the audit event and is the only durable record of the matter."
+          }
+        }
+      },
+      "RetentionConfig": {
+        "type": "object",
+        "description": "The retention floor in force on this install (§19.4). 0 disables a floor and is a real choice, not an unset value.",
+        "properties": {
+          "minAuditAgeDays": {
+            "type": "integer",
+            "description": "Floor on audit history. Nothing in core deletes an audit event, so this is reported rather than enforced — it is the number a filing cites."
+          },
+          "minArchivedVersionDays": {
+            "type": "integer",
+            "description": "Floor DELETE enforces, on both models and versions."
           }
         }
       }

@@ -47,6 +47,8 @@ func (r *Router) modelAction(w http.ResponseWriter, req *http.Request) {
 	case "archive":
 		m, err := r.svc.ArchiveModel(req.Context(), r.actor(req), model)
 		writeOr(w, http.StatusOK, m, err)
+	case "hold", "release":
+		r.holdAction(w, req, domain.SubjectModel, action, model)
 	default:
 		api.WriteError(w, domain.Invalid("unknown action ':"+action+"'"))
 	}

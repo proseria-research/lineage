@@ -4,6 +4,7 @@ package observability
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/proseria-research/lineage/internal/domain"
@@ -14,11 +15,23 @@ import (
 type ReadinessChecker func(ctx context.Context) error
 
 // Handler returns a mux with /healthz, /readyz, and /metrics (§09.2, §09.3). reg may be nil.
-func Handler(reg *metrics.Registry, ready ReadinessChecker) http.Handler {
+//
+// health, if non-nil, is merged into /healthz's body — §19.4 requires the configured
+// retention floor to be echoed there, so an operator can read what the process is actually
+// running under rather than what a chart was believed to set.
+func Handler(reg *metrics.Registry, ready ReadinessChecker, health map[string]any) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		// The body is now JSON rather than the bare "ok" it used to be. Probes read the
+		// status code, so this is safe for Kubernetes; `status` is kept as a field so a
+		// human or a script has the same word to look for.
+		body := map[string]any{"status": "ok"}
+		for k, v := range health {
+			body[k] = v
+		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		_ = json.NewEncoder(w).Encode(body)
 	})
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, req *http.Request) {
 		if ready != nil {

@@ -39,13 +39,19 @@ import (
 var version = "dev"
 
 func main() {
-	cfg := config.Load()
+	cfg, cfgErr := config.Load()
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("□ ") // the Lineage mark leads every operational log line
 
 	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
 		log.Printf("lineage %s", version)
 		return
+	}
+	// After --version (which must work regardless) and before anything opens a database: a
+	// config value nobody can interpret is a startup failure, not something to run with a
+	// guess at (§19.4).
+	if cfgErr != nil {
+		log.Fatalf("configuration: %v", cfgErr)
 	}
 
 	// `lineage migrate` opens the store (which runs the embedded migrator) and exits — the
@@ -104,7 +110,7 @@ func main() {
 	// adapters stay telemetry-free. Readiness keeps the undecorated store: probing every few
 	// seconds is not worth a span each time.
 	svc := core.New(tracing.Store(store, tracer), backends, backend.Name(), cache, bus,
-		core.WithMeter(m), core.WithTracer(tracer))
+		core.WithMeter(m), core.WithTracer(tracer), core.WithRetention(cfg.Retention))
 	m.BindDomainGauges(func(ctx context.Context) metrics.DomainStats {
 		st, _ := svc.Stats(ctx)
 		return metrics.DomainStats{
@@ -133,7 +139,7 @@ func main() {
 	servers := []*http.Server{
 		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, tracer, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
 		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc).Handler())},
-		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready)},
+		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready, map[string]any{"retention": svc.Retention()})},
 	}
 	names := []string{"model-api " + cfg.ModelAPIAddr, "admin-ui " + cfg.AdminAddr, "ops " + cfg.MetricsAddr}
 

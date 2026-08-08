@@ -26,7 +26,7 @@ func TestHealthMetricsAndReadiness(t *testing.T) {
 	m := metrics.NewApp()
 	m.RecordHTTP("model-api", "/v1/models", "GET", "200", 0.01)
 	store := memstore.New()
-	h := observability.Handler(m.Registry(), observability.StoreReady(store))
+	h := observability.Handler(m.Registry(), observability.StoreReady(store), nil)
 
 	if code, _ := get(t, h, "/healthz"); code != 200 {
 		t.Fatalf("healthz = %d", code)
@@ -47,7 +47,7 @@ func TestHealthMetricsAndReadiness(t *testing.T) {
 
 func TestReadinessGatesOnFailure(t *testing.T) {
 	failing := func(context.Context) error { return errors.New("db down") }
-	h := observability.Handler(nil, observability.Ready(failing))
+	h := observability.Handler(nil, observability.Ready(failing), nil)
 	if code, body := get(t, h, "/readyz"); code != http.StatusServiceUnavailable || !strings.Contains(body, "db down") {
 		t.Fatalf("readyz should be 503 with reason, got %d %q", code, body)
 	}

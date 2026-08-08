@@ -3,9 +3,13 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/proseria-research/lineage/internal/domain"
 )
 
 type Config struct {
@@ -21,7 +25,8 @@ type Config struct {
 	GC            GCConfig
 	Cache         CacheConfig
 	Tracing       TracingConfig
-	ActorHeader   string // trusted identity header for audit (§00 axiom 4)
+	Retention     domain.RetentionConfig // §19.4 — the delete floor, echoed at /healthz and /v1
+	ActorHeader   string                 // trusted identity header for audit (§00 axiom 4)
 }
 
 // TracingConfig configures OTLP span export (§09.4). Empty endpoint = tracing off, which is
@@ -70,8 +75,11 @@ type OCIConfig struct {
 	PlainHTTP  bool // http instead of https (in-cluster/dev registries)
 }
 
-func Load() Config {
-	return Config{
+// Load reads config from the environment. It returns an error rather than a best-effort
+// Config for any value where guessing would be unsafe — see envIntStrict.
+func Load() (Config, error) {
+	var errs []error
+	c := Config{
 		AdminAddr:     env("LINEAGE_ADMIN_ADDR", ":8080"),
 		ModelAPIAddr:  env("LINEAGE_MODEL_API_ADDR", ":8081"),
 		MetricsAddr:   env("LINEAGE_METRICS_ADDR", ":9090"),
@@ -118,8 +126,42 @@ func Load() Config {
 			ServiceName: env("LINEAGE_SERVICE_NAME", "lineage"),
 			SampleRatio: envFloat("LINEAGE_TRACE_SAMPLE_RATIO", 1.0),
 		},
+		// §19.4. The chart sets 3650 (Art. 18's ten years); the binary's own default is 0,
+		// because a bare dev install that refuses to delete anything made this decade is
+		// unusable. Whichever is in force is echoed at /healthz and GET /v1/retention, so it
+		// is never something anyone has to assume.
+		Retention: domain.RetentionConfig{
+			MinAuditAgeDays:        envIntStrict("LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS", 0, &errs),
+			MinArchivedVersionDays: envIntStrict("LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS", 0, &errs),
+		},
 		ActorHeader: env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
 	}
+	if err := c.Retention.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		return c, errors.Join(errs...)
+	}
+	return c, nil
+}
+
+// envIntStrict parses an integer and *reports* a bad value instead of falling back.
+//
+// envInt below is lenient, which is right for a Redis database index. It is wrong for a
+// retention floor: LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS=ten would silently become 0,
+// and an install that believed it had a ten-year floor would have none at all. A refusal to
+// start is the only safe reading of a value nobody can interpret.
+func envIntStrict(k string, def int, errs *[]error) int {
+	v := os.Getenv(k)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		*errs = append(*errs, fmt.Errorf("%s: %q is not an integer", k, v))
+		return def
+	}
+	return n
 }
 
 func envFloat(k string, def float64) float64 {
