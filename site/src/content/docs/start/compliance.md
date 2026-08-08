@@ -62,21 +62,26 @@ model](/operate/security-model/).
 
 ## On the roadmap
 
-The capabilities that turn this evidence into framework-specific documentation are fully
-specified and in active design. **They are not yet available.** The specifications are
-published in the repository alongside the code.
+The remaining capabilities are fully specified, and the specifications are published in the
+repository alongside the code. The **Tier** column says which are part of the free product.
 
-| Capability | What it will provide | Status |
-| --- | --- | --- |
-| **Risk classification** | A recorded classification per model and per framework, with the reasoning, the author and the review date attached — and automatic detection when a retrain, a promotion or a lapsed review date leaves it out of date | In design |
-| **Evidence export** | Documentation generated directly from the registry in a framework's own structure, with any section the registry cannot supply explicitly identified | In design |
-| **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | In design |
-| **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared | In design |
-| **Further frameworks** | Management-system evidence for ISO/IEC 42001 and NIST AI RMF, model risk tiers and validation records for supervisory regimes, and pre-declared change control plans | In design |
+| Capability | What it provides | Tier | Status |
+| --- | --- | --- | --- |
+| **Risk classification** | A recorded classification per model and per framework, with the reasoning, the author and the review date attached — and automatic detection when a retrain, a promotion or a lapsed review date leaves it out of date | Free | **Available** |
+| **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | Free | In design |
+| **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared | Free | In design |
+| **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | Free | In design |
+| **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | Free | In design |
+| **Evidence export** | Documentation generated in a framework's own structure — EU Annex IV and XII, ISO/IEC 42001, NIST AI RMF, supervisory model risk, FDA change control — with any section the registry cannot supply explicitly identified | Commercial | In design |
 
 If you are evaluating Lineage against a compliance deadline, please plan on the basis of this
-table. The registry and its audit record are production-ready; the documentation layer above
-them is not yet built.
+table. The registry, its audit record and risk classification are production-ready; the rest
+is specified and not yet built.
+
+Note the split: **recording and detecting** are free at every level, including the drift
+detection that is the hard part. What the commercial tier adds is the rendering step — turning
+those records into a named framework's document. The facts themselves are always reachable
+through the public API.
 
 ## Two principles behind the design
 
@@ -143,13 +148,20 @@ registry holds.
 ## Open core
 
 Lineage is open core. The boundary runs between holding a fact and shaping it into a specific
-regulator's document.
+regulator's document: **the record is free, the filing is the product.**
 
 Recording classifications, detecting when one has gone out of date, the audit trail and its
-integrity guarantees, retention and legal hold, modification review, and evidence export all
-remain part of the free, Apache-2.0 product. A commercial tier adds identity and access
-control, a library of framework profiles with scheduled generation, signing with a managed
-key, and reporting across multiple installations.
+integrity guarantees, retention and legal hold, modification review, and model risk records
+are all part of the free, Apache-2.0 product. Every regulatory fact an install holds is
+queryable from that install, and always will be.
+
+A commercial tier adds evidence export — the framework profiles and the generation of bundles
+from them, on a schedule, signed with a managed key — along with identity and access control,
+and reporting across multiple installations.
+
+A profile is a mapping from stored facts to one framework's document structure, and it needs
+nothing the public API does not already expose. Writing your own against `/v1` is a supported
+path, not a workaround: the free product is tested to keep that possible.
 
 The full boundary, including the capabilities committed never to be gated, is published in the
 repository so that it is predictable in advance.

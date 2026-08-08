@@ -15,14 +15,17 @@
 flowchart TB
     subgraph ee["Commercial — a separate program"]
         direction LR
-        auth["identity<br/>& RBAC"] ~~~ prof["profile<br/>library"] ~~~ sig["bundle<br/>signing"] ~~~ flt["fleet<br/>routing · rollup"]
+        auth["identity<br/>& RBAC"] ~~~ exp["evidence export<br/>· profiles"] ~~~ sig["bundle<br/>signing"] ~~~ flt["fleet<br/>routing · rollup"]
     end
     subgraph core["Core — free, complete, self-hostable"]
         direction LR
-        reg["registry"] ~~~ del["delivery"] ~~~ gov["governance<br/>metadata"] ~~~ aud["audit · sealing<br/>· hold"] ~~~ exp["one export<br/>profile"] ~~~ ops["Helm · stores<br/>SDK · console"]
+        reg["registry"] ~~~ del["delivery"] ~~~ gov["governance<br/>metadata"] ~~~ aud["audit · sealing<br/>· hold"] ~~~ ops["Helm · stores<br/>SDK · console"]
     end
     ee ~~~ core
 ```
+
+**Core holds the record. The commercial tier turns it into paperwork.** That is the whole
+line, and everything below is it applied.
 
 The upper band is a **separate proprietary program**. It is not a fork, a plugin, a build tag,
 or a library linked into this binary. **This repository contains no commercial code**, no
@@ -35,12 +38,17 @@ point of making it.
 |---|---|
 | Registry — models, versions, stages, artifacts | `02` · `03` |
 | Delivery — resolve, fetch, signed URLs, storage-initializer | `04` · `05` |
-| Governance metadata — classification, drift, validation records | `16` · `17` · `20` |
+| Governance metadata — classification, drift, modification review, validation records | `16` · `17` · `20` |
 | Audit — log, Merkle epoch sealing, retention floor, legal hold | `19` |
-| One self-serve evidence export profile — **`annex_xii`** | `18.3` |
 | Operations — Helm, SQLite + Postgres, SDK/CLI, console | `06` · `08` · `10` |
 
 Running Lineage without ever paying yields a complete and correct registry, not a trial.
+
+**Every regulatory *fact* is here.** Which models are high risk, which classifications have
+gone stale and why, which modifications want review, which tier-1 model has gone unmonitored,
+what the retention floor is, and an audit log that can prove it was not rewritten — all free,
+all queryable, all yours. What is not here is the step that renders those facts as a named
+regulator's document.
 
 ## 3. What Will Never Be Gated
 
@@ -51,14 +59,15 @@ Running Lineage without ever paying yields a complete and correct registry, not 
 | Recording or detecting compliance state | knowing a classification has gone stale is registry work, not a product tier |
 | The audit log, including Merkle sealing | `00.2.7` and `00.11.14` — auditability is an axiom, not a feature |
 | Helm, or a working default install | `00.2.2`. One `helm install` yields a working, secure registry |
-| Anything about a *single* install | fleet is about running **several**. One install answers every question about its own models, on its own, forever |
+| Every **fact** an install holds, readable from that install | one install answers every question about its own models on its own, forever. Rendering those facts as a named regulator's document is the commercial step (§4) — the answer is always free, the filing is not |
+| `/v1` completeness — no private read paths | the commercial tier is a client of the same API you have. If it can build a document from your registry, so can you (§4.3) |
 
 ## 4. What the Commercial Tier Adds
 
 | | Why it is not core |
 |---|---|
 | **Identity & RBAC** — SSO, per-model authorisation | `00.2.4` puts authN/authZ on the infrastructure by design. Core trusts an infra-supplied actor header and always will; this adds the infrastructure, it does not remove the default |
-| **Profile library + scheduled bundles** | a recurring regulatory obligation, per framework — see `18.2`, `21`. This is the *shaping* of facts into one regulator's document, never the facts themselves (§4.1) |
+| **Evidence export** — the bundle mechanism, every profile, scheduled generation | `18`, `21`. This is the *shaping* of facts into one regulator's document, never the facts themselves (§4.1). It reads core through `/v1` like any other client and holds its own record of what it produced |
 | **Bundle signing with a managed key** | key custody is a service. The sealing and self-digest it builds on are core (`18.7`, `19.5`) |
 | **Fleet** — routing and cross-install rollup across several installs | `00.11.5` makes one install per tenant the design, and each install is complete and authoritative on its own. Running *many* of them, and reading across them into one derived view, is work that happens outside every one of them — it adds nothing to any install and takes nothing from it |
 
@@ -70,8 +79,7 @@ describes, behaving exactly as these docs specify.
 The regulatory work in `15`–`22` is **mostly core.** The line does not run between documents;
 it runs between *holding a fact* and *shaping it into a regulator's document*:
 
-> **If it needs a column, it is core. If it turns stored facts into paperwork, it is
-> commercial.**
+> **Core holds the record. If it turns stored facts into paperwork, it is commercial.**
 
 | Doc | Core | Commercial |
 |---|---|---|
@@ -81,42 +89,52 @@ it runs between *holding a fact* and *shaping it into a regulator's document*:
 | `19` retention, hold, audit sealing | all of it (`00.11.14`) | — |
 | `20` model risk management | `mrm_tier`, `validation` records, unmonitored-in-production detection | the `mrm` bundle profile |
 | `22` change control plans | the `change_plan` table and the conformance predicate | the `pccp` bundle profile |
-| `18` evidence export | the bundle mechanism, gap reporting, and `annex_xii` — the GPAI→downstream document an engineer produces per release | the profile library, scheduling |
-| `21` assurance profiles | the install-scope columns it needs (`21.7.2`) — a column, so it can be nowhere else | the two profiles; the doc declares **zero schema** of its own |
+| `18` evidence export | — | all of it: the bundle mechanism, gap reporting, and every profile |
+| `21` assurance profiles | — | all of it; the doc declares **zero schema** of its own |
 
 So: **knowing** you have nine stale high-risk models is free, and always will be. **Producing
 the filing** for them, across a library of frameworks, on a schedule, signed, is the product.
 
+Four of the six regulatory docs are wholly core. The two that are not are the two whose output
+is a document.
+
 ### 4.2 The profiles, by name
 
-§4.1 draws the line per document. This is the same line as a roster, so *which* profiles are
-commercial is checkable rather than inferable. Five of six.
+Every profile is commercial. The roster exists so that is checkable rather than inferable.
 
-| Profile | Document it produces | Scope | Spec | Tier |
-|---|---|---|---|---|
-| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | version | `18.3` | **core** |
-| `annex_iv` | EU high-risk technical documentation (Art. 11) | version | `18.3` | commercial |
-| `mrm` | Supervisory pack — SR 26-2 · PRA SS1/23 · OSFI E-23 | version | `20` | commercial |
-| `pccp` | FDA predetermined change control plan | version | `22` | commercial |
-| `iso_42001` | ISO/IEC 42001 AIMS | install | `21` | commercial |
-| `nist_ai_rmf` | NIST AI RMF | install | `21` | commercial |
+| Profile | Document it produces | Scope | Spec |
+|---|---|---|---|
+| `annex_xii` | GPAI provider → downstream integrator (Art. 53) | version | `18.3` |
+| `annex_iv` | EU high-risk technical documentation (Art. 11) | version | `18.3` |
+| `mrm` | Supervisory pack — SR 26-2 · PRA SS1/23 · OSFI E-23 | version | `20` |
+| `pccp` | FDA predetermined change control plan | version | `22` |
+| `iso_42001` | ISO/IEC 42001 AIMS | install | `21` |
+| `nist_ai_rmf` | NIST AI RMF | install | `21` |
 
-**`annex_xii` is core for a reason, not by lottery.** It is the document an engineer produces
-per release for their downstream integrators, on an obligation already in force, and the
-registry holds nearly all of it (`18.3`). The commercial ones are what a compliance function
-files against a recurring obligation — `01`'s verb split, applied to two profiles that would
-otherwise look interchangeable.
+**A profile is a mapping table, and you can write your own.** It is their heading ← our field,
+plus fixtures (`18.2.1`), and it requires nothing core does not already publish on `/v1`. What
+the commercial tier sells is a *maintained* set — kept current as regulators revise them,
+generated on a schedule, signed — not access to your own facts. An install that never pays can
+export everything through `/v1` and shape it however it likes, and core is tested to keep that
+true (§4.3).
 
-**A profile is a mapping table, not a capability.** It is their heading ← our field, plus
-fixtures (`18.2.1`), and it may require nothing core does not already publish on `/v1`. So the
-commercial tier here is a *maintained set* of mappings, kept current as regulators revise
-them — not access to your own facts. Anyone can write any of these profiles themselves,
-against the same public API, and core is tested to make sure that stays true.
+**The commercial tier carries its own schema.** `evidence_bundle` — the record of what was
+produced, its digest and its frozen gap counts (`18.8.1`) — belongs with the thing that
+produces it, as does install scope (`21.7.2`). Core therefore gains **no** table, column or
+endpoint on behalf of the commercial program, now or later. Earlier drafts of this doc said
+the opposite; the line moved, and this is where it sits.
 
-**One column, and it is the only one.** Install scope (`21.7.2`) exists because two commercial
-profiles need it. Being a column, it can live nowhere but here — so it ships in core under
-Apache-2.0, usable by anyone writing their own install-scope profile. Nothing else in §4
-requires a change to core at all.
+### 4.3 The obligation this puts on core
+
+Moving export out makes one core property load-bearing: **`/v1` has to be complete enough that
+every one of those profiles can be built from outside it.** If a profile ever needs a private
+query, the boundary has been breached from the inside and the free registry is quietly less
+useful than it claims.
+
+So core carries a test that an out-of-tree process, holding no privileged access, can assemble
+a full evidence bundle over HTTP alone — using a reference profile that lives in the test
+suite, not a shipped one. It fails if `/v1` develops a gap. That test is core's half of the
+bargain, and it runs on every change.
 
 ## 5. Standing Commitments
 
