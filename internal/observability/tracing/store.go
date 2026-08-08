@@ -265,3 +265,17 @@ func (s *tracedStore) ListInventory(ctx context.Context, o domain.ListOptions, f
 		return s.next.ListInventory(c, o, f)
 	})
 }
+
+// ---- Retention (§19.3) ----
+
+func (s *tracedStore) SetHold(ctx context.Context, subjectType, subjectID string, h *domain.Hold) error {
+	return do0(ctx, s.t, "store.SetHold", func(c context.Context) error {
+		return s.next.SetHold(c, subjectType, subjectID, h)
+	})
+}
+
+func (s *tracedStore) DeleteGuardFor(ctx context.Context, subjectType, subjectID string) (domain.DeleteGuard, error) {
+	return do1(ctx, s.t, "store.DeleteGuardFor", func(c context.Context) (domain.DeleteGuard, error) {
+		return s.next.DeleteGuardFor(c, subjectType, subjectID)
+	})
+}

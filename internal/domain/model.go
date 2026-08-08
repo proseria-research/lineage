@@ -90,6 +90,10 @@ type Model struct {
 	CustomProperties json.RawMessage   `json:"customProperties,omitempty"`
 	CreatedAt        int64             `json:"createdAt"`
 	UpdatedAt        int64             `json:"updatedAt"`
+	// LegalHold is the subject's own hold, nil when not held (§19.3). It rides on the entity
+	// so every GET already carries it and the console needs no second call — and it is set
+	// only through RetentionStore.SetHold, never by PATCH.
+	LegalHold *Hold `json:"legalHold,omitempty"`
 }
 
 type ModelVersion struct {
@@ -104,6 +108,10 @@ type ModelVersion struct {
 	CustomProperties json.RawMessage   `json:"customProperties,omitempty"`
 	CreatedAt        int64             `json:"createdAt"`
 	UpdatedAt        int64             `json:"updatedAt"`
+	// LegalHold is this version's own hold, nil when not held (§19.3). A version under a held
+	// model is *not* marked here — inheritance is resolved at the delete guard, not copied
+	// onto rows, so releasing the model does not leave stale marks behind on its versions.
+	LegalHold *Hold `json:"legalHold,omitempty"`
 }
 
 type ModelFormat struct {

@@ -77,6 +77,11 @@ func (s *Store) jsonFilters(o domain.ListOptions, labelCol, cpCol string) (claus
 
 const modelCols = "id,name,description,owner,state,labels,custom_properties,created_at,updated_at"
 
+// modelSel is what a read returns: the writable columns plus the hold (§19.6), which is
+// written only by SetHold and so never appears in an INSERT or an UpdateModel SET list. That
+// separation is the schema half of "a PATCH can never set a hold".
+const modelSel = modelCols + ",held_since,held_by"
+
 func (s *Store) CreateModel(ctx context.Context, m *domain.Model) error {
 	_, err := s.db.ExecContext(ctx, s.rb(
 		`INSERT INTO model (`+modelCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
@@ -90,7 +95,7 @@ func (s *Store) CreateModel(ctx context.Context, m *domain.Model) error {
 
 func (s *Store) GetModel(ctx context.Context, nameOrID string) (*domain.Model, error) {
 	row := s.db.QueryRowContext(ctx, s.rb(
-		`SELECT `+modelCols+` FROM model WHERE name=? OR id=?`), nameOrID, nameOrID)
+		`SELECT `+modelSel+` FROM model WHERE name=? OR id=?`), nameOrID, nameOrID)
 	m, err := scanModel(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.NotFound("model '" + nameOrID + "' not found")
@@ -130,7 +135,7 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 	if err != nil {
 		return nil, "", err
 	}
-	q := `SELECT ` + prefixCols(modelCols, "m") + ` FROM model m WHERE 1=1` + where +
+	q := `SELECT ` + prefixCols(modelSel, "m") + ` FROM model m WHERE 1=1` + where +
 		` ORDER BY m.created_at DESC, m.id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
@@ -163,8 +168,10 @@ func (s *Store) UpdateModel(ctx context.Context, m *domain.Model) error {
 
 // ---- Versions ----
 
-// vSel joins the model to fill the denormalized ModelVersion.Model (name) field.
-const vSel = `SELECT v.id,v.model_id,v.name,v.description,v.author,v.stage,v.labels,v.custom_properties,v.created_at,v.updated_at,m.name ` +
+// vSel joins the model to fill the denormalized ModelVersion.Model (name) field. It reads
+// the version's own hold (§19.6) and deliberately not the model's: inheritance is resolved by
+// DeleteGuardFor, so a version never reports a hold it does not itself carry.
+const vSel = `SELECT v.id,v.model_id,v.name,v.description,v.author,v.stage,v.labels,v.custom_properties,v.created_at,v.updated_at,m.name,v.held_since,v.held_by ` +
 	`FROM model_version v JOIN model m ON m.id=v.model_id`
 
 func (s *Store) CreateVersion(ctx context.Context, v *domain.ModelVersion) error {
@@ -541,12 +548,16 @@ func scanModel(sc scanner) (*domain.Model, error) {
 	var m domain.Model
 	var state, labels string
 	var cp sql.NullString
-	if err := sc.Scan(&m.ID, &m.Name, &m.Description, &m.Owner, &state, &labels, &cp, &m.CreatedAt, &m.UpdatedAt); err != nil {
+	var since sql.NullInt64
+	var by sql.NullString
+	if err := sc.Scan(&m.ID, &m.Name, &m.Description, &m.Owner, &state, &labels, &cp, &m.CreatedAt, &m.UpdatedAt,
+		&since, &by); err != nil {
 		return nil, err
 	}
 	m.State = domain.ModelState(state)
 	m.Labels = unmarshalMap(labels)
 	m.CustomProperties = fromNull(cp)
+	m.LegalHold = scanHold(since, by)
 	return &m, nil
 }
 
@@ -554,13 +565,26 @@ func scanVersion(sc scanner) (*domain.ModelVersion, error) {
 	var v domain.ModelVersion
 	var stage, labels string
 	var cp sql.NullString
-	if err := sc.Scan(&v.ID, &v.ModelID, &v.Name, &v.Description, &v.Author, &stage, &labels, &cp, &v.CreatedAt, &v.UpdatedAt, &v.Model); err != nil {
+	var since sql.NullInt64
+	var by sql.NullString
+	if err := sc.Scan(&v.ID, &v.ModelID, &v.Name, &v.Description, &v.Author, &stage, &labels, &cp, &v.CreatedAt, &v.UpdatedAt, &v.Model,
+		&since, &by); err != nil {
 		return nil, err
 	}
 	v.Stage = domain.Stage(stage)
 	v.Labels = unmarshalMap(labels)
 	v.CustomProperties = fromNull(cp)
+	v.LegalHold = scanHold(since, by)
 	return &v, nil
+}
+
+// scanHold reconstructs the *domain.Hold. `held_since IS NULL` is the single stored fact for
+// "not held" — there is no boolean column beside it to fall out of step with (§19.6).
+func scanHold(since sql.NullInt64, by sql.NullString) *domain.Hold {
+	if !since.Valid {
+		return nil
+	}
+	return &domain.Hold{HeldSince: since.Int64, HeldBy: by.String}
 }
 
 func scanArtifact(sc scanner) (*domain.Artifact, error) {

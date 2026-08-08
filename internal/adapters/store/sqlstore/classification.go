@@ -148,7 +148,7 @@ func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domai
 	// The regime is bound first because it is inside the JOIN condition, not the WHERE:
 	// moving it to WHERE would turn the LEFT JOIN inner and hide unclassified models.
 	joinArgs := []any{string(f.Regime)}
-	q := `SELECT ` + prefixCols(modelCols, "m") + `,
+	q := `SELECT ` + prefixCols(modelSel, "m") + `,
 		       c.model_id, c.regime, c.eu_gpai_tier, c.eu_system_risk_class,
 		       c.intended_purpose, c.basis, c.classified_at, c.classified_by, c.review_due_at,
 		       COALESCE(v.latest_created, 0), COALESCE(v.latest_prod_updated, 0)
@@ -199,6 +199,8 @@ func scanInventoryRow(rows *sql.Rows) (*domain.Model, *domain.RiskClassification
 		m                                domain.Model
 		state, labels                    string
 		cp                               sql.NullString
+		heldSince                        sql.NullInt64
+		heldBy                           sql.NullString
 		cModelID, cRegime                sql.NullString
 		tier, class                      sql.NullString
 		purpose, basis, by               sql.NullString
@@ -206,7 +208,7 @@ func scanInventoryRow(rows *sql.Rows) (*domain.Model, *domain.RiskClassification
 		latestCreated, latestProdUpdated int64
 	)
 	if err := rows.Scan(
-		&m.ID, &m.Name, &m.Description, &m.Owner, &state, &labels, &cp, &m.CreatedAt, &m.UpdatedAt,
+		&m.ID, &m.Name, &m.Description, &m.Owner, &state, &labels, &cp, &m.CreatedAt, &m.UpdatedAt, &heldSince, &heldBy,
 		&cModelID, &cRegime, &tier, &class, &purpose, &basis, &classifiedAt, &by, &reviewDueAt,
 		&latestCreated, &latestProdUpdated,
 	); err != nil {
@@ -215,6 +217,7 @@ func scanInventoryRow(rows *sql.Rows) (*domain.Model, *domain.RiskClassification
 	m.State = domain.ModelState(state)
 	m.Labels = unmarshalMap(labels)
 	m.CustomProperties = fromNull(cp)
+	m.LegalHold = scanHold(heldSince, heldBy)
 
 	facts := domain.DriftFacts{
 		LatestVersionCreatedAt:    latestCreated,

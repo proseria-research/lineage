@@ -109,9 +109,15 @@ func (s *Store) ListModels(_ context.Context, o domain.ListOptions) ([]*domain.M
 func (s *Store) UpdateModel(_ context.Context, m *domain.Model) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.models[m.ID]; !ok {
+	cur, ok := s.models[m.ID]
+	if !ok {
 		return domain.NotFound("model not found")
 	}
+	// The hold is not a writable field: only SetHold moves it (§19.3.1). This adapter swaps
+	// the whole entity, so without carrying it over, any metadata PATCH built from a copy
+	// taken before the hold — or one that simply left the field nil — would release it. The
+	// SQL adapters get this from the column list; here it has to be explicit.
+	m.LegalHold = cur.LegalHold
 	s.models[m.ID] = m
 	return nil
 }
@@ -212,9 +218,11 @@ func (s *Store) ListVersions(_ context.Context, model string, o domain.ListOptio
 func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.versions[v.ID]; !ok {
+	cur, ok := s.versions[v.ID]
+	if !ok {
 		return domain.NotFound("version not found")
 	}
+	v.LegalHold = cur.LegalHold // not writable through an update; see UpdateModel
 	s.versions[v.ID] = v
 	return nil
 }
