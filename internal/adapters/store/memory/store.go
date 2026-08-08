@@ -27,6 +27,11 @@ type Store struct {
 	layers      map[string][]*domain.LayerBlock
 	footprints  map[string][]*domain.Footprint
 	evaluations map[string][]*domain.Evaluation
+
+	// Classifications (§16.7.1): model id -> regime -> row. Nested rather than keyed on a
+	// composite string so the per-regime isolation the schema's PK gives us is structural
+	// here too — writing one regime cannot reach another's row.
+	classifications map[string]map[domain.Regime]*domain.RiskClassification
 }
 
 func New() *Store {
@@ -41,6 +46,8 @@ func New() *Store {
 		layers:      map[string][]*domain.LayerBlock{},
 		footprints:  map[string][]*domain.Footprint{},
 		evaluations: map[string][]*domain.Evaluation{},
+
+		classifications: map[string]map[domain.Regime]*domain.RiskClassification{},
 	}
 }
 
@@ -116,12 +123,14 @@ func (s *Store) DeleteModel(_ context.Context, id string) error {
 	if !ok {
 		return domain.NotFound("model not found")
 	}
-	// Cascade to versions/artifacts/deployments/lineage (§02.5).
+	// Cascade to versions/artifacts/deployments/lineage (§02.5), and to classifications,
+	// whose FK is ON DELETE CASCADE from model (§16.7.1).
 	for vid, v := range s.versions {
 		if v.ModelID == id {
 			s.deleteVersionLocked(vid)
 		}
 	}
+	delete(s.classifications, id)
 	delete(s.models, id)
 	delete(s.modelByNm, m.Name)
 	return nil
