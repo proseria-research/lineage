@@ -31,18 +31,37 @@ type Selector struct {
 	LabelValue string
 }
 
-// MetadataStore is the persistence port. Adapters (memory now; sqlite/postgres
-// per-dialect, §02.7) implement it; the core never sees dialect (§01 dependency rule).
+// MetadataStore is the persistence port. Adapters (memory; sqlite/postgres per-dialect,
+// §02.7) implement it; the core never sees dialect (§01 dependency rule).
+//
+// It is composed of one sub-interface per capability area rather than written flat. An
+// adapter still implements the whole thing — the split costs nothing at the boundary — but
+// it gives each area a name a reader can hold, and it lets a narrow consumer (a decorator, a
+// test double, a background sweeper) depend on the two methods it uses instead of all fifty.
+// Adding a capability area is a new embedded line, not a longer list.
 type MetadataStore interface {
-	// Models
+	ModelStore
+	VersionStore
+	ArtifactStore
+	LineageStore
+	DeploymentStore
+	AuditStore
+	InsightStore
+}
+
+// ModelStore persists models (§02.3.1).
+type ModelStore interface {
 	CreateModel(ctx context.Context, m *Model) error
 	GetModel(ctx context.Context, nameOrID string) (*Model, error)
 	ListModels(ctx context.Context, o ListOptions) ([]*Model, string, error)
 	UpdateModel(ctx context.Context, m *Model) error
 
 	DeleteModel(ctx context.Context, id string) error
+}
 
-	// Versions
+// VersionStore persists model versions and owns the stage machine's storage-side
+// invariants (§02.4).
+type VersionStore interface {
 	CreateVersion(ctx context.Context, v *ModelVersion) error
 	GetVersion(ctx context.Context, model, version string) (*ModelVersion, error)
 	// GetVersionByID fetches a version by its id, for labeling lineage-graph nodes (§07.3).
@@ -60,8 +79,10 @@ type MetadataStore interface {
 	SetStage(ctx context.Context, versionID string, to Stage, singleton bool) error
 	// Resolve returns the version matching sel within model (§04.2).
 	Resolve(ctx context.Context, model string, sel Selector) (*ModelVersion, error)
+}
 
-	// Artifacts
+// ArtifactStore persists artifact metadata — never bytes, which are StorageBackend's (§05.1).
+type ArtifactStore interface {
 	CreateArtifact(ctx context.Context, a *Artifact) error
 	GetArtifact(ctx context.Context, versionID, name string) (*Artifact, error)
 	ListArtifacts(ctx context.Context, versionID string) ([]*Artifact, error)
@@ -70,25 +91,34 @@ type MetadataStore interface {
 	// ArtifactRefsURI reports whether any artifact row still points at uri. GC uses it to
 	// reference-count backend objects before sweeping them (§05.8).
 	ArtifactRefsURI(ctx context.Context, uri string) (bool, error)
+}
 
-	// Lineage
+// LineageStore persists the typed provenance edges traversed in §07.
+type LineageStore interface {
 	AddLineageEdge(ctx context.Context, e *LineageEdge) error
 	ListLineage(ctx context.Context, versionID string) ([]*LineageEdge, error)
 	DeleteLineageEdge(ctx context.Context, id, versionID string) error
+}
 
-	// Deployments (§02.3.4)
+// DeploymentStore persists where a version is serving (§02.3.4).
+type DeploymentStore interface {
 	CreateDeployment(ctx context.Context, d *Deployment) error
 	GetDeployment(ctx context.Context, id string) (*Deployment, error)
 	ListDeployments(ctx context.Context, versionID string) ([]*Deployment, error)
 	UpdateDeployment(ctx context.Context, d *Deployment) error
 	DeleteDeployment(ctx context.Context, id string) error
+}
 
-	// Audit (append-only; read for the activity feed, §09)
+// AuditStore is append-only; the read side backs the activity feed (§09).
+type AuditStore interface {
 	AppendAudit(ctx context.Context, e *AuditEvent) error
 	ListAudit(ctx context.Context, subjectType, subjectID string, o ListOptions) ([]*AuditEvent, string, error)
+}
 
-	// Insights (§11). Facts submitted by producers; the store only persists and returns
-	// them. GetInsight returns NotFound when a version has no insight recorded yet.
+// InsightStore persists the §11 composition facts. Producers submit them; the store only
+// persists and returns them. GetInsight returns NotFound when a version has no insight
+// recorded yet.
+type InsightStore interface {
 	GetInsight(ctx context.Context, versionID string) (*VersionInsight, error)
 	UpsertInsight(ctx context.Context, in *VersionInsight) error
 	// ReplaceLayerBlocks swaps a version's whole layer set: the breakdown is a list, so
