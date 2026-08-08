@@ -73,3 +73,87 @@ func regimeNames() []string {
 	}
 	return out
 }
+
+// ---- Inventory (§16.8.2) ----
+
+// inventoryReq carries the three classification query parameters plus the regime they apply
+// to. `state` is separate from the store filter because it is computed, not stored.
+type inventoryReq struct {
+	filter domain.ClassificationFilter
+	state  domain.ClassificationState
+}
+
+// inventoryQuery reports whether this request asked for classification data at all. Any of
+// the three filters counts, as does an explicit ?include=classification — a caller wanting
+// the column without narrowing on it.
+func inventoryQuery(req *http.Request) (inventoryReq, bool) {
+	q := req.URL.Query()
+	inv := inventoryReq{
+		filter: domain.ClassificationFilter{
+			Regime:            domain.Regime(orDefault(q.Get("regime"), string(domain.RegimeEUAIAct))),
+			EUSystemRiskClass: domain.EUSystemRiskClass(q.Get("euSystemRiskClass")),
+			EUGpaiTier:        domain.EUGpaiTier(q.Get("euGpaiTier")),
+		},
+		state: domain.ClassificationState(q.Get("classificationState")),
+	}
+	asked := inv.filter.Active() || inv.state != "" || includeSet(req)["classification"] || q.Get("regime") != ""
+	return inv, asked
+}
+
+func (r *Router) listInventory(w http.ResponseWriter, req *http.Request, inv inventoryReq) {
+	// Each value is checked against its own enum, so the error names the parameter the
+	// caller got wrong rather than a generic "bad filter".
+	if !domain.ValidRegime(inv.filter.Regime) {
+		api.WriteError(w, badEnum("regime", regimeNames()))
+		return
+	}
+	if v := inv.filter.EUSystemRiskClass; v != "" && !domain.ValidEUSystemRiskClass(v) {
+		api.WriteError(w, badEnum("euSystemRiskClass", domain.EUSystemRiskClasses()))
+		return
+	}
+	if v := inv.filter.EUGpaiTier; v != "" && !domain.ValidEUGpaiTier(v) {
+		api.WriteError(w, badEnum("euGpaiTier", domain.EUGpaiTiers()))
+		return
+	}
+	if v := inv.state; v != "" && !validClassificationState(v) {
+		api.WriteError(w, badEnum("classificationState", classificationStates()))
+		return
+	}
+
+	items, next, err := r.svc.ListInventory(req.Context(), listOpts(req), inv.filter, inv.state)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "nextPageToken": next})
+}
+
+func badEnum(field string, allowed []string) *domain.Error {
+	e := domain.Invalid("unknown " + field)
+	e.Details = map[string]any{"field": field, "allowedValues": allowed}
+	return e
+}
+
+func classificationStates() []string {
+	return []string{
+		string(domain.ClassificationUnclassified),
+		string(domain.ClassificationStale),
+		string(domain.ClassificationCurrent),
+	}
+}
+
+func validClassificationState(s domain.ClassificationState) bool {
+	for _, k := range classificationStates() {
+		if k == string(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
+}

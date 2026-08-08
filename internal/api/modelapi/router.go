@@ -117,6 +117,13 @@ func (r *Router) createModel(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listModels(w http.ResponseWriter, req *http.Request) {
+	// The inventory path (§16.8.2) costs a join plus an aggregate over model_version, so it
+	// runs only when the caller asked for classification data — by filtering on it, or with
+	// ?include=classification. Without either, this is the same query it has always been.
+	if inv, ok := inventoryQuery(req); ok {
+		r.listInventory(w, req, inv)
+		return
+	}
 	items, next, err := r.svc.ListModels(req.Context(), listOpts(req))
 	if err != nil {
 		api.WriteError(w, err)
