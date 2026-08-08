@@ -279,3 +279,47 @@ func (s *tracedStore) DeleteGuardFor(ctx context.Context, subjectType, subjectID
 		return s.next.DeleteGuardFor(c, subjectType, subjectID)
 	})
 }
+
+// ---- Attestation (§19.5) ----
+
+func (s *tracedStore) SealableEpochs(ctx context.Context, notAfter int64, limit int) ([]int64, error) {
+	return do1(ctx, s.t, "store.SealableEpochs", func(c context.Context) ([]int64, error) {
+		return s.next.SealableEpochs(c, notAfter, limit)
+	})
+}
+
+func (s *tracedStore) AuditEventsInEpoch(ctx context.Context, epoch int64) ([]*domain.AuditEvent, error) {
+	return do1(ctx, s.t, "store.AuditEventsInEpoch", func(c context.Context) ([]*domain.AuditEvent, error) {
+		return s.next.AuditEventsInEpoch(c, epoch)
+	})
+}
+
+func (s *tracedStore) AppendEpoch(ctx context.Context, e *domain.AuditEpoch) error {
+	return do0(ctx, s.t, "store.AppendEpoch", func(c context.Context) error { return s.next.AppendEpoch(c, e) })
+}
+
+func (s *tracedStore) LatestSealedEpoch(ctx context.Context) (*domain.AuditEpoch, error) {
+	return do1(ctx, s.t, "store.LatestSealedEpoch", func(c context.Context) (*domain.AuditEpoch, error) {
+		return s.next.LatestSealedEpoch(c)
+	})
+}
+
+func (s *tracedStore) ListEpochs(ctx context.Context, from, to int64) ([]*domain.AuditEpoch, error) {
+	return do1(ctx, s.t, "store.ListEpochs", func(c context.Context) ([]*domain.AuditEpoch, error) {
+		return s.next.ListEpochs(c, from, to)
+	})
+}
+
+func (s *tracedStore) GetAuditEvent(ctx context.Context, id string) (*domain.AuditEvent, error) {
+	return do1(ctx, s.t, "store.GetAuditEvent", func(c context.Context) (*domain.AuditEvent, error) {
+		return s.next.GetAuditEvent(c, id)
+	})
+}
+
+func (s *tracedStore) FirstAttestedEpoch(ctx context.Context) (int64, bool, error) {
+	ctx, sp := s.t.Start(ctx, "store.FirstAttestedEpoch")
+	defer sp.End()
+	v, ok, err := s.next.FirstAttestedEpoch(ctx)
+	sp.RecordError(err)
+	return v, ok, err
+}

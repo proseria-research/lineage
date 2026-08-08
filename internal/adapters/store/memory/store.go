@@ -32,6 +32,10 @@ type Store struct {
 	// composite string so the per-regime isolation the schema's PK gives us is structural
 	// here too — writing one regime cannot reach another's row.
 	classifications map[string]map[domain.Regime]*domain.RiskClassification
+
+	// Sealed audit epochs (§19.6.1), keyed by window index. Append-only: AppendEpoch
+	// refuses an index already present rather than replacing it.
+	epochs map[int64]*domain.AuditEpoch
 }
 
 func New() *Store {
@@ -48,6 +52,7 @@ func New() *Store {
 		evaluations: map[string][]*domain.Evaluation{},
 
 		classifications: map[string]map[domain.Regime]*domain.RiskClassification{},
+		epochs:          map[int64]*domain.AuditEpoch{},
 	}
 }
 

@@ -49,6 +49,7 @@ type MetadataStore interface {
 	InsightStore
 	ComplianceStore
 	RetentionStore
+	AttestationStore
 }
 
 // ModelStore persists models (§02.3.1).

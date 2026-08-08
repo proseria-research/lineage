@@ -175,4 +175,12 @@ type AuditEvent struct {
 	SubjectID   string          `json:"subjectId"`
 	Summary     string          `json:"summary"`
 	Data        json.RawMessage `json:"data,omitempty"`
+	// Epoch is the sealing window this row belongs to (§19.6), derived at write from the
+	// row's own At. **Nil means the row is not attested** — it predates §19.5, or was written
+	// while attestation was disabled. Nil rather than 0 on purpose: 0 is a real epoch (the
+	// first minute of 1970), and a row that was never covered must not look sealed.
+	//
+	// Once written it is never recomputed. Changing sealIntervalSeconds later therefore
+	// cannot re-group rows that are already sealed.
+	Epoch *int64 `json:"epoch,omitempty"`
 }

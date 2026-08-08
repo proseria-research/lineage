@@ -215,6 +215,30 @@ var migrations = []string{
 	`ALTER TABLE model ADD COLUMN held_by TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE model_version ADD COLUMN held_since BIGINT`,
 	`ALTER TABLE model_version ADD COLUMN held_by TEXT NOT NULL DEFAULT ''`,
+
+	// ---- Merkle epoch sealing (§19.5, §19.6) ----
+	// epoch is nullable: NULL means the row is not attested — written before §19.5, or while
+	// attestation was disabled. NULL rather than 0, because 0 is a real epoch and a row that
+	// was never covered must not read as sealed. It is set at write from the row's own `at`
+	// and never recomputed, so changing sealIntervalSeconds cannot re-group sealed rows.
+	`ALTER TABLE audit_event ADD COLUMN epoch BIGINT`,
+	// §19.6.2 — the sealer's window scan and the inclusion-proof lookup.
+	`CREATE INDEX IF NOT EXISTS idx_audit_epoch ON audit_event (epoch)`,
+	// Append-only, never updated (§19.6.1). The PK is the whole concurrency control: a second
+	// seal for a window is either a duplicated sealer or a rewrite, and both must fail loudly
+	// rather than overwrite.
+	//
+	// interval_ms is not in §19.6.1. It records the window width each root was computed under,
+	// so changing sealIntervalSeconds on a sealed log is detectable instead of surfacing later
+	// as a leaf_count_mismatch that looks exactly like tampering.
+	`CREATE TABLE IF NOT EXISTS audit_epoch (
+		epoch BIGINT PRIMARY KEY,
+		root TEXT NOT NULL,
+		prev_root TEXT,
+		leaf_count BIGINT NOT NULL,
+		interval_ms BIGINT NOT NULL,
+		sealed_at BIGINT NOT NULL
+	)`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.
