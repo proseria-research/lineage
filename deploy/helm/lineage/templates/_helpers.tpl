@@ -149,6 +149,16 @@ env (Postgres DSN, S3 keys) is added separately via secretKeyRef.
   value: {{ .Values.storage.gc.prefix | quote }}
 - name: LINEAGE_ACTOR_HEADER
   value: {{ .Values.actorHeader | quote }}
+- name: LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS
+  value: {{ .Values.compliance.retention.minArchivedVersionDays | quote }}
+- name: LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS
+  value: {{ .Values.compliance.retention.minAuditAgeDays | quote }}
+- name: LINEAGE_AUDIT_ATTESTATION
+  value: {{ ternary "on" "off" .Values.compliance.auditAttestation.enabled | quote }}
+- name: LINEAGE_SEAL_INTERVAL_SECONDS
+  value: {{ .Values.compliance.auditAttestation.sealIntervalSeconds | quote }}
+- name: LINEAGE_SEAL_GRACE_SECONDS
+  value: {{ .Values.compliance.auditAttestation.sealGraceSeconds | quote }}
 {{- if .Values.observability.otlpEndpoint }}
 - name: LINEAGE_OTLP_ENDPOINT
   value: {{ .Values.observability.otlpEndpoint | quote }}

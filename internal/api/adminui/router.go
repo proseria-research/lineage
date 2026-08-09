@@ -25,6 +25,10 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/models/{model}/classifications/{regime}", r.setClassification)
 	mux.HandleFunc("GET /api/models/{model}/compare", r.compare)
 	mux.HandleFunc("GET /api/activity", r.activity)
+	// §19.8 — install-level evidence integrity. The status strip is cheap; the recompute is
+	// a separate call because it reads every audit row ever written.
+	mux.HandleFunc("GET /api/evidence", r.evidence)
+	mux.HandleFunc("POST /api/evidence:verify", r.verifyEvidence)
 	// Everything else is the embedded console (assets + client-side-routing fallback).
 	mux.Handle("GET /", spaHandler())
 	return mux
