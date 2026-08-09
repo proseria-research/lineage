@@ -111,6 +111,8 @@ func (s *Store) latestReview(versionID, edgeID string) *domain.ModificationRevie
 	return deepCopy(match[0])
 }
 
+// sortReviewsNewestFirst matches the sqlstore ordering, id tiebreak included — stable within
+// one millisecond rather than insertion-ordered, since NewID is random past the timestamp.
 func sortReviewsNewestFirst(rs []*domain.ModificationReview) {
 	sort.Slice(rs, func(i, j int) bool {
 		if rs[i].ReviewedAt != rs[j].ReviewedAt {

@@ -227,6 +227,10 @@ func TestReReviewSupersedesWithoutErasing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Distinct milliseconds. Within one, the id tiebreak orders stably but arbitrarily — NewID
+	// is random past the timestamp — so a test asserting "the later one wins" has to make one
+	// actually later.
+	tick()
 	second, err := s.RecordReview(ctx, "counsel@acme.example", "m", "1.1.0", core.ReviewInput{
 		EdgeID: edgeID, Outcome: domain.OutcomeSubstantial, Note: "provider duties transfer",
 	})

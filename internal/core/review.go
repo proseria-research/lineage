@@ -137,6 +137,7 @@ func reviewItemOf(d *domain.DerivationRow) *domain.ReviewItem {
 		Model: d.Model, Version: d.Version, VersionID: d.VersionID, EdgeID: d.Edge.ID,
 		DerivedFromRef: d.Edge.DstRef,
 		Verdict:        c.Verdict, Candidates: c.Candidates, Missing: c.Missing,
+		Hashes: c.Hashes,
 		Basis: domain.ReviewBasis{
 			FromHashes: presentHashes(d.FromHashes),
 			ToHashes:   presentHashes(d.ToHashes),

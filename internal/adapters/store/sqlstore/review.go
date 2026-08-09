@@ -22,9 +22,13 @@ func (s *Store) CreateReview(ctx context.Context, r *domain.ModificationReview) 
 	return err
 }
 
-// ListReviews returns a version's reviews newest-first, across every edge. The id tiebreak
-// keeps two reviews recorded in the same millisecond in a stable order — ULIDs are
-// monotonic, so it agrees with insertion order rather than merely being deterministic.
+// ListReviews returns a version's reviews newest-first, across every edge.
+//
+// The id tiebreak makes two reviews recorded in the same millisecond order **stably**, not
+// correctly: NewID randomises everything after the timestamp, so within one millisecond the
+// order is arbitrary — it just does not vary between engines or reruns. Evaluations already
+// resolve their ties the same way (§11.7). Nothing is lost either way: both rows are returned
+// here, and only which one the queue calls "latest" is affected.
 func (s *Store) ListReviews(ctx context.Context, versionID string) ([]*domain.ModificationReview, error) {
 	rows, err := s.db.QueryContext(ctx, s.rb(
 		`SELECT `+reviewCols+` FROM modification_review WHERE version_id=?

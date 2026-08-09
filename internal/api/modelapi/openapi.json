@@ -4410,6 +4410,13 @@
             },
             "description": "Which hash levels the verdict needed and did not get."
           },
+          "hashes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HashCmp"
+            },
+            "description": "The full hash ladder, per level, both sides. `basis` is its two-list projection; the console draws the side-by-side fingerprints from these values."
+          },
           "basis": {
             "$ref": "#/components/schemas/ReviewBasis"
           },
