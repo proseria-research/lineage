@@ -4,9 +4,9 @@
 > `16`'s EU class. The routing mechanism — verdict plus declared intent to a human — is
 > generic, but nothing here is currently reachable without an EU classification.
 >
-> Status: **Proposed**. Routes the `11.4` fingerprint verdict to a human when a derivation may
-> have made the modifier legally responsible for the model (Art. 25). Posture and boundary
-> rules are `15`; the classification that gates the queue is `16`.
+> Status: **Implemented (M16).** Routes the `11.4` fingerprint verdict to a human when a
+> derivation may have made the modifier legally responsible for the model (Art. 25). Posture
+> and boundary rules are `15`; the classification that gates the queue is `16`.
 
 ## 1. Scope
 
@@ -79,7 +79,20 @@ Closing an item is one `POST` (§6). Rows are **append-only**, like `evaluation`
 re-review is a new row, and the queue keys on the **latest** row per (`version_id`,`edge_id`).
 
 `verdict_at_review` freezes the verdict as it stood at review time, so a producer later
-submitting a `weights_hash` cannot rewrite what a reviewer actually saw.
+submitting a `weights_hash` cannot rewrite what a reviewer actually saw. A closed item returns
+both it and the current verdict; when they differ, a producer submitted a hash after the
+review, and that is worth seeing rather than smoothing over.
+
+**Conditions 2 and 3 are a pure predicate** (`domain.ReviewEligible`), the same shape as
+`16.5`'s drift clauses: one function over declared facts, so the queue endpoint, the console
+and `16.5`'s clause 4 cannot disagree about what "open" means. Condition 3 is expressed as an
+**inner join** on `classification` rather than a filter, which bounds the scan to classified
+models on an install where most are not.
+
+**Recording a review does not require a classification.** Condition 3 governs what the queue
+*surfaces*; refusing to record a human's judgement because nobody has filled in a
+classification would lose the one thing here that cannot be recomputed. Classify the model
+later and the review is already there, closing the item.
 
 ## 5. Data Model
 
@@ -102,6 +115,17 @@ Additive only (`02.7`).
 able to close the loop on "looked at it, cannot resolve yet" rather than leaving the item
 indistinguishable from one nobody opened.
 
+**`edge_id` carries no foreign key.** Deleting the lineage edge withdraws the item from the
+queue; it must not erase the record that a human looked at it, and a cascade from
+`lineage_edge` would do exactly that. `version_id` does cascade — with the version gone there
+is no subject left to have reviewed.
+
+**Ordering within one millisecond is stable, not chronological.** `id` is the tiebreak on
+`reviewed_at`, and `NewID` randomises everything after the timestamp, so two reviews recorded
+in the same millisecond resolve to an arbitrary — but engine-independent and rerun-stable —
+"latest". `evaluation` already resolves its ties the same way (`11.7`). Both rows are always
+returned; only which one the queue calls current is affected.
+
 ### 5.2 Indexes
 
 | Index | Purpose |
@@ -113,12 +137,17 @@ indistinguishable from one nobody opened.
 Model API (`:8081`, `/v1`), conventions per `03.1`.
 
 ```
-GET   /v1/reviews?status=open|closed
+GET   /v1/reviews?status=open|closed[&regime=]
 POST  /v1/models/{m}/versions/{v}/reviews
 GET   /v1/models/{m}/versions/{v}/reviews
 ```
 
-Audit action: `review.record`, appended in the same transaction (`02.5` invariant 4).
+Omitting `status` returns open and closed alike. It does **not** default to open: a caller
+that wants only open items says so, and a default would make the total silently unobtainable.
+
+Audit action: `review.record`, carrying `edgeId`, `outcome` and `verdictAtReview` as structured
+data rather than only in the prose — an auditor reconstructing who concluded what, against what
+evidence, reads fields.
 
 ### 6.1 Close an item
 
@@ -149,14 +178,27 @@ GET /v1/reviews?status=open
       "derivedFrom": { "model": "fraud-detector", "version": "1.3.0" },
       "verdict": "recast",
       "declaredMethod": "quantize",
-      "basis": ["topology", "shape", "dtype", "weights"],
+      "hashes": { "topology": { "from": "t1", "to": "t1", "changed": false, "present": true },
+                  "dtype":    { "from": "d1", "to": "d2", "changed": true,  "present": true } },
+      "basis": { "fromHashes": ["topology","shape","dtype","weights"],
+                 "toHashes":   ["topology","shape","dtype","weights"] },
       "euSystemRiskClass": "high_annex_iii",
-      "edgeCreatedAt": 1773400000000 }
+      "euGpaiTier": "none",
+      "edgeCreatedAt": 1773400000000,
+      "status": "open" }
   ], "nextPageToken": null }
 ```
 
 `basis` mirrors `11.6.2` — which hashes were present on each side, so a partial verdict is
-identifiable as partial rather than read as confident.
+identifiable as partial rather than read as confident. It is **two lists, not one**: the whole
+question it answers is which *side* was missing what, and a flat list cannot say it.
+
+`hashes` is the full ladder, carried for the same reason the `11.6.2` diff response carries
+both — `basis` is its projection, and §7's side-by-side fingerprints are drawn from the values.
+
+An edge pointing at an external ref returns `derivedFromRef` instead of `derivedFrom`. That is
+the Art. 25 case proper — somebody fine-tuned a third-party model — and the one where no
+hashes reach, so it queues as `unknown`.
 
 ### 6.3 Errors
 
@@ -167,15 +209,27 @@ identifiable as partial rather than read as confident.
 | `edgeId` not a `derived_from` edge on this version | `invalid_argument` | 400 | `field` |
 | Client supplied `verdictAtReview` | `invalid_argument` | 400 | `field` |
 | Unknown `outcome` | `invalid_argument` | 400 | `allowedValues` |
+| Unknown `status` on the queue | `invalid_argument` | 400 | `field`, `allowedValues` |
 
 ## 7. Console (`06`)
 
+The queue is a section of the **compliance workspace**, under the classification worklist,
+rather than its own nav item. It is the same job continued: the queue only exists for models
+somebody has already classified governed, and an install with no derivations renders nothing
+rather than an empty page implying the question is live.
+
 - **Review queue** — open derivations with the `11.4` verdict, the declared method, and **both
-  fingerprints side by side** (`12.6.2` already renders these at 64px). The rings that changed
-  carry their colour and the rest drop to muted, so the delta is visible before any text is
-  read.
+  fingerprints side by side** (`12.6.2` already renders these, at 44px in a list row). The
+  rings that changed carry their colour and the rest drop to muted, so the delta is visible
+  before any text is read. A derivation with no hashes on either side gets an explicit
+  *no hashes* marker of the same width, so absence is visible rather than inferred from a gap.
+- Reviewed items are collapsed below the open ones, expandable. "Nothing to review" and
+  "everything has been reviewed" are different answers and the page shows which one it is.
 - A closed item shows `verdict_at_review` next to the current verdict when they differ — that
   divergence means a producer submitted a hash after the review, and it is worth seeing.
+- **The dialog preselects no outcome.** An outcome is a legal judgement, and a form opening on
+  `not_substantial` is the registry nudging the cheap answer. It cannot set the verdict, cannot
+  edit an earlier review, and says so.
 - The queue never blocks an action. It is a list, not a gate (§1).
 
 ## 8. Deferred
@@ -196,3 +250,4 @@ identifiable as partial rather than read as confident.
 | Edge `properties.method` | `11.3.6` |
 | `derived_from` semantics | `07.2` |
 | Fingerprint rendering | `12.4`, `12.6.2` |
+| Drift clause 4, which this queue feeds | `16.5` |
