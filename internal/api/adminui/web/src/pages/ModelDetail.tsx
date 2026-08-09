@@ -50,15 +50,18 @@ export default function ModelDetail() {
       </div>
 
       {/* Labels and the hold action share a row: both are things asserted *about* the model
-          rather than about a version, and the action reads better next to them than competing
-          with the title. The row renders even with no labels, so the action has a home. */}
+          rather than about a version. The action is pushed to the far end — labels are read
+          left to right, an action is reached for — and the row renders even with no labels,
+          so the action has a home either way. */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {Object.entries(m.labels ?? {}).map(([k, v]) => (
           <span key={k} className="border px-1.5 py-0.5 font-mono text-xs">
             {k}={v}
           </span>
         ))}
-        <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
+        <div className="ml-auto">
+          <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
+        </div>
       </div>
 
       <div className="label-caps mb-2">Versions</div>
