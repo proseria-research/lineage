@@ -266,6 +266,24 @@ func (s *tracedStore) ListInventory(ctx context.Context, o domain.ListOptions, f
 	})
 }
 
+// ---- Modification review (§17) ----
+
+func (s *tracedStore) CreateReview(ctx context.Context, r *domain.ModificationReview) error {
+	return do0(ctx, s.t, "store.CreateReview", func(c context.Context) error { return s.next.CreateReview(c, r) })
+}
+
+func (s *tracedStore) ListReviews(ctx context.Context, versionID string) ([]*domain.ModificationReview, error) {
+	return do1(ctx, s.t, "store.ListReviews", func(c context.Context) ([]*domain.ModificationReview, error) {
+		return s.next.ListReviews(c, versionID)
+	})
+}
+
+func (s *tracedStore) ListDerivations(ctx context.Context, regime domain.Regime, modelID string) ([]*domain.DerivationRow, error) {
+	return do1(ctx, s.t, "store.ListDerivations", func(c context.Context) ([]*domain.DerivationRow, error) {
+		return s.next.ListDerivations(c, regime, modelID)
+	})
+}
+
 // ---- Retention (§19.3) ----
 
 func (s *tracedStore) SetHold(ctx context.Context, subjectType, subjectID string, h *domain.Hold) error {

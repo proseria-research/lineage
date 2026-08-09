@@ -48,6 +48,7 @@ func TestPostgresStore(t *testing.T) {
 	storetest.RunSQLConstraints(t, s)
 	storetest.RunInventory(t, s)
 	storetest.RunRetention(t, s)
+	storetest.RunReviews(t, s)
 	storetest.RunAttestation(t, s)
 }
 

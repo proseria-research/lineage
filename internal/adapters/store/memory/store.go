@@ -33,6 +33,11 @@ type Store struct {
 	// here too — writing one regime cannot reach another's row.
 	classifications map[string]map[domain.Regime]*domain.RiskClassification
 
+	// Modification reviews (§17.5.1). A flat append-only slice rather than a map keyed by
+	// (version, edge): the table has no unique key to be a map key, because a re-review is a
+	// new row and the whole history is kept.
+	reviews []*domain.ModificationReview
+
 	// Sealed audit epochs (§19.6.1), keyed by window index. Append-only: AppendEpoch
 	// refuses an index already present rather than replacing it.
 	epochs map[int64]*domain.AuditEpoch
@@ -270,6 +275,16 @@ func (s *Store) deleteVersionLocked(id string) {
 	delete(s.layers, id)
 	delete(s.footprints, id)
 	delete(s.evaluations, id)
+	// Reviews cascade from model_version, not from the edge (§17.5.1): with the version gone
+	// there is no subject left to have reviewed. Deleting the *edge* above deliberately
+	// leaves its reviews behind.
+	kept := s.reviews[:0]
+	for _, r := range s.reviews {
+		if r.VersionID != id {
+			kept = append(kept, r)
+		}
+	}
+	s.reviews = kept
 }
 
 func (s *Store) CountVersionsInStage(_ context.Context, modelID string, stage domain.Stage) (int, error) {
