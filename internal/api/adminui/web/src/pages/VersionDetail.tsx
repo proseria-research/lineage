@@ -113,10 +113,14 @@ export default function VersionDetail() {
         <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
         {/* The version's own hold takes precedence; an inherited one names the model, so the
             reader knows which subject to release (§19.3.1). */}
-        {v.legalHold ? (
-          <HoldNote hold={v.legalHold} />
-        ) : data.modelHold ? (
-          <HoldNote hold={data.modelHold} heldSubject={`model/${data.model}`} />
+        {v.legalHold || data.modelHold ? (
+          <div className="mt-4">
+            {v.legalHold ? (
+              <HoldNote hold={v.legalHold} />
+            ) : (
+              <HoldNote hold={data.modelHold!} heldSubject={`model/${data.model}`} />
+            )}
+          </div>
         ) : null}
       </div>
 
