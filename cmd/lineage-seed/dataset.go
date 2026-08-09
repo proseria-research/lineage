@@ -18,6 +18,20 @@ type seedModel struct {
 	core.CreateModelInput
 	Archived bool // apply :archive after its versions exist
 	Versions []version
+	// Classification is applied after the versions exist, so nothing starts stale (§16.5)
+	// and the demo opens on a clean worklist. It also gates the Art. 25 queue: a derivation
+	// on an unclassified model is not in it at all (§17.4), so leaving a model unclassified
+	// here is what seeds the "not governed, not queued" case.
+	Classification *seedClassification
+}
+
+// seedClassification is a declared assessment plus a *relative* review date. Absolute dates
+// in a fixture go stale — a hardcoded 2027 would eventually seed a classification the drift
+// predicate reports as overdue on first read, which is a fixture bug that reads as a product
+// bug.
+type seedClassification struct {
+	core.ClassificationInput
+	ReviewInDays int // 0 leaves reviewDueAt unset, which is a real answer
 }
 
 type version struct {
@@ -189,6 +203,16 @@ var dataset = []seedModel{
 			// Custom properties are free-form per-install metadata (§02.3, filterable with cp.* on Postgres).
 			CustomProperties: props(`{"reviewBoard":"model-risk","pciScope":true,"slaMs":25}`),
 		},
+		// High risk under Annex III, so its derivations reach the Art. 25 queue (§17.4).
+		Classification: &seedClassification{
+			ClassificationInput: core.ClassificationInput{
+				EUSystemRiskClass: domain.EUClassHighAnnexIII,
+				EUGpaiTier:        domain.EUGpaiNone,
+				IntendedPurpose:   "Scores card-not-present transactions on the authorization path; declines route to manual review.",
+				Basis:             "Annex III §5(b) — creditworthiness-adjacent decisioning affecting access to a payment service.",
+			},
+			ReviewInDays: 180,
+		},
 		Versions: []version{
 			{
 				Name: "1.0.0", Author: "ana@acme.example",
@@ -347,6 +371,17 @@ var dataset = []seedModel{
 			Description: "Support-ticket sentiment tagging (Hugging Face weights, by reference).",
 			Owner:       "nlp@acme.example",
 			Labels:      map[string]string{"team": "nlp", "tier": "standard"},
+		},
+		// Not a high-risk *system*, but a general-purpose model — the tier qualifies on its
+		// own, because a derived GPAI picks up its own Art. 53 duties (§17.4). Its quantized
+		// version is the queue's most interesting row: a `recast` verdict beside a declared
+		// `quantize`, where measurement and intent agree.
+		Classification: &seedClassification{
+			ClassificationInput: core.ClassificationInput{
+				EUSystemRiskClass: domain.EUClassLimited,
+				EUGpaiTier:        domain.EUGpai,
+				IntendedPurpose:   "Tags inbound support tickets by sentiment for queue routing.",
+			},
 		},
 		Versions: []version{
 			{
