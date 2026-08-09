@@ -78,6 +78,11 @@ type versionDetailDTO struct {
 	Lineage        []*domain.LineageEdge `json:"lineage"`
 	Deployments    []*domain.Deployment  `json:"deployments"`
 	Audit          []*domain.AuditEvent  `json:"audit"`
+	// Reviews recorded against this version's derivations (§17). Carried on the detail
+	// payload rather than fetched separately: someone arriving from the queue is here
+	// *because* of a review, and a page that never mentions it makes the trail look broken.
+	// Every row, newest first — a superseded review is part of the record.
+	Reviews []*domain.ModificationReview `json:"reviews"`
 	// Insight is null when nobody has reported on this version. The console renders that
 	// as "not reported", never as zeroes (§11.8).
 	Insight     *domain.VersionInsight `json:"insight"`
@@ -210,6 +215,7 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 	evals, _ := r.svc.ListEvaluations(ctx, model, version)
 	// Unclassified is a state, not a failure, so a not_found here becomes a null panel.
 	classification, _ := r.svc.GetClassification(ctx, model, domain.RegimeEUAIAct)
+	reviews, _ := r.svc.ListVersionReviews(ctx, model, version)
 	// The owning model's hold covers this version transitively (§19.3.1), and the page has
 	// to be able to say which subject is actually held.
 	var modelHold *domain.Hold
@@ -219,7 +225,7 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 	api.WriteJSON(w, http.StatusOK, versionDetailDTO{
 		Model: model, Version: toSummary(v), AllowedTargets: allowedTargets(v.Stage),
 		Artifacts: nz(arts), Lineage: nz(edges), Deployments: nz(deps), Audit: nz(audit),
-		Insight: insight, Footprints: nz(footprints), Evaluations: nz(evals),
+		Reviews: nz(reviews), Insight: insight, Footprints: nz(footprints), Evaluations: nz(evals),
 		Classification: classification, ModelHold: modelHold,
 	})
 }

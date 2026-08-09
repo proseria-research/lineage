@@ -369,6 +369,9 @@ export interface VersionDetail {
   lineage: LineageEdge[];
   deployments: Deployment[];
   audit: AuditEvent[];
+  // Reviews recorded against this version's derivations (§17), newest first. A superseded
+  // review is kept — what somebody concluded before is part of the record.
+  reviews: ModificationReview[];
   // null when no producer has reported on this version.
   insight: VersionInsight | null;
   footprints: Footprint[];
