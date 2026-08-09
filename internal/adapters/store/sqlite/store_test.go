@@ -18,5 +18,6 @@ func TestSQLiteStore(t *testing.T) {
 	storetest.RunSQLConstraints(t, store)
 	storetest.RunInventory(t, store)
 	storetest.RunRetention(t, store)
+	storetest.RunReviews(t, store)
 	storetest.RunAttestation(t, store)
 }

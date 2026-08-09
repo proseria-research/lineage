@@ -239,6 +239,32 @@ var migrations = []string{
 		interval_ms BIGINT NOT NULL,
 		sealed_at BIGINT NOT NULL
 	)`,
+
+	// ---- Modification review (§17.5.1) ----
+	// Append-only, like evaluation (§11.7): a re-review is a new row and the queue reads the
+	// latest per (version_id, edge_id). No UPDATE path exists, because the record's value is
+	// that it says what somebody concluded at a moment.
+	//
+	// **edge_id carries no foreign key**, deliberately. Deleting the lineage edge takes the
+	// item out of the queue, but must not erase the record that a human looked at it — and a
+	// cascade from lineage_edge would do exactly that. version_id does cascade: with the
+	// version gone there is no subject left to have reviewed.
+	//
+	// verdict_at_review is a stored string rather than a recomputed one. It is the whole point
+	// of the table (§17.4): a producer submitting a weights_hash next week must not be able to
+	// change what a reviewer is recorded as having seen.
+	`CREATE TABLE IF NOT EXISTS modification_review (
+		id TEXT PRIMARY KEY,
+		version_id TEXT NOT NULL REFERENCES model_version(id) ON DELETE CASCADE,
+		edge_id TEXT NOT NULL,
+		verdict_at_review TEXT NOT NULL,
+		outcome TEXT NOT NULL,
+		note TEXT NOT NULL DEFAULT '',
+		reviewed_by TEXT NOT NULL DEFAULT '',
+		reviewed_at BIGINT NOT NULL
+	)`,
+	// §17.5.2 — latest-row-per-pair, and the open-queue anti-join.
+	`CREATE INDEX IF NOT EXISTS idx_review_pair ON modification_review (version_id, edge_id, reviewed_at)`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.
