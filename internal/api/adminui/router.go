@@ -23,6 +23,12 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("POST /api/models/{model}/versions/{version}/transition", r.transition)
 	mux.HandleFunc("GET /api/models/{model}/versions/{version}/graph", r.lineageGraph)
 	mux.HandleFunc("PUT /api/models/{model}/classifications/{regime}", r.setClassification)
+	// Legal hold (§19.8). Placing one is a human act about a matter — the Admin surface is
+	// where humans act, and it calls the same core operations the Model API does.
+	mux.HandleFunc("POST /api/models/{model}/hold", r.hold(true))
+	mux.HandleFunc("POST /api/models/{model}/release", r.hold(false))
+	mux.HandleFunc("POST /api/models/{model}/versions/{version}/hold", r.hold(true))
+	mux.HandleFunc("POST /api/models/{model}/versions/{version}/release", r.hold(false))
 	mux.HandleFunc("GET /api/models/{model}/compare", r.compare)
 	mux.HandleFunc("GET /api/activity", r.activity)
 	// §19.8 — install-level evidence integrity. The status strip is cheap; the recompute is

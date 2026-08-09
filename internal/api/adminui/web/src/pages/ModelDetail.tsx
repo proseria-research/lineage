@@ -2,13 +2,13 @@ import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { VersionBoard } from "@/components/VersionBoard";
-import { HoldNote } from "@/components/Hold";
+import { HoldControl } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtTime } from "@/lib/utils";
 
 export default function ModelDetail() {
   const { model = "" } = useParams();
-  const { data, error, loading } = useAsync(() => api.model(model), [model]);
+  const { data, error, loading, reload } = useAsync(() => api.model(model), [model]);
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
@@ -27,12 +27,11 @@ export default function ModelDetail() {
         }
       />
 
-      {/* A held model is marked, and the marker says what the hold blocks — §19.8. */}
-      {m.legalHold ? (
-        <div className="mb-6">
-          <HoldNote hold={m.legalHold} />
-        </div>
-      ) : null}
+      {/* The hold surface: the marker when held, the action either way (§19.8). A reader who
+          can see a hold but can only place one with a curl is reading a report. */}
+      <div className="mb-6">
+        <HoldControl subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-px border bg-border sm:grid-cols-4">
         {[

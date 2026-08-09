@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { HoldDialog } from "@/components/HoldDialog";
 import { api, type Evidence, type Hold, type VerifyBreak } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { relTime } from "@/lib/utils";
@@ -26,17 +27,83 @@ export function HoldBadge({ inherited }: { inherited?: boolean }) {
   );
 }
 
-// HoldNote is the full marker for a detail page: the badge, the provenance, and what the
-// hold does and does not block. "A hold is not a freeze" is the part people get wrong.
-export function HoldNote({ hold, heldSubject }: { hold: Hold; heldSubject?: string }) {
+// HoldControl is the whole hold surface for one subject: the marker when held, the action
+// either way. Both live together because a marker you cannot act on is a report, and an
+// action with no visible state is a guess.
+//
+// An inherited hold shows no action — the button would release the *model*, which is not the
+// subject the reader is looking at. It names the holder instead, so they can go there.
+export function HoldControl({
+  subject,
+  hold,
+  heldSubject,
+  onChanged,
+}: {
+  subject: { model: string; version?: string };
+  hold: Hold | null;
+  heldSubject?: string;
+  onChanged: () => void;
+}) {
+  const [dialog, setDialog] = useState<"hold" | "release" | null>(null);
+  const inherited = !!heldSubject;
+
+  return (
+    <>
+      {hold ? (
+        <HoldNote
+          hold={hold}
+          heldSubject={heldSubject}
+          action={
+            inherited ? undefined : (
+              <Button variant="outline" size="sm" onClick={() => setDialog("release")}>
+                Release hold
+              </Button>
+            )
+          }
+        />
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setDialog("hold")}>
+          Place legal hold
+        </Button>
+      )}
+      {dialog ? (
+        <HoldDialog
+          subject={subject}
+          release={dialog === "release"}
+          current={hold}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            onChanged();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+// HoldNote is the marker itself: the badge, the provenance, and what the hold does and does
+// not block. "A hold is not a freeze" is the part people get wrong.
+export function HoldNote({
+  hold,
+  heldSubject,
+  action,
+}: {
+  hold: Hold;
+  heldSubject?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <Card className="p-4 space-y-2">
-      <div className="flex items-center gap-2">
-        <HoldBadge inherited={!!heldSubject} />
-        <span className="text-sm text-muted-foreground">
-          since {relTime(hold.heldSince)}
-          {hold.heldBy ? ` · ${hold.heldBy}` : ""}
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <HoldBadge inherited={!!heldSubject} />
+          <span className="text-sm text-muted-foreground">
+            since {relTime(hold.heldSince)}
+            {hold.heldBy ? ` · ${hold.heldBy}` : ""}
+          </span>
+        </div>
+        {action}
       </div>
       <p className="text-sm text-muted-foreground">
         {heldSubject ? (

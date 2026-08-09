@@ -415,6 +415,14 @@ export const api = {
     getJSON<InsightDiff>(
       `/api/models/${encodeURIComponent(m)}/compare?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  // Place or lift a legal hold. One shape for both subjects: omit `version` for a model.
+  setHold: (subject: { model: string; version?: string }, hold: boolean, reason: string) => {
+    const base = `/api/models/${encodeURIComponent(subject.model)}`;
+    const path = subject.version
+      ? `${base}/versions/${encodeURIComponent(subject.version)}`
+      : base;
+    return postJSON<{ legalHold: Hold | null }>(`${path}/${hold ? "hold" : "release"}`, { reason });
+  },
   evidence: () => getJSON<Evidence>("/api/evidence"),
   verifyEvidence: () => postJSON<Evidence>("/api/evidence:verify", {}),
   activity: (token = "") =>

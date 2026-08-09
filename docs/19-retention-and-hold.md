@@ -393,6 +393,11 @@ error table stable.
 - A held subject shows a hold marker with `heldSince` and `heldBy` on its detail page, saying
   what the hold blocks and — when inherited — **which subject is actually held**. Without the
   holder's name the reader is told no and given nothing to release.
+- **Holds are placed and lifted from the console**, through the same core operations the
+  Model API exposes — so the required reason and the `hold.set` / `hold.release` events are
+  identical. A surface that can show a hold but only place one by curl is a report, not a
+  workspace. An *inherited* hold shows no release action: the button would clear the model,
+  which is not the subject the reader is looking at, so it names the holder instead.
 - The console exposes no destructive action, so there is nothing to disable. Were one added,
   it would be disabled with the reason inline rather than hidden.
 - Attestation status (`enabled`, `attestationStartedAt`, `openEpochSince`, last verify result)
