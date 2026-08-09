@@ -258,10 +258,9 @@ func (r *Router) transition(w http.ResponseWriter, req *http.Request) {
 		api.WriteError(w, err)
 		return
 	}
-	api.WriteJSON(w, http.StatusOK, versionSummary{
-		ID: v.ID, Name: v.Name, Stage: v.Stage, Author: v.Author,
-		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
-	})
+	// toSummary, not a hand-built literal: a field added to versionSummary must not silently
+	// come back null here. That is exactly how `legalHold` was dropped from this response.
+	api.WriteJSON(w, http.StatusOK, toSummary(v))
 }
 
 // setClassification is the console's second write, after `transition` (§16.9). It calls the
@@ -288,6 +287,58 @@ func (r *Router) setClassification(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	api.WriteJSON(w, http.StatusOK, v)
+}
+
+// hold is the console's third write (§19.8). Counsel placing a hold is a human interaction
+// about a matter, which is precisely what the Admin surface is for — and it goes through the
+// same core operations the Model API does, so the `hold.set` / `hold.release` audit events and
+// the required reason are identical. The console is a client of the rules, not a way around
+// them.
+//
+// A reader who can see that a model is held but can only place one with a curl is looking at
+// a report, not doing a job.
+func (r *Router) hold(set bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var body struct {
+			Reason string `json:"reason"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			api.WriteError(w, domain.Invalid("invalid JSON: "+err.Error()))
+			return
+		}
+		ctx, actor := req.Context(), r.actor(req)
+		model, version := req.PathValue("model"), req.PathValue("version")
+
+		// One path shape serves both subjects: {version} is empty on the model routes.
+		if version == "" {
+			var m *domain.Model
+			var err error
+			if set {
+				m, err = r.svc.SetModelHold(ctx, actor, model, body.Reason)
+			} else {
+				m, err = r.svc.ReleaseModelHold(ctx, actor, model, body.Reason)
+			}
+			if err != nil {
+				api.WriteError(w, err)
+				return
+			}
+			api.WriteJSON(w, http.StatusOK, map[string]any{"legalHold": m.LegalHold})
+			return
+		}
+
+		var v *domain.ModelVersion
+		var err error
+		if set {
+			v, err = r.svc.SetVersionHold(ctx, actor, model, version, body.Reason)
+		} else {
+			v, err = r.svc.ReleaseVersionHold(ctx, actor, model, version, body.Reason)
+		}
+		if err != nil {
+			api.WriteError(w, err)
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, map[string]any{"legalHold": v.LegalHold})
+	}
 }
 
 // lineageGraph traverses provenance (upstream) or impact (downstream) for the console's

@@ -12,7 +12,7 @@ import { InsightPanel } from "@/components/InsightPanel";
 import { CompliancePanel } from "@/components/Classification";
 import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
-import { HoldNote } from "@/components/Hold";
+import { HoldControl } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
@@ -113,15 +113,14 @@ export default function VersionDetail() {
         <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
         {/* The version's own hold takes precedence; an inherited one names the model, so the
             reader knows which subject to release (§19.3.1). */}
-        {v.legalHold || data.modelHold ? (
-          <div className="mt-4">
-            {v.legalHold ? (
-              <HoldNote hold={v.legalHold} />
-            ) : (
-              <HoldNote hold={data.modelHold!} heldSubject={`model/${data.model}`} />
-            )}
-          </div>
-        ) : null}
+        <div className="mt-4">
+          <HoldControl
+            subject={{ model: data.model, version: v.name }}
+            hold={v.legalHold ?? data.modelHold}
+            heldSubject={!v.legalHold && data.modelHold ? `model/${data.model}` : undefined}
+            onChanged={reload}
+          />
+        </div>
       </div>
 
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />

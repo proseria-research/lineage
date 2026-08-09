@@ -159,3 +159,93 @@ func postBFF(t *testing.T, srv *httptest.Server, path string) map[string]any {
 	}
 	return out
 }
+
+// TestHoldWritesFromTheConsole: the console places and lifts holds through the same core
+// operations the Model API does, so the rules and the audit events are identical. A surface
+// that could show a hold but not place one would be a report, not a workspace (§19.8).
+func TestHoldWritesFromTheConsole(t *testing.T) {
+	srv, svc := holdSetup(t)
+	ctx := context.Background()
+
+	// A reason is required in both directions — it is the only durable record of the matter.
+	if code := postStatus(t, srv, "/api/models/held/hold", `{}`); code != http.StatusBadRequest {
+		t.Fatalf("hold without a reason = %d, want 400", code)
+	}
+
+	body := postBody(t, srv, "/api/models/held/hold", `{"reason":"Regulator inquiry"}`, http.StatusOK)
+	if body["legalHold"] == nil {
+		t.Fatalf("hold response: %v", body)
+	}
+	m, err := svc.GetModel(ctx, "held")
+	if err != nil || m.LegalHold == nil {
+		t.Fatalf("the hold must be persisted: %v %+v", err, m)
+	}
+	// Same core rules: re-holding refuses rather than refreshing the date.
+	if code := postStatus(t, srv, "/api/models/held/hold", `{"reason":"again"}`); code != http.StatusConflict {
+		t.Fatalf("re-hold = %d, want 409", code)
+	}
+
+	// A version can be held in its own right, independently of its model.
+	postBody(t, srv, "/api/models/free/versions/1.0.0/hold", `{"reason":"Separate matter"}`, http.StatusOK)
+	v, err := svc.GetVersion(ctx, "free", "1.0.0")
+	if err != nil || v.LegalHold == nil {
+		t.Fatalf("version hold must be persisted: %v %+v", err, v)
+	}
+
+	// Releasing is a separate, audited action — and refuses when nothing is held.
+	body = postBody(t, srv, "/api/models/held/release", `{"reason":"Matter closed"}`, http.StatusOK)
+	if body["legalHold"] != nil {
+		t.Fatalf("release must clear the hold: %v", body)
+	}
+	if code := postStatus(t, srv, "/api/models/held/release", `{"reason":"again"}`); code != http.StatusConflict {
+		t.Fatalf("release of an unheld model = %d, want 409", code)
+	}
+
+	actions := map[string]bool{}
+	evs, _, _ := svc.ListAudit(ctx, "model", m.ID, domain.ListOptions{PageSize: 50})
+	for _, e := range evs {
+		actions[e.Action] = true
+	}
+	if !actions["hold.set"] || !actions["hold.release"] {
+		t.Fatalf("console writes must produce the same audit actions: %v", actions)
+	}
+}
+
+// TestTransitionKeepsTheHold guards a regression this suite already caught once: the
+// transition response hand-built a versionSummary and silently dropped legalHold.
+func TestTransitionKeepsTheHold(t *testing.T) {
+	srv, svc := holdSetup(t)
+	ctx := context.Background()
+	if _, err := svc.SetVersionHold(ctx, "ops@acme.example", "free", "1.0.0", "matter"); err != nil {
+		t.Fatal(err)
+	}
+	body := postBody(t, srv, "/api/models/free/versions/1.0.0/transition", `{"to":"staging"}`, http.StatusOK)
+	if body["legalHold"] == nil {
+		t.Fatalf("a transition response must still carry the hold: %v", body)
+	}
+}
+
+func postBody(t *testing.T, srv *httptest.Server, path, body string, want int) map[string]any {
+	t.Helper()
+	resp, err := http.Post(srv.URL+path, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != want {
+		t.Fatalf("POST %s = %d, want %d", path, resp.StatusCode, want)
+	}
+	var out map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return out
+}
+
+func postStatus(t *testing.T, srv *httptest.Server, path, body string) int {
+	t.Helper()
+	resp, err := http.Post(srv.URL+path, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
