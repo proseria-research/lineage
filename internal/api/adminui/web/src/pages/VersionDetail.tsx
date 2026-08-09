@@ -12,7 +12,7 @@ import { InsightPanel } from "@/components/InsightPanel";
 import { CompliancePanel } from "@/components/Classification";
 import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
-import { HoldControl } from "@/components/Hold";
+import { HoldAction, HoldNote } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
@@ -43,12 +43,33 @@ export default function VersionDetail() {
         right={
           <div className="flex flex-col items-end gap-2">
             <StageBadge stage={v.stage} />
-            <StageActions model={model} version={v.name} targets={data.allowedTargets} onDone={reload} />
+            <div className="flex items-center gap-2">
+              <StageActions model={model} version={v.name} targets={data.allowedTargets} onDone={reload} />
+              <HoldAction
+                subject={{ model: data.model, version: v.name }}
+                hold={v.legalHold}
+                inherited={!v.legalHold && !!data.modelHold}
+                onChanged={reload}
+              />
+            </div>
           </div>
         }
       />
 
       {v.description && <p className="mb-5 max-w-2xl text-sm text-muted-foreground">{v.description}</p>}
+
+      {/* A hold is strong state — it belongs above the facts it qualifies, not buried in a
+          column. Its own hold wins; an inherited one names the model so the reader knows
+          which subject to release (§19.3.1). */}
+      {v.legalHold ? (
+        <div className="mb-6">
+          <HoldNote hold={v.legalHold} />
+        </div>
+      ) : data.modelHold ? (
+        <div className="mb-6">
+          <HoldNote hold={data.modelHold} heldSubject={`model/${data.model}`} />
+        </div>
+      ) : null}
 
       {/* Top row: what this version *is* (§12.4, identity) beside where it sits (§02.4).
           The fingerprint is square and compact; the lifecycle takes the remaining width. */}
@@ -111,16 +132,6 @@ export default function VersionDetail() {
           others: is this model governed, and is that assessment still good? (§16.9) */}
       <div className="mb-6">
         <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
-        {/* The version's own hold takes precedence; an inherited one names the model, so the
-            reader knows which subject to release (§19.3.1). */}
-        <div className="mt-4">
-          <HoldControl
-            subject={{ model: data.model, version: v.name }}
-            hold={v.legalHold ?? data.modelHold}
-            heldSubject={!v.legalHold && data.modelHold ? `model/${data.model}` : undefined}
-            onChanged={reload}
-          />
-        </div>
       </div>
 
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />

@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { VersionBoard } from "@/components/VersionBoard";
-import { HoldControl } from "@/components/Hold";
+import { HoldAction, HoldNote } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtTime } from "@/lib/utils";
 
@@ -20,18 +20,24 @@ export default function ModelDetail() {
         title={m.name}
         sub={m.owner ? `Owned by ${m.owner}` : undefined}
         right={
-          <div className="text-right">
-            <div className="label-caps">Production</div>
-            <div className="font-mono text-sm">{data.production || "—"}</div>
+          <div className="flex items-end gap-4">
+            <div className="text-right">
+              <div className="label-caps">Production</div>
+              <div className="font-mono text-sm">{data.production || "—"}</div>
+            </div>
+            {/* Actions live in the header, beside the other ones (§19.8). */}
+            <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
           </div>
         }
       />
 
-      {/* The hold surface: the marker when held, the action either way (§19.8). A reader who
-          can see a hold but can only place one with a curl is reading a report. */}
-      <div className="mb-6">
-        <HoldControl subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
-      </div>
+      {/* The marker is state, so it sits in the body above the facts it qualifies — an
+          unheld model shows nothing here rather than an empty slot. */}
+      {m.legalHold ? (
+        <div className="mb-6">
+          <HoldNote hold={m.legalHold} />
+        </div>
+      ) : null}
 
       <div className="mb-6 grid grid-cols-2 gap-px border bg-border sm:grid-cols-4">
         {[
