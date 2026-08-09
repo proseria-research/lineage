@@ -47,12 +47,12 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M15,M17 done;
-    class M16,M19,M20,M21 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M15,M16,M17 done;
+    class M19,M20,M21 todo;
 ```
 
-**Next up:** M16 — EU modification review, the last of the EU set. Then M19/M20 by demand,
-and M21 whenever there is room: it is what stands behind `24 §4.3` (§ Boundary).
+**Next up:** the EU set (`15`–`19`) is complete. M19/M20 by demand, and M21 whenever there is
+room: it is what stands behind `24 §4.3` (§ Boundary).
 
 ## Status Summary
 
@@ -78,7 +78,7 @@ reference already written against it.
 | M17 | OCI/ORAS storage driver | `05.3.1` | ✅ |
 | M13 | EU risk classification & drift | `16` | ✅ |
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ✅ |
-| M16 | EU modification review (Art. 25) | `17` | ⬜ |
+| M16 | EU modification review (Art. 25) | `17` | ✅ |
 | M19 | Model risk management: tier, validation, monitoring | `20` | ⬜ ⧉ |
 | M20 | Change control plans (FDA PCCP shape) | `22` | ⬜ ⧉ |
 | M21 | Boundary guarantees: the two contracts `24` rests on | `24` | ⬜ |
@@ -86,9 +86,9 @@ reference already written against it.
 **M14 and M18 are not in this table.** Evidence export (`18`, `21`) moved wholly commercial —
 see [§ Boundary](#boundary). They are tracked in the commercial repo.
 
-**Open work:** M16, the last of the EU set specced in `15`–`19` (`ddf4654`; M13 and M15 have
-shipped), then M19–M20, the non-EU regimes specced in `20`–`22`, plus **M21, now load-bearing**
-rather than a guard (§ Boundary). No blocked decisions —
+**Open work:** M19–M20, the non-EU regimes specced in `20`–`22`, plus **M21, now load-bearing**
+rather than a guard (§ Boundary). The EU set specced in `15`–`19` (`ddf4654`) is complete with
+M16. No blocked decisions —
 `00.11.11`–`16` are all resolved. M3's OCI/ORAS checkbox, the one pre-existing `[ ]`, closed
 with **M17**.
 
@@ -112,7 +112,7 @@ they are the commercial repo's work. M19 and M20 keep everything except their on
 |---|---|---|
 | M13 ✅ | classification, drift predicate, inventory query | — |
 | M15 ✅ | retention floor, legal hold, Merkle sealing | — |
-| M16 | the modification-review queue | — |
+| M16 ✅ | the modification-review queue | — |
 | M19 | `mrm_tier`, `validation`, `stage_changed_at`, the `mrmState` predicate | the `mrm` profile |
 | M20 | `change_plan`, the conformance predicate, the queue | the `pccp` profile |
 | ~~M14~~ | — | the whole bundle mechanism and every profile |
@@ -517,8 +517,8 @@ resolving and serving `/content` end-to-end with `LINEAGE_STORAGE_DRIVER=oci`.
 # Compliance & Evidence (M13, M15, M16)
 
 Specced in `15`–`19` (`ddf4654`). `15` is the regime landscape and framing; it ships no code.
-**M13 and M15 have shipped; M16 is next.** M14 left for the commercial repo with the rest of
-`18` — the section below is kept as a pointer, not as work.
+**M13, M15 and M16 have all shipped.** M14 left for the commercial repo with the rest of `18` —
+the section below is kept as a pointer, not as work.
 
 **The stance, which constrains every task here:** Lineage is an *evidence substrate*, not a
 compliance product. It records stored facts and **names what it does not hold**. It never
@@ -653,33 +653,40 @@ its root.
 - [x] `compliance.retention.*` and `compliance.auditAttestation.*` chart values; the dev
       profile ships floor `0`
 
-## M16 — EU Modification Review ⬜
+## M16 — EU Modification Review ✅
 
 **Goal:** warn when editing someone else's model may have transferred provider liability
 under Art. 25 (`17`).
-**Acceptance:** publish a fine-tune with a `derived_from` edge on a high-risk model → it
-appears in `GET /v1/reviews?status=open` with verdict `reweighted` and the declared method;
-recording a review closes it; a client-supplied `verdictAtReview` is rejected.
+**Acceptance (met):** a fine-tune with a `derived_from` edge on a high-risk model appears in
+`GET /v1/reviews?status=open` with its verdict and declared method; recording a review closes
+it; a client-supplied `verdictAtReview` is rejected with `400` and nothing is stored.
 **Depends on:** M13 (the class that gates the queue) · M11 (`11.4` verdicts).
 **Phase:** 5.
+**Done:** conformance green on memory, SQLite and real Postgres; the seeded registry opens the
+queue with all four interesting verdicts.
 
-- [ ] `modification_review` table (`17.5.1`) — append-only like `evaluation`; a re-review is a
-      new row and the queue keys on the latest per (`version_id`,`edge_id`)
-- [ ] `verdict_at_review` is **server-set and frozen**, so a producer submitting a
-      `weights_hash` later cannot rewrite what a reviewer actually saw
-- [ ] Queue query (`17.4`), all four conditions — including that **`unknown` is eligible**:
-      "we cannot tell what changed" is precisely the case wanting human eyes, and excluding it
-      would make a missing hash look like a clean bill of health
-- [ ] `POST …/reviews` rejects a client-supplied verdict with `400`; `GET /v1/reviews?status=`
-- [ ] Response carries `basis` (which hashes were present per side), so a partial verdict is
-      identifiable as partial rather than read as confident
-- [ ] `undetermined` is a real outcome — "looked at it, needs counsel" must be distinguishable
-      from "nobody opened it"
-- [ ] Console (`17.7`): queue with verdict, declared method, and **both fingerprints side by
-      side** (`12.6.2` already renders at 64px). The queue never blocks an action
-- [ ] Wire drift clause 4 back to M13 — an open review item makes a classification stale
-- [ ] Tests: each queue condition; `unknown` queued; latest-row-per-pair; frozen verdict
-      survives a later hash write
+- [x] `modification_review` table (`17.5.1`) — append-only like `evaluation`; a re-review is a
+      new row and the queue keys on the latest per (`version_id`,`edge_id`). **No FK on
+      `edge_id`:** deleting the edge withdraws the item, and must not erase the record that a
+      human looked at it
+- [x] `verdict_at_review` is **server-set and frozen**, so a producer submitting a
+      `weights_hash` later cannot rewrite what a reviewer actually saw. A closed item returns
+      both it and the current verdict, so the divergence is visible
+- [x] Queue query (`17.4`), all four conditions — including that **`unknown` is eligible**.
+      Conditions 2–3 are a pure predicate (`ReviewEligible`) shared by the endpoint, the
+      console and drift clause 4; condition 3 is an **inner join**, which bounds the scan
+- [x] `POST …/reviews` rejects a client-supplied verdict with `400` — `ReviewInput` has no
+      field for it and the shared decoder refuses unknown keys; `GET /v1/reviews?status=`,
+      with no default, so the total stays obtainable
+- [x] Response carries `basis` — **two lists, not one**: the question it answers is which
+      *side* was missing what. `hashes` rides alongside, as in the `11.6.2` diff
+- [x] `undetermined` is a real outcome, and closes the item like any other
+- [x] Console (`17.7`): the queue in the compliance workspace, both fingerprints side by side
+      with the changed rings emphasised. No action on the page blocks anything
+- [x] Drift clause 4 wired back to M13 — computed in core, not SQL, because openness depends
+      on the `11.4` verdict; batched for the inventory read
+- [x] Tests: each queue condition; `unknown` queued; latest-row-per-pair; frozen verdict
+      survives a later hash write; an open item blocks no transition, publish or delete
 
 **Non-goals across M13–M16** (`15.5`): determining a risk class; asserting substantial
 modification; conformity assessment, CE marking, or EU database submission; Art. 12/19 runtime

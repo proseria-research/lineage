@@ -4,7 +4,7 @@
 > them is named `eu_*` to make that obvious (§3.1). The drift machinery in §5 has nothing
 > EU-specific in it and a second country's rules would reuse the same shape.
 >
-> Status: **Proposed**. This is how we store how risky a model is — as something a person
+> Status: **Implemented (M13; clause 4 wired in M16).** This is how we store how risky a model is — as something a person
 > **states**, never something we guess — and how we notice when that statement has gone out
 > of date. Who decides what, and by when, is `15`; the review queue this feeds is `17`; the
 > report that carries it out the door is `18`.
@@ -150,6 +150,12 @@ flowchart TB
 **This stays fast.** Checks 2 and 3 use the `model_version(model_id, stage)` index we already
 have (`02.6`); check 1 uses `classification(regime, review_due_at)` (§7.3); check 4 reuses the
 `17.4` queue join.
+
+**Check 4 is evaluated outside SQL, unlike the other three.** Whether a derivation is an *open*
+item depends on the `11.4` verdict, which is a lookup over four hashes rather than a column —
+writing that table a second time in SQL is how two implementations of a legal predicate come to
+disagree. So the store answers checks 2 and 3 and the core folds check 4 in from the same queue
+computation `17.4` uses. The inventory read does it in one batched query, not one per row.
 
 **One false alarm we're keeping on purpose.** Check 3 looks at `updated_at`, so fixing a typo
 in the production version's description marks the classification stale. Getting that exactly
