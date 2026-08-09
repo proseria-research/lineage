@@ -104,7 +104,7 @@ func (s *Service) ListClassifications(ctx context.Context, model string) ([]*dom
 	}
 	// One fetch serves every row: the facts are regime-independent, and only the anchor
 	// they are compared against differs.
-	facts, err := s.store.DriftFactsFor(ctx, m.ID)
+	facts, err := s.driftFacts(ctx, m.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,11 +118,38 @@ func (s *Service) ListClassifications(ctx context.Context, model string) ([]*dom
 }
 
 func (s *Service) viewFor(ctx context.Context, modelID string, c *domain.RiskClassification, now int64) (*domain.ClassificationView, error) {
-	facts, err := s.store.DriftFactsFor(ctx, modelID)
+	facts, err := s.driftFacts(ctx, modelID)
 	if err != nil {
 		return nil, err
 	}
 	return newView(c, facts, now), nil
+}
+
+// driftFacts is the store's aggregate plus clause 4's (§16.5, `17.4`).
+//
+// The store cannot supply clause 4. Whether a derivation is an *open* item depends on the
+// §11.4 verdict, which is a lookup over four hashes rather than a column, so answering it in
+// SQL would mean writing the verdict table a second time in a second language. Core computes
+// it from the same reviewItemOf every other caller uses, and this function is the only place
+// the two halves are joined — so no read path can accidentally evaluate three clauses out of
+// four.
+//
+// The regime is pinned to eu_ai_act rather than threaded through, because the queue's own
+// condition 3 reads the EU class (`17.4`). DriftFacts stays regime-independent as
+// ComplianceStore promises: a model has one set of open items, and every regime's row compares
+// that same fact against its own anchor. `20.7` brings its own clauses, not a second reading
+// of this one.
+func (s *Service) driftFacts(ctx context.Context, modelID string) (domain.DriftFacts, error) {
+	f, err := s.store.DriftFactsFor(ctx, modelID)
+	if err != nil {
+		return domain.DriftFacts{}, err
+	}
+	open, err := s.openReviewFacts(ctx, domain.RegimeEUAIAct, modelID)
+	if err != nil {
+		return domain.DriftFacts{}, err
+	}
+	f.LatestOpenReviewCreatedAt = open[modelID]
+	return f, nil
 }
 
 func newView(c *domain.RiskClassification, facts domain.DriftFacts, now int64) *domain.ClassificationView {
@@ -149,10 +176,18 @@ func (s *Service) ListInventory(ctx context.Context, o domain.ListOptions, f dom
 	if err != nil {
 		return nil, "", err
 	}
+	// Clause 4 for the whole inventory in one query rather than one per row. The scan is
+	// bounded by ListDerivations' inner join on classification, so it covers the classified
+	// models — which is the same set this list is about.
+	open, err := s.openReviewFacts(ctx, f.Regime, "")
+	if err != nil {
+		return nil, "", err
+	}
 
 	now := domain.NowMillis()
 	items := make([]*domain.ModelInventoryItem, 0, len(rows))
 	for _, r := range rows {
+		r.Facts.LatestOpenReviewCreatedAt = open[r.Model.ID]
 		st, reasons := domain.ClassificationStateOf(r.Classification, r.Facts, now)
 		if state != "" && st != state {
 			continue
