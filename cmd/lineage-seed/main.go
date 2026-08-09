@@ -72,14 +72,36 @@ func run(c *client) error {
 				return fmt.Errorf("archive model %s: %w", m.Name, err)
 			}
 		}
+		// Classify last, after every version and edge exists. §16.5 asks what happened
+		// *since* the assessment, so classifying first would seed a registry that reports
+		// itself stale on the very first page load.
+		if err := classify(c, m); err != nil {
+			return fmt.Errorf("classify %s: %w", m.Name, err)
+		}
 		log.Printf("  %-22s %2d version(s)", m.Name, len(m.Versions))
 	}
 
 	log.Printf("done: %d models, %d versions, %d artifacts", len(dataset), versions, artifacts)
 	log.Printf("try:  curl %s/v1/models/fraud-detector/resolve?stage=production", c.base)
 	log.Printf("      curl %s/v1/models/sentiment-classifier/diff?from=2.2.0-rc1\\&to=2.2.0-int8", c.base)
+	log.Printf("      curl %s/v1/reviews?status=open", c.base)
 	log.Printf("      open the console at http://localhost:8080")
 	return nil
+}
+
+// classify records the model's declared risk assessment (§16.8). Unclassified models are
+// left alone: "nobody has said yet" is a real state the console renders, and it is also what
+// keeps their derivations out of the Art. 25 queue (§17.4).
+func classify(c *client, m seedModel) error {
+	if m.Classification == nil {
+		return nil
+	}
+	in := m.Classification.ClassificationInput
+	if d := m.Classification.ReviewInDays; d > 0 {
+		due := time.Now().AddDate(0, 0, d).UnixMilli()
+		in.ReviewDueAt = &due
+	}
+	return c.do("PUT", "/v1/models/"+m.Name+"/classifications/eu_ai_act", in, nil)
 }
 
 // seedVersion publishes a version, uploads any real bytes, then walks it up the stage
