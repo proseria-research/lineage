@@ -92,6 +92,12 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{model}/classifications/{regime}", r.getClassification)
 	mux.HandleFunc("GET /v1/models/{model}/classifications", r.listClassifications)
 
+	// Modification review (§17.6). POST records a human's conclusion; the queue is global
+	// because "what needs looking at" is an inbox question, not a per-model one.
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/reviews", r.recordReview)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/reviews", r.listVersionReviews)
+	mux.HandleFunc("GET /v1/reviews", r.reviewQueue)
+
 	// Global audit feed, cross-model diff, OpenAPI contract
 	// Retention (§19.4). On /v1, not only /healthz: the floor is a fact a filing has to cite,
 	// and `24 §4.3` requires every fact to be reachable through the public API — an evidence
