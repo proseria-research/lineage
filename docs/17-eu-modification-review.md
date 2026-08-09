@@ -230,6 +230,10 @@ rather than an empty page implying the question is live.
 - **The dialog preselects no outcome.** An outcome is a legal judgement, and a form opening on
   `not_substantial` is the registry nudging the cheap answer. It cannot set the verdict, cannot
   edit an earlier review, and says so.
+- **The version page carries its own reviews**, under the classification that put the
+  derivation in the queue at all. Someone arriving from the queue is on that page *because* of
+  a review; a page that never mentions it makes the trail look broken. Superseded rows are
+  shown and marked as such rather than dropped. A version with no reviews renders nothing.
 - The queue never blocks an action. It is a list, not a gate (§1).
 
 ## 8. Deferred

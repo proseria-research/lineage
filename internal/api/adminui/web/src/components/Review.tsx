@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type ReviewItem, type ReviewStatus, type Verdict } from "@/lib/api";
+import { api, type ModificationReview, type ReviewItem, type ReviewStatus, type Verdict } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -228,6 +228,46 @@ function ClosedList({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Reviews recorded against one version (§17.5.1), for the version page. Someone arriving from
+ * the queue is here *because* of a review; a page that never mentions it makes the trail look
+ * broken.
+ *
+ * It renders nothing when there are none — an empty "no reviews" card on every version page in
+ * the registry would imply the question is live everywhere, and it is only live for
+ * derivations of a governed model.
+ */
+export function VersionReviews({ reviews }: { reviews: ModificationReview[] }) {
+  if (reviews.length === 0) return null;
+  return (
+    <div className="mb-6 border border-border">
+      <div className="border-b px-4 py-2.5">
+        <div className="text-sm font-medium">Modification review · Art. 25</div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          What a person concluded about a derivation of this version, and the verdict the
+          registry witnessed at the time. Recorded, never enforced.
+        </p>
+      </div>
+      {reviews.map((r, i) => (
+        <div key={r.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-2.5 last:border-b-0">
+          <Badge variant={i === 0 ? "outline" : "dashed"}>{r.outcome}</Badge>
+          <span className="text-xs text-muted-foreground">
+            against verdict <span className="font-mono">{r.verdictAtReview}</span>
+          </span>
+          {/* Only the newest row per edge is what the queue reads; the rest are history and
+              are marked as such rather than dropped (§17.4). */}
+          {i > 0 && <span className="label-caps">superseded</span>}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {r.reviewedBy ? `${r.reviewedBy} · ` : ""}
+            {relTime(r.reviewedAt)}
+          </span>
+          {r.note && <div className="w-full text-xs text-muted-foreground">“{r.note}”</div>}
+        </div>
+      ))}
     </div>
   );
 }
