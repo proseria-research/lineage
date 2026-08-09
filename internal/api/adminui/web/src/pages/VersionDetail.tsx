@@ -12,6 +12,7 @@ import { InsightPanel } from "@/components/InsightPanel";
 import { CompliancePanel } from "@/components/Classification";
 import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
+import { HoldNote } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
@@ -110,6 +111,13 @@ export default function VersionDetail() {
           others: is this model governed, and is that assessment still good? (§16.9) */}
       <div className="mb-6">
         <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
+        {/* The version's own hold takes precedence; an inherited one names the model, so the
+            reader knows which subject to release (§19.3.1). */}
+        {v.legalHold ? (
+          <HoldNote hold={v.legalHold} />
+        ) : data.modelHold ? (
+          <HoldNote hold={data.modelHold} heldSubject={`model/${data.model}`} />
+        ) : null}
       </div>
 
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />

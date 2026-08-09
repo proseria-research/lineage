@@ -58,6 +58,52 @@ export interface Classification {
   staleReasons?: StaleReason[];
 }
 
+// Legal hold (§19.3). A null hold is "not held" — there is no boolean beside the timestamp,
+// because two encodings of one fact eventually disagree.
+export interface Hold {
+  heldSince: number;
+  heldBy?: string;
+}
+
+// Evidence integrity (§19.8) — a property of the install, not of any model.
+export interface RetentionConfig {
+  minAuditAgeDays: number;
+  minArchivedVersionDays: number;
+}
+
+export interface AttestationConfig {
+  enabled: boolean;
+  sealIntervalSeconds: number;
+  sealGraceSeconds: number;
+}
+
+export type BreakKind = "root_mismatch" | "leaf_count_mismatch" | "prev_root_mismatch";
+
+export interface VerifyBreak {
+  epoch: number;
+  kind: BreakKind;
+  expected?: unknown;
+  found?: unknown;
+  sealedAt?: number;
+}
+
+export interface VerifyResult {
+  ok: boolean;
+  attestationStartedAt: number;
+  epochsChecked: number;
+  leavesChecked: number;
+  // The window still accepting writes. Rows in it are not yet protected — reported, never
+  // glossed (§19.5.3).
+  openEpochSince: number;
+  firstBreak: VerifyBreak | null;
+}
+
+export interface Evidence {
+  retention: RetentionConfig;
+  attestation: AttestationConfig;
+  verify?: VerifyResult;
+}
+
 export interface ModelRollup {
   id: string;
   name: string;
@@ -70,6 +116,9 @@ export interface ModelRollup {
   // null when nobody has classified this model. Absence is the `unclassified` state (§16.4)
   // and must render as that word, never as `minimal` (§16.9).
   classification: Classification | null;
+  // null when not held. A hold blocks destruction only — the model keeps moving through its
+  // lifecycle (§19.3.1).
+  legalHold: Hold | null;
 }
 
 export interface VersionSummary {
@@ -79,6 +128,9 @@ export interface VersionSummary {
   author?: string;
   createdAt: number;
   updatedAt: number;
+  // This version's *own* hold. A version under a held model is not marked here — see
+  // VersionDetail.modelHold.
+  legalHold: Hold | null;
 }
 
 export interface ModelDetail {
@@ -272,6 +324,10 @@ export interface VersionDetail {
   // The *model's* classification, shown on the version page because this is where someone
   // asks whether the thing they are about to promote is governed (§16.9).
   classification: Classification | null;
+  // The owning model's hold, which covers this version transitively (§19.3.1). Separate from
+  // version.legalHold so the page can say which subject is actually held — releasing the
+  // wrong one is the mistake this prevents.
+  modelHold: Hold | null;
 }
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -359,6 +415,8 @@ export const api = {
     getJSON<InsightDiff>(
       `/api/models/${encodeURIComponent(m)}/compare?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  evidence: () => getJSON<Evidence>("/api/evidence"),
+  verifyEvidence: () => postJSON<Evidence>("/api/evidence:verify", {}),
   activity: (token = "") =>
     getJSON<{ items: AuditEvent[]; nextPageToken: string }>(`/api/activity${token ? `?pageToken=${encodeURIComponent(token)}` : ""}`),
 };

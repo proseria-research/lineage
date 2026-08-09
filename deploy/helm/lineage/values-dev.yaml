@@ -22,3 +22,11 @@ autoscaling:
   enabled: false
 podDisruptionBudget:
   enabled: false
+
+# No retention floor on a dev install: a registry that refuses to delete anything you made
+# this decade is not usable for development. Sealing stays on — it costs nothing and it is
+# the behaviour you want to have exercised before production.
+compliance:
+  retention:
+    minArchivedVersionDays: 0
+    minAuditAgeDays: 0

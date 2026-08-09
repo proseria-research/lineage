@@ -72,6 +72,27 @@ storage:
 
 actorHeader: X-Lineage-Actor
 
+# Evidence survival (§19). Both mechanisms are refusals or attestations — nothing here
+# deletes anything on a timer.
+compliance:
+  retention:
+    # Art. 18's ten years. DELETE refuses on anything younger, measured against the youngest
+    # record the delete would destroy. 0 disables the floor and is a real choice, not "unset".
+    minArchivedVersionDays: 3650
+    # Reported, not enforced: nothing in core deletes an audit event. It is the number a
+    # filing cites.
+    minAuditAgeDays: 3650
+  auditAttestation:
+    # Merkle epoch sealing over the audit log (§19.5). On by default — it costs one derived
+    # integer on the write path.
+    enabled: true
+    # Also the bound on the unsealed window: rows in the currently-open epoch are not yet
+    # protected. Changing this on a registry that has already sealed is refused (§19.5.5).
+    sealIntervalSeconds: 60
+    # Delay past an epoch's end before sealing, so a transaction begun inside it commits
+    # first. Must be shorter than the interval.
+    sealGraceSeconds: 5
+
 service:
   type: ClusterIP
   modelApiPort: 8081

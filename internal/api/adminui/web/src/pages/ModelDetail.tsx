@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { VersionBoard } from "@/components/VersionBoard";
+import { HoldNote } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtTime } from "@/lib/utils";
 
@@ -25,6 +26,13 @@ export default function ModelDetail() {
           </div>
         }
       />
+
+      {/* A held model is marked, and the marker says what the hold blocks — §19.8. */}
+      {m.legalHold ? (
+        <div className="mb-6">
+          <HoldNote hold={m.legalHold} />
+        </div>
+      ) : null}
 
       <div className="mb-6 grid grid-cols-2 gap-px border bg-border sm:grid-cols-4">
         {[

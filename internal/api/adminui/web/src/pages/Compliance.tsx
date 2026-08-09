@@ -6,6 +6,7 @@ import { useAsync } from "@/lib/useAsync";
 import { Button } from "@/components/ui/button";
 import { ClassBadge, RiskClassBadge, STALE_REASON_TEXT } from "@/components/Classification";
 import { ClassifyDialog } from "@/components/ClassifyDialog";
+import { EvidencePanel } from "@/components/Hold";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
 
@@ -121,6 +122,12 @@ export default function Compliance() {
   return (
     <div>
       <PageHeader title="Compliance" sub="EU AI Act · risk classification and drift" />
+
+      {/* Whether the record can be trusted comes before what the record says. §19.8 keeps
+          this off model pages because it describes the install, not any one model. */}
+      <div className="mb-6">
+        <EvidencePanel />
+      </div>
 
       {models.length === 0 ? (
         <Empty>No models yet.</Empty>

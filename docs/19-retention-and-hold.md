@@ -383,10 +383,18 @@ error table stable.
 
 ## 8. Console (`06`)
 
-- A held subject shows a hold marker with `heldSince` and `heldBy` on its detail page, and the
-  delete action is disabled with the reason inline — not hidden.
-- Attestation status (`enabled`, `attestationStartedAt`, `openEpochSince`, last verify result) belongs on the ops/health
-  view (`09`), not on a model page. It is a property of the install.
+- A held subject shows a hold marker with `heldSince` and `heldBy` on its detail page, saying
+  what the hold blocks and — when inherited — **which subject is actually held**. Without the
+  holder's name the reader is told no and given nothing to release.
+- The console exposes no destructive action, so there is nothing to disable. Were one added,
+  it would be disabled with the reason inline rather than hidden.
+- Attestation status (`enabled`, `attestationStartedAt`, `openEpochSince`, last verify result)
+  is a property of the **install**, so it stays off model pages. It sits on the install-level
+  compliance page: "can this record be trusted?" comes before "what does it say?"
+- The recompute is an **explicit action**, not part of a page load — verifying reads every
+  audit row ever written.
+- A clean verify is never reported alone. The open window and `attestationStartedAt` are shown
+  beside it, or `ok` would read as a wider guarantee than the one that holds (§5.3, §5.4).
 
 ## 9. Deferred
 

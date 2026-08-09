@@ -644,11 +644,14 @@ its root.
 - [x] Tests: tamper detection for edit / delete / whole-epoch removal / removal at the head;
       proof verification; no backfill
 
-### Still open
+### Console & chart ✅
 
-- [ ] Console (`19.8`): hold marker on detail pages, delete disabled with the reason inline;
-      attestation status on the ops/health view
-- [ ] Helm values for `retention.*` and `auditAttestation.*`
+- [x] Hold marker on model and version detail pages, naming the holder when inherited. The
+      console has no destructive action, so there is nothing to disable
+- [x] Evidence-integrity panel on the compliance page: floor, sealing state, and an explicit
+      "verify audit log" that reports what it did not cover
+- [x] `compliance.retention.*` and `compliance.auditAttestation.*` chart values; the dev
+      profile ships floor `0`
 
 ## M16 — EU Modification Review ⬜
 

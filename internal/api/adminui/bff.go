@@ -43,6 +43,10 @@ type modelRollup struct {
 	// console renders that as `unclassified`, never as `minimal` (§16.9) — which is only
 	// possible because the absence arrives as an absence rather than a default.
 	Classification *domain.ClassificationView `json:"classification"`
+	// LegalHold is the model's own hold, null when not held (§19.8). The console shows it
+	// and shows what it blocks — a disabled action with no stated reason is worse than one
+	// that is simply absent.
+	LegalHold *domain.Hold `json:"legalHold"`
 }
 
 type versionSummary struct {
@@ -54,6 +58,10 @@ type versionSummary struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 	CreatedAt   int64             `json:"createdAt"`
 	UpdatedAt   int64             `json:"updatedAt"`
+	// LegalHold is this version's own hold. A version under a held *model* is not marked
+	// here — inheritance is resolved at the delete guard, never copied onto rows — so the
+	// version page reads the model's hold separately (see versionDetailDTO.ModelHold).
+	LegalHold *domain.Hold `json:"legalHold"`
 }
 
 type modelDetailDTO struct {
@@ -79,6 +87,10 @@ type versionDetailDTO struct {
 	// the version page is where someone asks "is this thing I am about to promote governed,
 	// and is that assessment still good?" (§16.9). Null when unclassified.
 	Classification *domain.ClassificationView `json:"classification"`
+	// ModelHold is the owning model's hold, which covers this version transitively (§19.3.1).
+	// Carried separately from Version.LegalHold so the page can say *which* subject is held —
+	// releasing the wrong one is the mistake this prevents.
+	ModelHold *domain.Hold `json:"modelHold"`
 }
 
 // stageOrder gives transition buttons a stable, sensible order (promote paths first).
@@ -198,11 +210,17 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 	evals, _ := r.svc.ListEvaluations(ctx, model, version)
 	// Unclassified is a state, not a failure, so a not_found here becomes a null panel.
 	classification, _ := r.svc.GetClassification(ctx, model, domain.RegimeEUAIAct)
+	// The owning model's hold covers this version transitively (§19.3.1), and the page has
+	// to be able to say which subject is actually held.
+	var modelHold *domain.Hold
+	if m, merr := r.svc.GetModel(ctx, model); merr == nil {
+		modelHold = m.LegalHold
+	}
 	api.WriteJSON(w, http.StatusOK, versionDetailDTO{
 		Model: model, Version: toSummary(v), AllowedTargets: allowedTargets(v.Stage),
 		Artifacts: nz(arts), Lineage: nz(edges), Deployments: nz(deps), Audit: nz(audit),
 		Insight: insight, Footprints: nz(footprints), Evaluations: nz(evals),
-		Classification: classification,
+		Classification: classification, ModelHold: modelHold,
 	})
 }
 
@@ -319,12 +337,14 @@ func toRollup(m *domain.Model, versionCount int, production string) modelRollup 
 	return modelRollup{
 		ID: m.ID, Name: m.Name, Owner: m.Owner, State: m.State, Labels: m.Labels,
 		VersionCount: versionCount, Production: production, UpdatedAt: m.UpdatedAt,
+		LegalHold: m.LegalHold,
 	}
 }
 
 func toSummary(v *domain.ModelVersion) versionSummary {
 	return versionSummary{
-		ID: v.ID, Name: v.Name, Stage: v.Stage, Author: v.Author, Description: v.Description,
+		LegalHold: v.LegalHold,
+		ID:        v.ID, Name: v.Name, Stage: v.Stage, Author: v.Author, Description: v.Description,
 		Labels: v.Labels, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 	}
 }
@@ -335,4 +355,41 @@ func nz[T any](s []T) []T {
 		return []T{}
 	}
 	return s
+}
+
+// ---- Evidence integrity (§19.8) ----
+
+// evidenceDTO is the install-level answer to "is the record trustworthy?": the floor the
+// process is actually running under, and the state of audit attestation.
+//
+// §19.8 puts this on an ops view rather than a model page because it is a property of the
+// install, not of any model. The console's install-level compliance page is where a reader
+// is already asking the question, so it lands there.
+type evidenceDTO struct {
+	Retention   domain.RetentionConfig   `json:"retention"`
+	Attestation domain.AttestationConfig `json:"attestation"`
+	// Verify is filled only by the verify endpoint. Recomputing every sealed epoch means
+	// reading every audit row ever written, which is not something a page load should do —
+	// so the status strip is cheap and the scan is an explicit action.
+	Verify *domain.VerifyResult `json:"verify,omitempty"`
+}
+
+func (r *Router) evidence(w http.ResponseWriter, req *http.Request) {
+	api.WriteJSON(w, http.StatusOK, evidenceDTO{
+		Retention:   r.svc.Retention(),
+		Attestation: r.svc.Attestation(),
+	})
+}
+
+// verifyEvidence runs the full recompute. Deliberately a separate, explicitly-triggered
+// request; see evidenceDTO.Verify.
+func (r *Router) verifyEvidence(w http.ResponseWriter, req *http.Request) {
+	res, err := r.svc.VerifyAudit(req.Context(), 0, 0)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, evidenceDTO{
+		Retention: r.svc.Retention(), Attestation: r.svc.Attestation(), Verify: &res,
+	})
 }
