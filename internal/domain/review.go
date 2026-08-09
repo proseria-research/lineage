@@ -117,10 +117,15 @@ type ReviewItem struct {
 	DerivedFrom    *ReviewSide `json:"derivedFrom,omitempty"`
 	DerivedFromRef string      `json:"derivedFromRef,omitempty"`
 
-	Verdict    Verdict     `json:"verdict"`
-	Candidates []Verdict   `json:"candidates,omitempty"`
-	Missing    []string    `json:"missing,omitempty"`
-	Basis      ReviewBasis `json:"basis"`
+	Verdict    Verdict   `json:"verdict"`
+	Candidates []Verdict `json:"candidates,omitempty"`
+	Missing    []string  `json:"missing,omitempty"`
+	// Hashes is the full ladder, per level, both sides. Basis is its two-list projection:
+	// the compact "which side was missing what" a reader cites. Carrying both mirrors the
+	// §11.6.2 diff response exactly, and the console needs the values — §17.7's side-by-side
+	// fingerprints are drawn from them, with the changed rings emphasised (§12.6.2).
+	Hashes map[string]HashCmp `json:"hashes"`
+	Basis  ReviewBasis        `json:"basis"`
 	// DeclaredMethod is the edge's properties.method (§11.3.6) — the intent, carried beside
 	// the measurement so a reviewer can notice when the two disagree (§17.3).
 	DeclaredMethod string `json:"declaredMethod,omitempty"`
