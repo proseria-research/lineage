@@ -126,12 +126,17 @@ export function EvidencePanel() {
       {result ? (
         <div className="space-y-2 border-t pt-3">
           <div className="flex items-center gap-2">
-            <Badge variant={result.ok ? "outline" : "solid"}>
-              {result.ok ? "verified" : "broken"}
+            {/* `ok` over zero epochs is true and means nothing — no break was found because
+                nothing was checked. Badging that "verified" would be the widest claim on the
+                page resting on the least evidence, so an empty scan says so instead. It is
+                the normal state for the first sealing interval after a fresh start. */}
+            <Badge variant={!result.ok ? "solid" : result.epochsChecked === 0 ? "dashed" : "outline"}>
+              {!result.ok ? "broken" : result.epochsChecked === 0 ? "nothing sealed yet" : "verified"}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {result.epochsChecked} epoch{result.epochsChecked === 1 ? "" : "s"} ·{" "}
-              {result.leavesChecked} event{result.leavesChecked === 1 ? "" : "s"} recomputed
+              {result.epochsChecked === 0
+                ? `no window has closed yet — the first seals after ${attestation.sealIntervalSeconds}s`
+                : `${result.epochsChecked} epoch${result.epochsChecked === 1 ? "" : "s"} · ${result.leavesChecked} event${result.leavesChecked === 1 ? "" : "s"} recomputed`}
             </span>
           </div>
 
