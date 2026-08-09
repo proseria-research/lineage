@@ -20,13 +20,9 @@ export default function ModelDetail() {
         title={m.name}
         sub={m.owner ? `Owned by ${m.owner}` : undefined}
         right={
-          <div className="flex items-end gap-4">
-            <div className="text-right">
-              <div className="label-caps">Production</div>
-              <div className="font-mono text-sm">{data.production || "—"}</div>
-            </div>
-            {/* Actions live in the header, beside the other ones (§19.8). */}
-            <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
+          <div className="text-right">
+            <div className="label-caps">Production</div>
+            <div className="font-mono text-sm">{data.production || "—"}</div>
           </div>
         }
       />
@@ -53,15 +49,17 @@ export default function ModelDetail() {
         ))}
       </div>
 
-      {m.labels && Object.keys(m.labels).length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-1.5">
-          {Object.entries(m.labels).map(([k, v]) => (
-            <span key={k} className="border px-1.5 py-0.5 font-mono text-xs">
-              {k}={v}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Labels and the hold action share a row: both are things asserted *about* the model
+          rather than about a version, and the action reads better next to them than competing
+          with the title. The row renders even with no labels, so the action has a home. */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {Object.entries(m.labels ?? {}).map(([k, v]) => (
+          <span key={k} className="border px-1.5 py-0.5 font-mono text-xs">
+            {k}={v}
+          </span>
+        ))}
+        <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
+      </div>
 
       <div className="label-caps mb-2">Versions</div>
       {data.versions.length === 0 ? (
