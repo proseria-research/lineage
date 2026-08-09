@@ -1,4 +1,4 @@
-.PHONY: build run seed test test-console test-e2e fmt vet tidy clean web web-dev docker docker-init helm-lint sdk sdk-check cli \
+.PHONY: build run seed reset test test-console test-e2e fmt vet tidy clean web web-dev docker docker-init helm-lint sdk sdk-check cli \
         site site-dev site-preview site-check site-links site-deploy
 
 BIN := bin/lineage
@@ -7,6 +7,20 @@ SITE := site
 CHART := deploy/helm/lineage
 IMAGE ?= ghcr.io/proseria-research/lineage:dev
 INIT_IMAGE ?= ghcr.io/proseria-research/lineage-init:dev
+
+# What `make run` configures, matching the chart's defaults (§19.4) so a local registry
+# behaves like a deployed one — evidence integrity included. Without these the binary's own
+# defaults apply, which leave the retention floor at 0 and the console honestly reporting
+# that there is none.
+#
+# A 3650-day floor refuses deletion of anything younger, and **nothing overrides it** — not
+# ?force=true, which exists for the production-version guard and must not double as a way
+# past a retention obligation. Starting over is `make reset`, not a batch of DELETEs.
+RUN_ENV := LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS=3650 \
+           LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS=3650 \
+           LINEAGE_AUDIT_ATTESTATION=on \
+           LINEAGE_SEAL_INTERVAL_SECONDS=60 \
+           LINEAGE_SEAL_GRACE_SECONDS=5
 
 # web builds the Admin console (Vite/React) into web/dist. dist is not committed; the binary
 # embeds it only under the `console` build tag. Run this after changing the console.
@@ -22,12 +36,23 @@ build: web
 	go build -tags console -o $(BIN) ./cmd/lineage
 
 run: build
-	./$(BIN)
+	$(RUN_ENV) ./$(BIN)
 
 # seed loads the demo dataset into a *running* registry via the Model API. Point it elsewhere
-# with LINEAGE_ENDPOINT, and re-seed a dirty registry with `make seed SEED_FLAGS=-reset`.
+# with LINEAGE_ENDPOINT. Seeding is additive and never deletes; to re-seed, stop the registry,
+# `make reset`, and start again.
 seed:
 	go run ./cmd/lineage-seed $(SEED_FLAGS)
+
+# reset clears local registry state — the SQLite database and stored artifacts — so the next
+# `make run` starts empty.
+#
+# This is the answer to "how do I start over" on an install with a retention floor, and the
+# only one: deletion refuses by design (§19.4), and a fixture loader is not a reason to reach
+# around that. **Stop the registry first** — unlinking the database out from under a running
+# process leaves it writing to an inode nobody can see.
+reset:
+	rm -rf data lineage.db
 
 # test runs the default (stub) build; the console-serving test skips. Use test-console for it.
 test:

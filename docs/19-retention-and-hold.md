@@ -49,10 +49,13 @@ exactly one thing.
 - **`DELETE` on a held subject ⇒ `409 failed_precondition`** with
   `details: { reason: "legal_hold", heldSince, heldBy }`. `heldBy` is the **actor** who set
   it, as everywhere else in the system (`00.2.4`).
-- **`?force=true` does not override a hold.** `03.4`'s force overrides the production-version
-  guard, which protects an operator from their own mistake. A hold protects evidence *from*
-  the operator, and a flag that clears it is not a hold. They are independent checks, and the
-  hold is evaluated first so the refusal never offers a `force` hint that would not work.
+- **`?force=true` overrides neither guard.** `03.4`'s force exists for the production-version
+  check, which protects an operator from their own mistake; a hold protects evidence *from*
+  the operator, and a flag that clears it is not a hold. The floor is excluded for a narrower
+  reason: an override that leaves no trace is not an override anyone can audit, and one flag
+  must not mean both "yes, I know it is in production" and "yes, I know it is legally
+  retained". They are independent checks, and the evidence guard runs first so a refusal never
+  offers a `force` hint that would not work.
 - **Inheritance runs both ways**, because both directions destroy evidence. The refusal names
   the holder in `details.heldSubject` (`model/fraud-detector`, `version/fraud-detector@3`) —
   without it the caller is told no and given nothing to release. A subject's **own** hold wins
@@ -119,10 +122,14 @@ a retention floor would otherwise turn into an install with no floor at all.
   configured. It is on `/v1` and not only the ops port because export is commercial (`24 §4.1`)
   and `24 §4.3` requires every fact to be reachable through the public API — an exporter
   reading over HTTP has no access to `/healthz`.
-- `0` disables a floor. It is a real choice for a dev install and must not be confused with an
-  unset value. **The chart's default is `3650`; the binary's own default is `0`** — an install
-  arrives through Helm (`00.2.2`), and a bare `go run` that refuses to delete anything made
-  this decade is unusable. A negative value is a startup error, never read as "extra disabled".
+- `0` disables a floor. It is a real choice and must not be confused with an unset value. A
+  negative value is a startup error, never read as "extra disabled".
+- **The binary's own default is `0`; every way of actually running Lineage sets `3650`** — the
+  chart, and `make run`. The zero default exists so a `Service` built by a test or an
+  embedding program imposes nothing it was not asked to, not as the experience anyone gets.
+- **Starting over is a fresh registry, not a batch of deletes.** Nothing overrides the floor,
+  so a tool that needs an empty registry gets one by discarding state, not by asking the
+  registry to destroy retained records. The seed loader is additive for exactly this reason.
 
 ## 5. Tamper-Evident Audit — Merkle Epoch Sealing (`00.11.14` ✅)
 

@@ -253,7 +253,7 @@
             "description": "Deleted"
           },
           "409": {
-            "description": "Refused. details.reason is legal_hold (with heldSince, heldBy and, when inherited, heldSubject), retention_floor (with floorDays, ageDays), or the pre-existing production-version guard. A legal hold is NOT overridable with ?force=true.",
+            "description": "Refused. details.reason is legal_hold (with heldSince, heldBy and, when inherited, heldSubject), retention_floor (with floorDays, ageDays), or the pre-existing production-version guard. ?force=true overrides only the production-version guard — never a legal hold and never the retention floor.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -540,7 +540,7 @@
             "description": "Deleted"
           },
           "409": {
-            "description": "Refused. details.reason is legal_hold (with heldSince, heldBy and, when inherited, heldSubject), retention_floor (with floorDays, ageDays), or the pre-existing production-version guard. A legal hold is NOT overridable with ?force=true.",
+            "description": "Refused. details.reason is legal_hold (with heldSince, heldBy and, when inherited, heldSubject), retention_floor (with floorDays, ageDays), or the pre-existing production-version guard. ?force=true overrides only the production-version guard — never a legal hold and never the retention floor.",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -41,6 +41,7 @@ Defaults to SQLite in `./lineage.db` and filesystem storage under `./data/artifa
 | `make web-dev` | Console dev server with hot reload |
 | `make seed` | Populate a realistic dataset |
 | `make sdk` | Regenerate the Python SDK from the OpenAPI spec |
+| `make reset` | Clear local registry state (database + artifacts) for a clean start |
 | `make cli` | Build the CLI |
 | `make docker` | Build the container image |
 | `make helm-lint` | Validate the chart against both value profiles |
@@ -49,8 +50,11 @@ Defaults to SQLite in `./lineage.db` and filesystem storage under `./data/artifa
 
 ```bash
 make seed                       # five models across every stage
-make seed SEED_FLAGS=-reset     # replace previously seeded data
 ```
+
+Seeding is additive and never deletes. A registry with a retention floor refuses deletion by
+design, and a fixture loader is not a reason to reach around that — so starting over means a
+fresh registry: stop it, `make reset`, run again.
 
 You get uploaded and by-reference artifacts, lineage edges, deployments, and a real audit
 trail — enough to make the console and the graph views worth looking at.

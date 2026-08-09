@@ -3,7 +3,11 @@
 // or an in-cluster install exactly like any other client.
 //
 //	go run ./cmd/lineage-seed              # seed a fresh registry
-//	go run ./cmd/lineage-seed -reset       # delete the seeded models first, then seed
+//
+// Seeding is additive and expects an empty registry. It does **not** delete anything: a
+// registry with a retention floor refuses deletion by design (§19.4), and a fixture loader
+// is not a reason to reach around that. To re-seed, start from a fresh registry —
+// `make reset` clears local state.
 //
 // Config: -endpoint (env LINEAGE_ENDPOINT, default http://localhost:8081), -actor (env
 // LINEAGE_ACTOR) — the audit identity every seeded mutation is attributed to (§00 axiom 4).
@@ -30,38 +34,29 @@ import (
 func main() {
 	endpoint := flag.String("endpoint", env("LINEAGE_ENDPOINT", "http://localhost:8081"), "Model API base URL")
 	actor := flag.String("actor", env("LINEAGE_ACTOR", "seed@lineage.dev"), "audit identity recorded for every seeded change")
-	reset := flag.Bool("reset", false, "delete the seed models (force) before loading — makes re-runs idempotent")
 	flag.Parse()
 
 	log.SetFlags(0)
 	log.SetPrefix("□ ")
 	c := &client{base: strings.TrimSuffix(*endpoint, "/"), actor: *actor, http: &http.Client{Timeout: 30 * time.Second}}
-	if err := run(c, *reset); err != nil {
+	if err := run(c); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
 }
 
-func run(c *client, reset bool) error {
+func run(c *client) error {
 	if err := c.do("GET", "/v1/models?pageSize=1", nil, nil); err != nil {
 		return fmt.Errorf("cannot reach the Model API at %s (is `make run` up?): %w", c.base, err)
 	}
 	log.Printf("seeding %s as %q", c.base, c.actor)
-
-	if reset {
-		for _, m := range dataset {
-			if err := c.delete("/v1/models/" + m.Name + "?force=true"); err != nil {
-				return err
-			}
-		}
-		log.Printf("reset: removed %d seed models (if present)", len(dataset))
-	}
 
 	var versions, artifacts int
 	for _, m := range dataset {
 		if err := c.do("POST", "/v1/models", m.CreateModelInput, nil); err != nil {
 			var he *httpError
 			if errors.As(err, &he) && he.status == http.StatusConflict {
-				return fmt.Errorf("model %q already exists — re-run with -reset to replace the seed data", m.Name)
+				return fmt.Errorf("model %q already exists — seeding is additive and never deletes; "+
+					"stop the registry and run `make reset` for a clean one", m.Name)
 			}
 			return fmt.Errorf("create model %s: %w", m.Name, err)
 		}
@@ -212,16 +207,6 @@ func (c *client) do(method, path string, body, out any) error {
 		return nil
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
-}
-
-// delete tolerates 404 so -reset works on a registry that was never seeded.
-func (c *client) delete(path string) error {
-	err := c.do("DELETE", path, nil, nil)
-	var he *httpError
-	if errors.As(err, &he) && he.status == http.StatusNotFound {
-		return nil
-	}
-	return err
 }
 
 // put uploads raw bytes to an absolute URL (a signed storage URL or the broker sink).

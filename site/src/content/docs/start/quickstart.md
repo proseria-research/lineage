@@ -112,8 +112,11 @@ by-reference artifacts, lineage edges, deployments, and a real audit trail:
 
 ```bash
 make seed                       # or: go run ./cmd/lineage-seed
-make seed SEED_FLAGS=-reset     # replace previously seeded data
 ```
+
+Seeding is additive and never deletes. A registry with a retention floor refuses deletion by
+design, and a fixture loader is not a reason to reach around that — so starting over means a
+fresh registry: stop it, `make reset`, run again.
 
 The seeder talks to the Model API like any other client, so `LINEAGE_ENDPOINT` (default
 `http://localhost:8081`) can point it at a port-forward or a remote install.
