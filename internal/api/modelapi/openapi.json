@@ -44,6 +44,10 @@
     {
       "name": "retention",
       "description": "Legal hold and the retention floor (§19). Every mechanism here is a refusal or an attestation — nothing deletes."
+    },
+    {
+      "name": "reviews",
+      "description": "The Art. 25 modification-review queue (§17). It surfaces derivations whose technical delta may have transferred provider liability, and records what a human concluded. It flags; it never decides whether a change is substantial in law, and it never blocks an action."
     }
   ],
   "paths": {
@@ -2089,6 +2093,122 @@
           }
         }
       }
+    },
+    "/v1/models/{model}/versions/{version}/reviews": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        },
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "post": {
+        "operationId": "recordReview",
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Record a review of one derivation",
+        "description": "Closes a queue item. The server fills verdictAtReview from §11.4 at this moment and freezes it; a client-supplied value is rejected with 400. Audited as `review.record`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModificationReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listVersionReviews",
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Every review recorded against a version",
+        "description": "Newest first, across every edge. Superseded reviews are returned too — rows are append-only, and what somebody concluded before is part of the record.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewList"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/reviews": {
+      "get": {
+        "operationId": "listReviewQueue",
+        "tags": [
+          "reviews"
+        ],
+        "summary": "The modification-review queue",
+        "description": "Derivations on models classified high-risk or GPAI whose §11.4 verdict is not `identical`. `unknown` is included deliberately: 'we cannot tell what changed' is precisely the case that wants human eyes, and excluding it would make a missing weights hash look like a clean bill of health. Omitting `status` returns open and closed items alike.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ReviewStatus"
+            }
+          },
+          {
+            "name": "regime",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Regime"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          },
+          {
+            "$ref": "#/components/parameters/pageToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of queue items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4119,6 +4239,219 @@
           "sealedAt": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "Verdict": {
+        "type": "string",
+        "enum": [
+          "identical",
+          "reweighted",
+          "recast",
+          "rescaled",
+          "rearchitected",
+          "unknown"
+        ],
+        "description": "The §11.4 classification of what changed across a derivation, computed from four submitted hashes. `unknown` means the hashes do not reach — it is not a verdict of 'nothing changed'."
+      },
+      "ReviewOutcome": {
+        "type": "string",
+        "enum": [
+          "not_substantial",
+          "substantial",
+          "undetermined"
+        ],
+        "description": "What a human concluded. `undetermined` is a real outcome — 'looked at it, needs counsel' must be distinguishable from 'nobody opened it'."
+      },
+      "ReviewStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "description": "Whether anyone has recorded a review for this (version, edge) pair. Computed at read time; there is no stored column."
+      },
+      "ReviewInput": {
+        "type": "object",
+        "required": [
+          "edgeId",
+          "outcome"
+        ],
+        "properties": {
+          "edgeId": {
+            "type": "string",
+            "description": "The derived_from edge being reviewed. Must be an edge leaving this version."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ReviewOutcome"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "description": "There is deliberately no verdictAtReview, reviewedBy or reviewedAt field. All three are server-set, and a request that supplies one is rejected with 400 — the value of the frozen verdict is that the registry witnessed it rather than accepting a claim about it."
+      },
+      "ModificationReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "edgeId": {
+            "type": "string"
+          },
+          "verdictAtReview": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              }
+            ],
+            "description": "The verdict as it stood when the review was recorded. Frozen: a producer submitting a weights hash afterwards cannot rewrite what a reviewer saw."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ReviewOutcome"
+          },
+          "note": {
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string"
+          },
+          "reviewedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "One human's judgement on one derivation. Append-only: a re-review is a new row and nothing is ever updated or deleted."
+      },
+      "ReviewList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModificationReview"
+            }
+          }
+        }
+      },
+      "ReviewBasis": {
+        "type": "object",
+        "properties": {
+          "fromHashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "toHashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Which hash levels each side actually supplied, so a partial verdict is identifiable as partial rather than read as confident."
+      },
+      "ReviewSide": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "ReviewItem": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "edgeId": {
+            "type": "string"
+          },
+          "derivedFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSide"
+              }
+            ],
+            "description": "The other end, when the edge points at a version in this registry."
+          },
+          "derivedFromRef": {
+            "type": "string",
+            "description": "The external reference the edge points at instead. A fine-tune of a third-party model is the Art. 25 case, and the one where no hashes reach."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Verdict"
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Which hash levels the verdict needed and did not get."
+          },
+          "basis": {
+            "$ref": "#/components/schemas/ReviewBasis"
+          },
+          "declaredMethod": {
+            "type": "string",
+            "description": "The edge's properties.method — the modifier's stated intent, carried beside the measurement so a reviewer can notice when the two disagree."
+          },
+          "euSystemRiskClass": {
+            "$ref": "#/components/schemas/EUSystemRiskClass"
+          },
+          "euGpaiTier": {
+            "$ref": "#/components/schemas/EUGpaiTier"
+          },
+          "edgeCreatedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "review": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModificationReview"
+              }
+            ],
+            "description": "The latest review, on a closed item. When its verdictAtReview differs from verdict above, a producer submitted a hash after the review — worth seeing, which is why both are returned."
+          }
+        },
+        "description": "One derivation in the Art. 25 queue: what changed, what the modifier said they were doing, and whether anyone has looked."
+      },
+      "ReviewPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewItem"
+            }
+          },
+          "nextPageToken": {
+            "type": "string"
           }
         }
       }
