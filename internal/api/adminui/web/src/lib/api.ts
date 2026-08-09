@@ -309,6 +309,58 @@ export interface InsightDiff {
   };
 }
 
+// Modification review (§17) — the Art. 25 queue. It surfaces derivations whose technical
+// delta may have transferred provider liability, and records what a human concluded. It
+// flags; it never decides whether a change is substantial in law, and it never blocks.
+export type ReviewOutcome = "not_substantial" | "substantial" | "undetermined";
+
+export type ReviewStatus = "open" | "closed";
+
+export interface ModificationReview {
+  id: string;
+  versionId: string;
+  edgeId: string;
+  // The verdict as it stood when the review was recorded. Frozen — a producer submitting a
+  // weights hash afterwards cannot rewrite what a reviewer saw.
+  verdictAtReview: Verdict;
+  outcome: ReviewOutcome;
+  note?: string;
+  reviewedBy?: string;
+  reviewedAt: number;
+}
+
+export interface ReviewItem {
+  model: string;
+  version: string;
+  versionId: string;
+  edgeId: string;
+  // One of the two is set: a version in this registry, or the external reference the edge
+  // points at. The second is the Art. 25 case — somebody fine-tuned a third-party model.
+  derivedFrom?: { model: string; version: string };
+  derivedFromRef?: string;
+  verdict: Verdict;
+  candidates?: Verdict[];
+  missing?: string[];
+  hashes: Record<string, HashCmp>;
+  basis: { fromHashes?: string[]; toHashes?: string[] };
+  // The modifier's stated intent, from the edge's properties.method. Shown beside the
+  // measurement so a reviewer can notice when the two disagree.
+  declaredMethod?: string;
+  euSystemRiskClass?: EUSystemRiskClass;
+  euGpaiTier?: EUGpaiTier;
+  edgeCreatedAt: number;
+  status: ReviewStatus;
+  // Present on a closed item. When review.verdictAtReview differs from verdict above, a
+  // producer submitted a hash after the review — worth seeing, so both are rendered.
+  review?: ModificationReview;
+}
+
+export interface ReviewInput {
+  edgeId: string;
+  outcome: ReviewOutcome;
+  note: string;
+}
+
 export interface VersionDetail {
   model: string;
   version: VersionSummary & { description?: string; labels?: Record<string, string> };
@@ -423,6 +475,17 @@ export const api = {
       : base;
     return postJSON<{ legalHold: Hold | null }>(`${path}/${hold ? "hold" : "release"}`, { reason });
   },
+  // The Art. 25 queue. No status default: "nothing to review" and "everything reviewed" are
+  // different answers, and the page shows which one it is.
+  reviews: (status: ReviewStatus | "" = "") =>
+    getJSON<{ items: ReviewItem[]; nextPageToken: string }>(
+      `/api/reviews${status ? `?status=${status}` : ""}`,
+    ),
+  recordReview: (m: string, v: string, input: ReviewInput) =>
+    postJSON<ModificationReview>(
+      `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/reviews`,
+      input,
+    ),
   evidence: () => getJSON<Evidence>("/api/evidence"),
   verifyEvidence: () => postJSON<Evidence>("/api/evidence:verify", {}),
   activity: (token = "") =>

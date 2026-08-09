@@ -30,6 +30,11 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("POST /api/models/{model}/versions/{version}/hold", r.hold(true))
 	mux.HandleFunc("POST /api/models/{model}/versions/{version}/release", r.hold(false))
 	mux.HandleFunc("GET /api/models/{model}/compare", r.compare)
+	// The Art. 25 queue (§17.7). Recording a review is a human judgement about a legal
+	// question, so the console can do it — through the same core operation, frozen verdict
+	// and audit event included.
+	mux.HandleFunc("GET /api/reviews", r.reviews)
+	mux.HandleFunc("POST /api/models/{model}/versions/{version}/reviews", r.recordReview)
 	mux.HandleFunc("GET /api/activity", r.activity)
 	// §19.8 — install-level evidence integrity. The status strip is cheap; the recompute is
 	// a separate call because it reads every audit row ever written.

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ClassBadge, RiskClassBadge, STALE_REASON_TEXT } from "@/components/Classification";
 import { ClassifyDialog } from "@/components/ClassifyDialog";
 import { EvidencePanel } from "@/components/Hold";
+import { ReviewQueue } from "@/components/Review";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
 
@@ -161,6 +162,11 @@ export default function Compliance() {
               )}
             </div>
           </section>
+
+          {/* Art. 25 (§17.7). It sits under the classification worklist because it is the
+              same job continued: the queue only exists for models somebody has classified
+              governed, and it renders nothing when there are no derivations to look at. */}
+          <ReviewQueue />
 
           {covered.length > 0 && (
             <section className="mt-6">

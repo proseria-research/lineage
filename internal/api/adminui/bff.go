@@ -444,3 +444,39 @@ func (r *Router) verifyEvidence(w http.ResponseWriter, req *http.Request) {
 		Retention: r.svc.Retention(), Attestation: r.svc.Attestation(), Verify: &res,
 	})
 }
+
+// ---- Modification review (§17.7) ----
+
+// reviews backs the console's Art. 25 queue. The same core query the Model API serves, with
+// no status default: the page shows open and closed side by side, because "nothing to review"
+// and "everything reviewed" are different answers and a reader wants to see which one it is.
+func (r *Router) reviews(w http.ResponseWriter, req *http.Request) {
+	status := domain.ReviewStatus(req.URL.Query().Get("status"))
+	items, next, err := r.svc.ListReviewQueue(req.Context(), domain.RegimeEUAIAct, status,
+		domain.ListOptions{PageSize: bigPage})
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, map[string]any{"items": nz(items), "nextPageToken": next})
+}
+
+// recordReview is the console's fourth write. Reviewing a derivation is a human judgement
+// about a legal question, which is exactly what the Admin surface is for — and it goes through
+// the same core operation the Model API does, so the frozen verdict and the `review.record`
+// audit event are identical. A reader who can see the queue but can only close an item with a
+// curl is looking at a report, not doing a job.
+func (r *Router) recordReview(w http.ResponseWriter, req *http.Request) {
+	var in core.ReviewInput
+	if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+		api.WriteError(w, domain.Invalid("invalid JSON: "+err.Error()))
+		return
+	}
+	rev, err := r.svc.RecordReview(req.Context(), r.actor(req),
+		req.PathValue("model"), req.PathValue("version"), in)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusCreated, rev)
+}
