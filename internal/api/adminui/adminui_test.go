@@ -130,6 +130,10 @@ func TestModelsRollupAndDetail(t *testing.T) {
 	if len(arts) != 1 || arts[0].(map[string]any)["name"] != "model.onnx" {
 		t.Fatalf("version detail artifacts = %+v", vd["artifacts"])
 	}
+	// Promoted in setup, so its artifact set is locked (§00.11.19) — on both BFF shapes.
+	if vd["version"].(map[string]any)["lockedAt"] == nil || detail["versions"].([]any)[0].(map[string]any)["lockedAt"] == nil {
+		t.Fatalf("lockedAt missing: version=%+v versions=%+v", vd["version"], detail["versions"])
+	}
 	// Empty collections must serialize as [] (not null) so the SPA can map them.
 	if vd["lineage"] == nil || vd["deployments"] == nil {
 		t.Fatalf("empty collections should be [] not null: %+v", vd)

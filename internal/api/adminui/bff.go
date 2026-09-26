@@ -65,6 +65,8 @@ type versionSummary struct {
 	// here — inheritance is resolved at the delete guard, never copied onto rows — so the
 	// version page reads the model's hold separately (see versionDetailDTO.ModelHold).
 	LegalHold *domain.Hold `json:"legalHold"`
+	// LockedAt is when the artifact set froze (§00.11.19); absent while unlocked.
+	LockedAt int64 `json:"lockedAt,omitempty"`
 }
 
 type modelDetailDTO struct {
@@ -425,7 +427,7 @@ func toSummary(v *domain.ModelVersion) versionSummary {
 	return versionSummary{
 		LegalHold: v.LegalHold,
 		ID:        v.ID, Name: v.Name, Stage: v.Stage, Author: v.Author, Description: v.Description,
-		Labels: v.Labels, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+		Labels: v.Labels, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, LockedAt: v.LockedAt,
 	}
 }
 
