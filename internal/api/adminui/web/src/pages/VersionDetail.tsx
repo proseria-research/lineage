@@ -277,7 +277,7 @@ export default function VersionDetail() {
         <div className="space-y-6">
           <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
           <VersionReviews reviews={data.reviews} />
-          <MRMPanel c={data.mrm} validations={data.validations} version={v.name} />
+          <MRMPanel c={data.mrm} validations={data.validations} version={v.name} model={model} artifacts={data.artifacts} onChanged={reload} />
           <section>
             <SectionHeader
               title="Change control"

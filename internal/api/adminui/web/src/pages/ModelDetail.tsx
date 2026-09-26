@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
@@ -8,6 +9,9 @@ import { HoldAction, HoldNote } from "@/components/Hold";
 import { MRMPanel, MRMCell } from "@/components/MRM";
 import { ClassificationCell } from "@/components/Classification";
 import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/components/State";
+import { Button } from "@/components/ui/button";
+import { ChangePlanDialog } from "@/components/GovernanceDialogs";
+import { VERDICT_LABEL } from "@/components/Review";
 import { fmtTime, relTime } from "@/lib/utils";
 
 const TABS = [
@@ -20,10 +24,13 @@ export default function ModelDetail() {
   const { model = "" } = useParams();
   const [tab, setTab] = useTab(TABS);
   const { data, error, loading, reload } = useAsync(() => api.model(model), [model]);
+  const plans = useAsync(() => api.changePlans().then((p) => p.plans.filter((x) => x.model === model)), [model]);
+  const [planDialog, setPlanDialog] = useState(false);
   if (loading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
   const m = data.model;
+  const openPlan = plans.data?.find((p) => p.effectiveTo == null) ?? null;
   const prod = data.versions.find((v) => v.name === data.production);
 
   return (
@@ -91,7 +98,47 @@ export default function ModelDetail() {
 
       {tab === "governance" && (
         <div className="space-y-6">
-          <MRMPanel c={m.mrm} />
+          <MRMPanel c={m.mrm} model={m.name} onChanged={reload} />
+
+          <section>
+            <SectionHeader
+              title="Change control plan"
+              sub="The kinds of change this model may make without a fresh review. New versions are checked against it; nothing is blocked."
+              right={
+                plans.data && (
+                  <Button size="sm" variant={openPlan ? "outline" : "default"} onClick={() => setPlanDialog(true)}>
+                    {openPlan ? "Replace plan" : "Declare a plan"}
+                  </Button>
+                )
+              }
+            />
+            {!plans.data || plans.data.length === 0 ? (
+              <Empty>No change plan declared for this model.</Empty>
+            ) : (
+              <ul className="divide-y rounded-lg border bg-card">
+                {plans.data.map((p) => {
+                  const closed = p.effectiveTo != null;
+                  return (
+                    <li key={p.id} className="px-5 py-3.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{p.ref || "Unnamed plan"}</span>
+                        {closed ? <Badge variant="dashed">Replaced</Badge> : <Badge variant="ok">In force</Badge>}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {fmtDate(p.effectiveFrom)} – {closed ? fmtDate(p.effectiveTo!) : "now"}
+                          {p.declaredBy ? `, declared by ${p.declaredBy}` : ""}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm">{p.summary}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Allows {p.allowedVerdicts.map((v) => VERDICT_LABEL[v].toLowerCase()).join(", ")} changes
+                        {p.allowedMethods?.length ? `, made by ${p.allowedMethods.join(" or ")}` : ", by any method"}.
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
           <p className="text-sm text-muted-foreground">
             The EU AI Act classification is set per model on the{" "}
             <Link to="/compliance?tab=eu" className="font-medium text-brand hover:underline">
@@ -126,9 +173,22 @@ export default function ModelDetail() {
           </dl>
         </div>
       )}
+      {planDialog && (
+        <ChangePlanDialog
+          model={m.name}
+          open={openPlan}
+          onClose={() => setPlanDialog(false)}
+          onSaved={() => {
+            setPlanDialog(false);
+            plans.reload();
+          }}
+        />
+      )}
     </div>
   );
 }
+
+const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 function Summary({ label, children }: { label: string; children: React.ReactNode }) {
   return (

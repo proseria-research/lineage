@@ -526,6 +526,32 @@ async function putJSON<T>(path: string, body: unknown): Promise<T> {
 
 // What a person can set. classifiedAt / classifiedBy / source are the server's and are
 // rejected if sent, so they are absent here too.
+export interface MRMTierInput {
+  mrmTier: MRMTier;
+  basis: string;
+  intendedPurpose: string;
+  reviewDueAt: number | null;
+}
+
+export interface ValidationInput {
+  outcome: ValidationOutcome;
+  scope: string;
+  findings: string;
+  conditions: string;
+  validUntil: number | null;
+  evidenceArtifactId: string;
+}
+
+export interface ChangePlanInput {
+  ref: string;
+  summary: string;
+  allowedVerdicts: PlannableVerdict[];
+  // Omitted = any method.
+  allowedMethods?: string[];
+  effectiveFrom?: number;
+  supersedes?: string;
+}
+
 export interface ClassificationInput {
   euSystemRiskClass: EUSystemRiskClass;
   euGpaiTier: EUGpaiTier;
@@ -556,6 +582,20 @@ export const api = {
       `/api/models/${encodeURIComponent(m)}/classifications/eu_ai_act`,
       input,
     ),
+  setMRMTier: (m: string, input: MRMTierInput) =>
+    putJSON<Classification>(`/api/models/${encodeURIComponent(m)}/classifications/mrm`, input),
+  recordValidation: (m: string, v: string, input: ValidationInput) =>
+    postJSON<Validation>(
+      `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/validations`,
+      input,
+    ),
+  clearValidationConditions: (m: string, v: string, id: string) =>
+    postJSON<Validation>(
+      `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/validations/${encodeURIComponent(id)}/clear-conditions`,
+      {},
+    ),
+  declareChangePlan: (m: string, input: ChangePlanInput) =>
+    postJSON<ChangePlan>(`/api/models/${encodeURIComponent(m)}/change-plans`, input),
   graph: (m: string, v: string, direction: "upstream" | "downstream" | "both") =>
     getJSON<LineageGraph>(
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/graph?direction=${direction}`,
