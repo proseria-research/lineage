@@ -82,7 +82,7 @@ export function ReviewDialog({
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-6 backdrop-blur-sm"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-xl border bg-card shadow-lg">
+      <div className="w-full max-w-xl border bg-card shadow-lg rounded-lg">
         <div className="border-b px-5 py-3">
           <div className="text-sm font-semibold">
             Review <span className="font-mono">{item.model}@{item.version}</span>
@@ -95,7 +95,7 @@ export function ReviewDialog({
         <div className="space-y-4 px-5 py-4">
           {/* What is being judged, restated: the measurement, the declared intent, and where
               it came from. A reviewer should not have to remember the row they clicked. */}
-          <div className="space-y-1.5 border px-3 py-2.5 text-xs">
+          <div className="space-y-1.5 border px-3 py-2.5 text-xs rounded-md">
             <div className="flex flex-wrap items-center gap-2">
               <VerdictBadge v={item.verdict} />
               {item.declaredMethod && (

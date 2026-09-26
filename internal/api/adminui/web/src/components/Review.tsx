@@ -26,13 +26,28 @@ import { relTime } from "@/lib/utils";
 
 const HASH_LEVELS = ["topology", "shape", "dtype", "weights"] as const;
 
-const VERDICT_TEXT: Record<Verdict, string> = {
-  identical: "Bytes match — a repackage.",
-  reweighted: "Weights changed; topology and shapes did not.",
-  recast: "Precision changed only.",
-  rescaled: "Width or depth changed.",
-  rearchitected: "New blocks or backbone.",
-  unknown: "The hashes do not reach — nobody can say what changed.",
+export const VERDICT_TEXT: Record<Verdict, string> = {
+  identical: "Measured: nothing changed — the weights are byte-for-byte the same.",
+  reweighted: "Measured: the weights changed, the architecture didn't (a retrain or fine-tune).",
+  recast: "Measured: only numeric precision changed (for example a quantization).",
+  rescaled: "Measured: the model got wider or deeper.",
+  rearchitected: "Measured: the architecture itself changed.",
+  unknown: "Measured: can't tell — not enough fingerprint data was reported.",
+};
+
+const OUTCOME_LABEL: Record<string, string> = {
+  not_substantial: "Not substantial",
+  substantial: "Substantial",
+  undetermined: "Undetermined",
+};
+
+export const VERDICT_LABEL: Record<Verdict, string> = {
+  identical: "Identical",
+  reweighted: "Reweighted",
+  recast: "Recast",
+  rescaled: "Rescaled",
+  rearchitected: "Rearchitected",
+  unknown: "Unknown change",
 };
 
 export function VerdictBadge({ v }: { v: Verdict }) {
@@ -40,7 +55,7 @@ export function VerdictBadge({ v }: { v: Verdict }) {
   // is emphatically not a verdict of "nothing changed".
   return (
     <Tooltip content={VERDICT_TEXT[v]}>
-      <Badge variant={v === "unknown" ? "dashed" : "solid"}>{v}</Badge>
+      <Badge variant={v === "unknown" ? "dashed" : "brand"}>{VERDICT_LABEL[v]}</Badge>
     </Tooltip>
   );
 }
@@ -57,7 +72,7 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
   const anyHash = HASH_LEVELS.some((l) => it.hashes?.[l]?.from || it.hashes?.[l]?.to);
 
   const parent = it.derivedFrom
-    ? `${it.derivedFrom.model}@${it.derivedFrom.version}`
+    ? `${it.derivedFrom.model} ${it.derivedFrom.version}`
     : it.derivedFromRef;
   // A verdict recorded against different facts than the ones on screen now means a producer
   // submitted a hash after the review. That divergence is the thing worth seeing (§17.7).
@@ -78,7 +93,7 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
       ) : (
         // Absence gets a slot of its own width, so rows stay aligned and "no facts reported"
         // is visible rather than inferred from a gap.
-        <div className="flex h-11 w-[7.25rem] shrink-0 items-center justify-center border border-dashed text-[0.6875rem] uppercase tracking-wider text-muted-foreground">
+        <div className="flex h-11 w-[7.25rem] shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">
           no hashes
         </div>
       )}
@@ -87,25 +102,28 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <Link
             to={`/models/${it.model}/versions/${it.version}`}
-            className="font-mono text-sm hover:underline underline-offset-4"
+            className="text-sm font-medium hover:underline underline-offset-4"
           >
-            {it.model}@{it.version}
+            {it.model} <span className="font-mono text-[0.8125rem] font-normal">{it.version}</span>
           </Link>
           <VerdictBadge v={it.verdict} />
           {it.declaredMethod && (
             <Tooltip content="Declared by whoever recorded the derivation — the intent, beside the measurement.">
-              <span className="font-mono text-xs text-muted-foreground">
-                declared {it.declaredMethod}
+              <span className="text-xs text-muted-foreground">
+                they said: <span className="font-medium text-foreground/80">{it.declaredMethod}</span>
               </span>
             </Tooltip>
           )}
           {it.status === "closed" && (
-            <Badge variant="muted">{it.review?.outcome ?? "reviewed"}</Badge>
+            <Badge variant={it.review?.outcome === "substantial" ? "warn" : "ok"}>
+              {it.review ? OUTCOME_LABEL[it.review.outcome] : "Reviewed"}
+            </Badge>
           )}
         </div>
 
-        <div className="mt-1 text-xs text-muted-foreground">
-          derived from{" "}
+        <div className="mt-1 text-sm text-muted-foreground">{VERDICT_TEXT[it.verdict]}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          Derived from{" "}
           {it.derivedFrom ? (
             <Link
               to={`/models/${it.derivedFrom.model}/versions/${it.derivedFrom.version}`}
@@ -116,8 +134,8 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
           ) : (
             <span className="font-mono">{parent}</span>
           )}{" "}
-          · {relTime(it.edgeCreatedAt)}
-          {it.missing?.length ? <> · missing {it.missing.join(", ")}</> : null}
+          , {relTime(it.edgeCreatedAt)}
+          {it.missing?.length ? <>. Missing {it.missing.join(", ")} hash.</> : null}
         </div>
 
         {it.review && (
@@ -174,7 +192,7 @@ export function ReviewQueue() {
           decided here.
         </span>
       </div>
-      <div className="border bg-card">
+      <div className="border bg-card rounded-lg">
         {open.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
             Every derivation on a governed model has been reviewed.
@@ -212,7 +230,7 @@ function ClosedList({
     <div className="mt-3">
       <button
         onClick={() => setShow((v) => !v)}
-        className="flex w-full items-center justify-between border bg-card px-4 py-2.5 text-left text-sm hover:bg-accent"
+        className="flex w-full items-center justify-between border bg-card px-4 py-2.5 text-left text-sm hover:bg-accent rounded-lg"
       >
         <span className="font-semibold">Reviewed</span>
         <span className="text-xs text-muted-foreground">
@@ -220,7 +238,7 @@ function ClosedList({
         </span>
       </button>
       {show && (
-        <div className="mt-3 border bg-card">
+        <div className="mt-3 border bg-card rounded-lg">
           {items.length === 0 ? (
             <Empty>Nothing reviewed yet.</Empty>
           ) : (
@@ -244,7 +262,7 @@ function ClosedList({
 export function VersionReviews({ reviews }: { reviews: ModificationReview[] }) {
   if (reviews.length === 0) return null;
   return (
-    <div className="mb-6 border border-border">
+    <div className="mb-6 border border-border rounded-lg">
       <div className="border-b px-4 py-2.5">
         <div className="text-sm font-medium">Modification review · Art. 25</div>
         <p className="mt-0.5 text-xs text-muted-foreground">

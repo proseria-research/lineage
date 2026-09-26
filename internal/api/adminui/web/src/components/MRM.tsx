@@ -14,22 +14,29 @@ import { relTime } from "@/lib/utils";
 //     point, so superseded rows stay and are marked, never dropped.
 //  4. Nothing here gates or fixes anything. A self-validation is flagged, not refused.
 
-const TIER_LABEL: Record<MRMTier, string> = {
-  untiered: "untiered",
-  tier_1: "tier 1",
-  tier_2: "tier 2",
-  tier_3: "tier 3",
-  out_of_scope: "out of scope",
+const STATE_LABEL: Record<MRMState, string> = {
+  untiered: "No tier",
+  unvalidated: "Not validated",
+  stale: "Out of date",
+  current: "Current",
+};
+
+export const TIER_LABEL: Record<MRMTier, string> = {
+  untiered: "No tier",
+  tier_1: "Tier 1",
+  tier_2: "Tier 2",
+  tier_3: "Tier 3",
+  out_of_scope: "Out of scope",
 };
 
 // Tier 1 takes the filled badge for the reason high risk does on the EU lens: weight, not
 // colour. Untiered is dashed — an absence of an answer, visibly.
-const TIER_VARIANT: Record<MRMTier, "solid" | "outline" | "muted" | "dashed"> = {
+const TIER_VARIANT: Record<MRMTier, "brand" | "neutral" | "dashed"> = {
   untiered: "dashed",
-  tier_1: "solid",
-  tier_2: "outline",
-  tier_3: "muted",
-  out_of_scope: "muted",
+  tier_1: "brand",
+  tier_2: "neutral",
+  tier_3: "neutral",
+  out_of_scope: "dashed",
 };
 
 // §20.7 clause 2 measures against the validation, not the classification, so it is phrased
@@ -43,8 +50,8 @@ export function TierBadge({ tier }: { tier: MRMTier }) {
 
 /** The state marker. Nothing for `current` or `untiered` — the tier badge already says the latter. */
 export function MRMStateBadge({ state }: { state: MRMState }) {
-  if (state === "stale") return <Badge variant="outline">stale</Badge>;
-  if (state === "unvalidated") return <Badge variant="dashed">unvalidated</Badge>;
+  if (state === "stale") return <Badge variant="warn">Out of date</Badge>;
+  if (state === "unvalidated") return <Badge variant="warn">Not validated</Badge>;
   return null;
 }
 
@@ -67,7 +74,7 @@ export function MRMCell({ model, c }: { model: string; c: Classification | null 
       ) : (
         marker
       )}
-      {unmonitored && <span className="label-caps">unmonitored</span>}
+      {unmonitored && <Badge variant="danger">Unmonitored</Badge>}
     </div>
   );
 }
@@ -75,7 +82,7 @@ export function MRMCell({ model, c }: { model: string; c: Classification | null 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[0.6875rem] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
       <div>{children}</div>
     </div>
   );
@@ -87,7 +94,7 @@ function Reasons({ state, reasons }: { state: MRMState; reasons?: StaleReason[] 
   if (state !== "stale") return null;
   return (
     <div className="mt-4 border-t border-border pt-3 text-sm">
-      <div className="mb-1 text-[0.6875rem] uppercase tracking-wider text-muted-foreground">Why this is stale</div>
+      <div className="mb-1 text-xs text-muted-foreground">Why it needs attention</div>
       <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
         {(reasons ?? []).map((r) => (
           <li key={r} className={r === "unmonitored_in_production" ? "font-medium text-foreground" : undefined}>
@@ -155,14 +162,17 @@ export function MRMPanel({
   version?: string;
 }) {
   const header = (
-    <div className="text-sm font-medium">Model risk · SR 26-2 / SS1/23 / E-23</div>
+    <div>
+      <div className="text-[0.9375rem] font-semibold">Model risk</div>
+      <div className="text-xs text-muted-foreground">SR 26-2 · PRA SS1/23 · OSFI E-23</div>
+    </div>
   );
   const state = (validations?.state ?? c?.state ?? "untiered") as MRMState;
   const reasons = validations ? validations.staleReasons : c?.staleReasons;
   const history = validations?.items ?? (c?.latestValidation ? [c.latestValidation] : []);
 
   return (
-    <div className="mb-6 border border-border">
+    <div className="mb-6 border border-border rounded-lg">
       <div className="p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           {header}
@@ -181,11 +191,11 @@ export function MRMPanel({
             <Field label="Tier">{TIER_LABEL[c.mrmTier ?? "untiered"]}</Field>
             <Field label="Basis">{c.basis || <span className="text-muted-foreground">not stated</span>}</Field>
             <Field label="Tiered">
-              <span className="font-mono text-xs">{fmt(c.classifiedAt)}</span>
+              <span>{fmt(c.classifiedAt)}</span>
               {c.classifiedBy && <span className="text-muted-foreground"> by {c.classifiedBy}</span>}
             </Field>
             <Field label={validations ? "State of this version" : "State"}>
-              {state}
+              {STATE_LABEL[state]}
               {!validations && c.version && (
                 <span className="text-muted-foreground">
                   {" "}
@@ -197,7 +207,7 @@ export function MRMPanel({
                 // badges look like they disagree.
                 <span className="text-muted-foreground">
                   {" "}
-                  · the model's state is about <span className="font-mono">{c.version}</span> ({c.state})
+                  · the model as a whole is judged on <span className="font-mono">{c.version}</span> ({STATE_LABEL[c.state as MRMState].toLowerCase()})
                 </span>
               )}
             </Field>

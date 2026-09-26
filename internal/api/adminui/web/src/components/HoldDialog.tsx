@@ -61,7 +61,7 @@ export function HoldDialog({
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-6 backdrop-blur-sm"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-lg border bg-card shadow-lg">
+      <div className="w-full max-w-lg border bg-card shadow-lg rounded-lg">
         <div className="border-b px-5 py-3">
           <div className="text-sm font-semibold">
             {release ? "Release legal hold on" : "Place legal hold on"}{" "}

@@ -5,7 +5,7 @@ import { useAsync } from "@/lib/useAsync";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { FingerprintMark, type RingName } from "@/components/VersionMark";
-import { VerdictBadge } from "@/components/Review";
+import { VerdictBadge, VERDICT_LABEL } from "@/components/Review";
 import { relTime } from "@/lib/utils";
 
 // Change control plans (§22). A plan is an envelope of pre-authorised changes, written in the
@@ -23,12 +23,20 @@ const HASH_LEVELS = ["topology", "shape", "dtype", "weights"] as const;
 
 // Weight, not colour: outside is filled, undetermined dashed (an absence of an answer),
 // within outlined, uncovered muted — history, not a finding.
-const CONFORMANCE_VARIANT: Record<Conformance, "solid" | "outline" | "muted" | "dashed"> = {
-  outside_plan: "solid",
-  undetermined: "dashed",
-  within_plan: "outline",
-  uncovered: "muted",
-  no_plan: "muted",
+const CONFORMANCE_VARIANT: Record<Conformance, "ok" | "warn" | "danger" | "neutral" | "dashed"> = {
+  outside_plan: "danger",
+  undetermined: "warn",
+  within_plan: "ok",
+  uncovered: "neutral",
+  no_plan: "dashed",
+};
+
+export const CONFORMANCE_LABEL: Record<Conformance, string> = {
+  outside_plan: "Outside plan",
+  undetermined: "Can't tell",
+  within_plan: "Within plan",
+  uncovered: "Before any plan",
+  no_plan: "No plan",
 };
 
 const CONFORMANCE_TEXT: Record<Conformance, string> = {
@@ -39,17 +47,12 @@ const CONFORMANCE_TEXT: Record<Conformance, string> = {
   no_plan: "The model has no change control plan.",
 };
 
-const REASON_TEXT: Record<string, string> = {
-  verdict_not_allowed: "verdict not allowed",
-  method_not_allowed: "method not allowed",
-};
-
 const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 export function ConformanceBadge({ c }: { c: Conformance }) {
   return (
     <Tooltip content={CONFORMANCE_TEXT[c]}>
-      <Badge variant={CONFORMANCE_VARIANT[c]}>{c}</Badge>
+      <Badge variant={CONFORMANCE_VARIANT[c]}>{CONFORMANCE_LABEL[c]}</Badge>
     </Tooltip>
   );
 }
@@ -64,7 +67,7 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
   ) as Partial<Record<RingName, boolean>>;
   const anyChanged = HASH_LEVELS.some((l) => changed[l]);
   const anyHash = HASH_LEVELS.some((l) => it.hashes?.[l]?.from || it.hashes?.[l]?.to);
-  const parent = it.derivedFrom ? `${it.derivedFrom.model}@${it.derivedFrom.version}` : it.derivedFromRef;
+  const parent = it.derivedFrom ? `${it.derivedFrom.model} ${it.derivedFrom.version}` : it.derivedFromRef;
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0">
@@ -77,7 +80,7 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
           <FingerprintMark insight={side("to")} size={44} emphasis={anyChanged ? changed : undefined} />
         </div>
       ) : (
-        <div className="flex h-11 w-[7.25rem] shrink-0 items-center justify-center border border-dashed text-[0.6875rem] uppercase tracking-wider text-muted-foreground">
+        <div className="flex h-11 w-[7.25rem] shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">
           no hashes
         </div>
       )}
@@ -86,37 +89,31 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <Link
             to={`/models/${it.model}/versions/${it.version}`}
-            className="font-mono text-sm hover:underline underline-offset-4"
+            className="text-sm font-medium hover:underline underline-offset-4"
           >
-            {it.model}@{it.version}
+            {it.model} <span className="font-mono text-[0.8125rem] font-normal">{it.version}</span>
           </Link>
           <ConformanceBadge c={it.conformance} />
           <VerdictBadge v={it.verdict} />
-          {it.declaredMethod && (
-            <span className="font-mono text-xs text-muted-foreground">declared {it.declaredMethod}</span>
-          )}
-          {it.reasons?.map((r) => (
-            <span key={r} className="label-caps">
-              {REASON_TEXT[r] ?? r}
-            </span>
-          ))}
+
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          {it.plan ? (
-            <>
-              plan <span className="font-mono">{it.plan.ref || it.plan.id.slice(-6)}</span> allows{" "}
-              <span className="font-mono">{it.allowedVerdicts?.join(", ")}</span>
-              {it.allowedMethods?.length ? (
-                <>
-                  {" "}
-                  via <span className="font-mono">{it.allowedMethods.join(", ")}</span>
-                </>
-              ) : null}
-              {" · "}
-            </>
-          ) : null}
-          derived from <span className="font-mono">{parent}</span> · published {relTime(it.publishedAt)}
-          {it.missing?.length ? <> · missing {it.missing.join(", ")}</> : null}
+        {it.plan && (
+          <div className="mt-1 text-sm text-muted-foreground">
+            Plan {it.plan.ref || it.plan.id.slice(-6)} allows{" "}
+            {(it.allowedVerdicts ?? []).map((v) => VERDICT_LABEL[v].toLowerCase()).join(" or ")} changes
+            {it.allowedMethods?.length ? <> made by {it.allowedMethods.join(" or ")}</> : null}.
+            {it.reasons?.length ? (
+              <span className="text-danger">
+                {" "}
+                This version was {VERDICT_LABEL[it.verdict].toLowerCase()}
+                {it.declaredMethod ? ` by ${it.declaredMethod}` : ""}.
+              </span>
+            ) : null}
+          </div>
+        )}
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          Derived from {parent}, published {relTime(it.publishedAt)}
+          {it.missing?.length ? <>. Missing {it.missing.join(", ")} hash.</> : null}
         </div>
       </div>
     </div>
@@ -126,7 +123,7 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
 /** The plan register: every plan, superseded ones kept and marked (§22.6.1). */
 function PlanList({ plans }: { plans: ChangePlan[] }) {
   return (
-    <div className="border bg-card">
+    <div className="border bg-card rounded-lg">
       {plans.map((p) => {
         const closed = p.effectiveTo != null;
         return (
@@ -135,18 +132,14 @@ function PlanList({ plans }: { plans: ChangePlan[] }) {
               <Link to={`/models/${p.model}`} className="font-medium hover:underline underline-offset-4">
                 {p.model}
               </Link>
-              {p.ref && <span className="font-mono text-xs">{p.ref}</span>}
-              {p.allowedVerdicts.map((v) => (
-                <Badge key={v} variant={closed ? "muted" : "outline"}>
-                  {v}
-                </Badge>
-              ))}
-              {p.allowedMethods?.length ? (
-                <span className="font-mono text-xs text-muted-foreground">via {p.allowedMethods.join(", ")}</span>
-              ) : null}
-              {closed && <span className="label-caps">superseded</span>}
+              {p.ref && <span className="text-xs text-muted-foreground">{p.ref}</span>}
+              {closed ? <Badge variant="dashed">Replaced</Badge> : <Badge variant="ok">In force</Badge>}
+              <span className="text-xs text-muted-foreground">
+                allows {p.allowedVerdicts.map((v) => VERDICT_LABEL[v].toLowerCase()).join(", ")}
+                {p.allowedMethods?.length ? ` by ${p.allowedMethods.join(", ")}` : ""}
+              </span>
               <span className="ml-auto text-xs text-muted-foreground">
-                {fmtDate(p.effectiveFrom)} – {closed ? fmtDate(p.effectiveTo!) : "open"}
+                {fmtDate(p.effectiveFrom)} – {closed ? fmtDate(p.effectiveTo!) : "now"}
               </span>
             </div>
             <div className="mt-1 text-sm text-muted-foreground">{p.summary}</div>
@@ -179,7 +172,7 @@ export function ChangePlanSection() {
           {open} plan{open === 1 ? "" : "s"} in force · {attention.length} need a look. Reported, never enforced.
         </span>
       </div>
-      <div className="border bg-card">
+      <div className="border bg-card rounded-lg">
         {attention.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
             Every derivation under a plan is within it.
@@ -193,13 +186,13 @@ export function ChangePlanSection() {
         <div className="mt-3">
           <button
             onClick={() => setShowRest((v) => !v)}
-            className="flex w-full items-center justify-between border bg-card px-4 py-2.5 text-left text-sm hover:bg-accent"
+            className="flex w-full items-center justify-between border bg-card px-4 py-2.5 text-left text-sm hover:bg-accent rounded-lg"
           >
             <span className="font-semibold">Within plan or uncovered</span>
             <span className="text-xs text-muted-foreground">{showRest ? "Hide" : `${rest.length} · show`}</span>
           </button>
           {showRest && (
-            <div className="mt-3 border bg-card">
+            <div className="mt-3 border bg-card rounded-lg">
               {rest.map((it) => (
                 <ConformanceRow key={it.edgeId} it={it} />
               ))}
@@ -211,7 +204,7 @@ export function ChangePlanSection() {
       <div className="mt-3">
         <button
           onClick={() => setShowPlans((v) => !v)}
-          className="flex w-full items-center justify-between border bg-card px-4 py-2.5 text-left text-sm hover:bg-accent"
+          className="flex w-full items-center justify-between border bg-card px-4 py-2.5 text-left text-sm hover:bg-accent rounded-lg"
         >
           <span className="font-semibold">Plans</span>
           <span className="text-xs text-muted-foreground">
