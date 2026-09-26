@@ -59,6 +59,16 @@ func do2[A, B any](ctx context.Context, t domain.Tracer, name string, fn func(co
 	return a, b, err
 }
 
+// ---- Unit of work ----
+
+// InTx is one span around the transaction, and the tx handed to fn is decorated too, so the
+// statements inside it are its children rather than vanishing from the trace.
+func (s *tracedStore) InTx(ctx context.Context, fn func(tx domain.MetadataStore) error) error {
+	return do0(ctx, s.t, "store.InTx", func(c context.Context) error {
+		return s.next.InTx(c, func(tx domain.MetadataStore) error { return fn(&tracedStore{next: tx, t: s.t}) })
+	})
+}
+
 // ---- Models ----
 
 func (s *tracedStore) CreateModel(ctx context.Context, m *domain.Model) error {

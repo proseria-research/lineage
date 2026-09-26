@@ -52,6 +52,7 @@ func TestPostgresStore(t *testing.T) {
 	storetest.RunMRM(t, s)
 	storetest.RunChangePlans(t, s)
 	storetest.RunAttestation(t, s)
+	storetest.RunUnitOfWork(t, s)
 }
 
 // TestPostgresJSONFilters exercises the Postgres-only JSONB label + custom_properties

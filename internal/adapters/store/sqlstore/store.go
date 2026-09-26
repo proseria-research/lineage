@@ -30,16 +30,28 @@ type Dialect interface {
 	JSONContainsClause(column string) string
 }
 
+// Store is one type in two roles. Opened, q is the pool and tx is nil. Inside InTx it is a
+// transaction's view: q and tx are the same *sql.Tx, so every method — including the ones
+// that need their own atomicity — runs on the caller's transaction without knowing it.
 type Store struct {
 	db *sql.DB
+	q  querier // every statement goes through here: s.db, or tx inside a unit of work
+	tx *sql.Tx // non-nil on a transaction's view
 	d  Dialect
+}
+
+// querier is what *sql.DB and *sql.Tx share, so one method body serves both roles.
+type querier interface {
+	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, q string, args ...any) *sql.Row
 }
 
 var _ domain.MetadataStore = (*Store)(nil)
 
 // Open migrates the schema and returns a ready store.
 func Open(db *sql.DB, d Dialect) (*Store, error) {
-	s := &Store{db: db, d: d}
+	s := &Store{db: db, q: db, d: d}
 	if err := s.migrate(context.Background()); err != nil {
 		return nil, err
 	}
@@ -49,6 +61,31 @@ func Open(db *sql.DB, d Dialect) (*Store, error) {
 func (s *Store) DB() *sql.DB        { return s.db }
 func (s *Store) Close() error       { return s.db.Close() }
 func (s *Store) rb(q string) string { return s.d.Rebind(q) }
+
+// InTx is the unit of work (domain.Transactor). On a transaction's view it joins: fn runs on
+// the same transaction, and the outermost InTx alone commits. That is how a method with its
+// own atomicity (SetStage, CreateChangePlan, PutClassification, …) composes inside a caller's
+// unit of work rather than opening a second transaction — which on SQLite's one-connection
+// pool would wait forever on the first.
+func (s *Store) InTx(ctx context.Context, fn func(tx domain.MetadataStore) error) error {
+	return s.inTx(ctx, func(t *Store) error { return fn(t) })
+}
+
+func (s *Store) inTx(ctx context.Context, fn func(t *Store) error) error {
+	if s.tx != nil {
+		return fn(s)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	// Rollback after Commit is a no-op; on an error or a panic in fn it is the undo.
+	defer func() { _ = tx.Rollback() }()
+	if err := fn(&Store{db: s.db, q: tx, tx: tx, d: s.d}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
 // jsonFilters builds label/custom_properties containment WHERE fragments when the dialect can
 // push them down (Postgres JSONB, §02.7). labelsPushed reports whether label filtering was
@@ -83,7 +120,7 @@ const modelCols = "id,name,description,owner,state,labels,custom_properties,crea
 const modelSel = modelCols + ",held_since,held_by"
 
 func (s *Store) CreateModel(ctx context.Context, m *domain.Model) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO model (`+modelCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
 		m.ID, m.Name, m.Description, m.Owner, string(m.State), marshalMap(m.Labels),
 		jsonText(m.CustomProperties), m.CreatedAt, m.UpdatedAt)
@@ -94,7 +131,7 @@ func (s *Store) CreateModel(ctx context.Context, m *domain.Model) error {
 }
 
 func (s *Store) GetModel(ctx context.Context, nameOrID string) (*domain.Model, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(
+	row := s.q.QueryRowContext(ctx, s.rb(
 		`SELECT `+modelSel+` FROM model WHERE name=? OR id=?`), nameOrID, nameOrID)
 	m, err := scanModel(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -137,7 +174,7 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 	}
 	q := `SELECT ` + prefixCols(modelSel, "m") + ` FROM model m WHERE 1=1` + where +
 		` ORDER BY m.created_at DESC, m.id DESC`
-	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -160,7 +197,7 @@ func (s *Store) ListModels(ctx context.Context, o domain.ListOptions) ([]*domain
 }
 
 func (s *Store) UpdateModel(ctx context.Context, m *domain.Model) error {
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`UPDATE model SET description=?,owner=?,state=?,labels=?,custom_properties=?,updated_at=? WHERE id=?`),
 		m.Description, m.Owner, string(m.State), marshalMap(m.Labels), jsonText(m.CustomProperties), m.UpdatedAt, m.ID)
 	return affected(res, err, "model")
@@ -181,7 +218,7 @@ func (s *Store) CreateVersion(ctx context.Context, v *domain.ModelVersion) error
 	if v.StageChangedAt == 0 {
 		v.StageChangedAt = v.CreatedAt
 	}
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO model_version (id,model_id,name,description,author,stage,labels,custom_properties,created_at,updated_at,stage_changed_at)
 		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`),
 		v.ID, v.ModelID, v.Name, v.Description, v.Author, string(v.Stage),
@@ -197,7 +234,7 @@ func (s *Store) GetVersion(ctx context.Context, model, version string) (*domain.
 	if err != nil {
 		return nil, err
 	}
-	row := s.db.QueryRowContext(ctx, s.rb(vSel+` WHERE v.model_id=? AND v.name=?`), m.ID, version)
+	row := s.q.QueryRowContext(ctx, s.rb(vSel+` WHERE v.model_id=? AND v.name=?`), m.ID, version)
 	v, err := scanVersion(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.NotFound("version '" + version + "' not found")
@@ -206,7 +243,7 @@ func (s *Store) GetVersion(ctx context.Context, model, version string) (*domain.
 }
 
 func (s *Store) GetVersionByID(ctx context.Context, id string) (*domain.ModelVersion, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(vSel+` WHERE v.id=?`), id)
+	row := s.q.QueryRowContext(ctx, s.rb(vSel+` WHERE v.id=?`), id)
 	v, err := scanVersion(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.NotFound("version '" + id + "' not found")
@@ -234,7 +271,7 @@ func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOpt
 	}
 	args = append(args, ja...)
 	q += ` ORDER BY v.created_at DESC, v.id DESC`
-	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -257,40 +294,35 @@ func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOpt
 }
 
 func (s *Store) UpdateVersion(ctx context.Context, v *domain.ModelVersion) error {
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`UPDATE model_version SET description=?,author=?,labels=?,custom_properties=?,updated_at=? WHERE id=?`),
 		v.Description, v.Author, marshalMap(v.Labels), jsonText(v.CustomProperties), v.UpdatedAt, v.ID)
 	return affected(res, err, "version")
 }
 
 func (s *Store) SetStage(ctx context.Context, versionID string, to domain.Stage, singleton bool) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck
-	now := domain.NowMillis()
-	if singleton {
-		if lock := s.d.LockModelByVersionSQL(); lock != "" {
-			if _, err := tx.ExecContext(ctx, s.rb(lock), versionID); err != nil {
+	return s.inTx(ctx, func(t *Store) error {
+		now := domain.NowMillis()
+		if singleton {
+			// Held to the outermost commit, so a caller's audit write is inside the lock too.
+			if lock := t.d.LockModelByVersionSQL(); lock != "" {
+				if _, err := t.q.ExecContext(ctx, t.rb(lock), versionID); err != nil {
+					return err
+				}
+			}
+			// The demoted version enters `archived` now too, so its stage_changed_at moves with
+			// it (§20.8.3) — otherwise it would keep claiming it entered production.
+			if _, err := t.q.ExecContext(ctx, t.rb(
+				`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=?
+				 WHERE model_id=(SELECT model_id FROM model_version WHERE id=?) AND stage=? AND id<>?`),
+				string(domain.StageArchived), now, now, versionID, string(to), versionID); err != nil {
 				return err
 			}
 		}
-		// The demoted version enters `archived` now too, so its stage_changed_at moves with
-		// it (§20.8.3) — otherwise it would keep claiming it entered production.
-		if _, err := tx.ExecContext(ctx, s.rb(
-			`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=?
-			 WHERE model_id=(SELECT model_id FROM model_version WHERE id=?) AND stage=? AND id<>?`),
-			string(domain.StageArchived), now, now, versionID, string(to), versionID); err != nil {
-			return err
-		}
-	}
-	res, err := tx.ExecContext(ctx, s.rb(`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=? WHERE id=?`),
-		string(to), now, now, versionID)
-	if err := affected(res, err, "version"); err != nil {
-		return err
-	}
-	return tx.Commit()
+		res, err := t.q.ExecContext(ctx, t.rb(`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=? WHERE id=?`),
+			string(to), now, now, versionID)
+		return affected(res, err, "version")
+	})
 }
 
 func (s *Store) Resolve(ctx context.Context, model string, sel domain.Selector) (*domain.ModelVersion, error) {
@@ -317,7 +349,7 @@ func (s *Store) Resolve(ctx context.Context, model string, sel domain.Selector) 
 		if stage == "" {
 			stage = domain.StageProduction // default serving stage (§04.2)
 		}
-		row := s.db.QueryRowContext(ctx, s.rb(
+		row := s.q.QueryRowContext(ctx, s.rb(
 			vSel+` WHERE v.model_id=? AND v.stage=? ORDER BY v.created_at DESC LIMIT 1`), m.ID, string(stage))
 		v, err := scanVersion(row)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -336,7 +368,7 @@ func (s *Store) CreateArtifact(ctx context.Context, a *domain.Artifact) error {
 	if a.ModelFormat != nil {
 		fname, fver = a.ModelFormat.Name, a.ModelFormat.Version
 	}
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO artifact (`+artCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
 		a.ID, a.VersionID, string(a.Kind), a.Name, a.URI, a.StorageBackend, a.StoragePath,
 		a.SizeBytes, a.Digest, a.MediaType, fname, fver, a.ServiceAccount,
@@ -349,7 +381,7 @@ func (s *Store) CreateArtifact(ctx context.Context, a *domain.Artifact) error {
 
 func (s *Store) ArtifactRefsURI(ctx context.Context, uri string) (bool, error) {
 	var one int
-	err := s.db.QueryRowContext(ctx, s.rb(`SELECT 1 FROM artifact WHERE uri=? LIMIT 1`), uri).Scan(&one)
+	err := s.q.QueryRowContext(ctx, s.rb(`SELECT 1 FROM artifact WHERE uri=? LIMIT 1`), uri).Scan(&one)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -360,7 +392,7 @@ func (s *Store) ArtifactRefsURI(ctx context.Context, uri string) (bool, error) {
 }
 
 func (s *Store) ListArtifacts(ctx context.Context, versionID string) ([]*domain.Artifact, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+artCols+` FROM artifact WHERE version_id=? ORDER BY name`), versionID)
 	if err != nil {
 		return nil, err
@@ -382,7 +414,7 @@ func (s *Store) ListArtifacts(ctx context.Context, versionID string) ([]*domain.
 const edgeCols = "id,src_type,src_id,relation,dst_type,dst_id,dst_ref,properties,created_at"
 
 func (s *Store) AddLineageEdge(ctx context.Context, e *domain.LineageEdge) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO lineage_edge (`+edgeCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
 		e.ID, e.SrcType, e.SrcID, string(e.Relation), e.DstType, e.DstID, e.DstRef,
 		jsonText(e.Properties), e.CreatedAt)
@@ -390,7 +422,7 @@ func (s *Store) AddLineageEdge(ctx context.Context, e *domain.LineageEdge) error
 }
 
 func (s *Store) ListLineage(ctx context.Context, versionID string) ([]*domain.LineageEdge, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+edgeCols+` FROM lineage_edge WHERE src_id=? OR dst_id=?`), versionID, versionID)
 	if err != nil {
 		return nil, err
@@ -412,7 +444,7 @@ func (s *Store) ListLineage(ctx context.Context, versionID string) ([]*domain.Li
 }
 
 func (s *Store) AppendAudit(ctx context.Context, e *domain.AuditEvent) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO audit_event (`+auditCols+`)
 		 VALUES (?,?,?,?,?,?,?,?,?)`),
 		e.ID, e.At, e.Actor, e.Action, e.SubjectType, e.SubjectID, e.Summary, jsonText(e.Data), epochArg(e.Epoch))
@@ -420,24 +452,24 @@ func (s *Store) AppendAudit(ctx context.Context, e *domain.AuditEvent) error {
 }
 
 func (s *Store) DeleteModel(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM model WHERE id=?`), id)
+	res, err := s.q.ExecContext(ctx, s.rb(`DELETE FROM model WHERE id=?`), id)
 	return affected(res, err, "model")
 }
 
 func (s *Store) DeleteVersion(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM model_version WHERE id=?`), id)
+	res, err := s.q.ExecContext(ctx, s.rb(`DELETE FROM model_version WHERE id=?`), id)
 	return affected(res, err, "version")
 }
 
 func (s *Store) CountVersionsInStage(ctx context.Context, modelID string, stage domain.Stage) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, s.rb(
+	err := s.q.QueryRowContext(ctx, s.rb(
 		`SELECT COUNT(*) FROM model_version WHERE model_id=? AND stage=?`), modelID, string(stage)).Scan(&n)
 	return n, err
 }
 
 func (s *Store) GetArtifact(ctx context.Context, versionID, name string) (*domain.Artifact, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(
+	row := s.q.QueryRowContext(ctx, s.rb(
 		`SELECT `+artCols+` FROM artifact WHERE version_id=? AND name=?`), versionID, name)
 	a, err := scanArtifact(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -447,7 +479,7 @@ func (s *Store) GetArtifact(ctx context.Context, versionID, name string) (*domai
 }
 
 func (s *Store) GetArtifactByID(ctx context.Context, id string) (*domain.Artifact, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(`SELECT `+artCols+` FROM artifact WHERE id=?`), id)
+	row := s.q.QueryRowContext(ctx, s.rb(`SELECT `+artCols+` FROM artifact WHERE id=?`), id)
 	a, err := scanArtifact(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.NotFound("artifact '" + id + "' not found")
@@ -456,19 +488,19 @@ func (s *Store) GetArtifactByID(ctx context.Context, id string) (*domain.Artifac
 }
 
 func (s *Store) UpdateArtifact(ctx context.Context, a *domain.Artifact) error {
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`UPDATE artifact SET media_type=?,service_account=?,custom_properties=?,updated_at=? WHERE id=?`),
 		a.MediaType, a.ServiceAccount, jsonText(a.CustomProperties), a.UpdatedAt, a.ID)
 	return affected(res, err, "artifact")
 }
 
 func (s *Store) DeleteArtifact(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM artifact WHERE id=?`), id)
+	res, err := s.q.ExecContext(ctx, s.rb(`DELETE FROM artifact WHERE id=?`), id)
 	return affected(res, err, "artifact")
 }
 
 func (s *Store) DeleteLineageEdge(ctx context.Context, id, versionID string) error {
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`DELETE FROM lineage_edge WHERE id=? AND (src_id=? OR dst_id=?)`), id, versionID, versionID)
 	return affected(res, err, "lineage edge")
 }
@@ -478,14 +510,14 @@ func (s *Store) DeleteLineageEdge(ctx context.Context, id, versionID string) err
 const depCols = "id,version_id,environment,endpoint_uri,status,external_ref,created_at,updated_at"
 
 func (s *Store) CreateDeployment(ctx context.Context, d *domain.Deployment) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO deployment (`+depCols+`) VALUES (?,?,?,?,?,?,?,?)`),
 		d.ID, d.VersionID, d.Environment, d.EndpointURI, string(d.Status), d.ExternalRef, d.CreatedAt, d.UpdatedAt)
 	return err
 }
 
 func (s *Store) GetDeployment(ctx context.Context, id string) (*domain.Deployment, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(`SELECT `+depCols+` FROM deployment WHERE id=?`), id)
+	row := s.q.QueryRowContext(ctx, s.rb(`SELECT `+depCols+` FROM deployment WHERE id=?`), id)
 	d, err := scanDeployment(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.NotFound("deployment '" + id + "' not found")
@@ -494,7 +526,7 @@ func (s *Store) GetDeployment(ctx context.Context, id string) (*domain.Deploymen
 }
 
 func (s *Store) ListDeployments(ctx context.Context, versionID string) ([]*domain.Deployment, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+depCols+` FROM deployment WHERE version_id=? ORDER BY created_at DESC, id DESC`), versionID)
 	if err != nil {
 		return nil, err
@@ -512,14 +544,14 @@ func (s *Store) ListDeployments(ctx context.Context, versionID string) ([]*domai
 }
 
 func (s *Store) UpdateDeployment(ctx context.Context, d *domain.Deployment) error {
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`UPDATE deployment SET environment=?,endpoint_uri=?,status=?,external_ref=?,updated_at=? WHERE id=?`),
 		d.Environment, d.EndpointURI, string(d.Status), d.ExternalRef, d.UpdatedAt, d.ID)
 	return affected(res, err, "deployment")
 }
 
 func (s *Store) DeleteDeployment(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, s.rb(`DELETE FROM deployment WHERE id=?`), id)
+	res, err := s.q.ExecContext(ctx, s.rb(`DELETE FROM deployment WHERE id=?`), id)
 	return affected(res, err, "deployment")
 }
 
@@ -541,7 +573,7 @@ func (s *Store) ListAudit(ctx context.Context, subjectType, subjectID string, o 
 		args = append(args, o.AsOf)
 	}
 	q += ` ORDER BY at DESC, id DESC`
-	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, "", err
 	}

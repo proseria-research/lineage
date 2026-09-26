@@ -16,7 +16,7 @@ const validationCols = `id,version_id,outcome,scope,findings,conditions,conditio
 
 // CreateValidation appends. The only UPDATE in this file is ClearValidationConditions.
 func (s *Store) CreateValidation(ctx context.Context, v *domain.Validation) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO validation (`+validationCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?)`),
 		v.ID, v.VersionID, string(v.Outcome), v.Scope, v.Findings, v.Conditions,
 		v.ConditionsClearedAt, v.ValidUntil, v.EvidenceArtifactID, v.ValidatedBy, v.ValidatedAt)
@@ -26,7 +26,7 @@ func (s *Store) CreateValidation(ctx context.Context, v *domain.Validation) erro
 // ListValidations returns a version's validations newest-first. The id tiebreak orders two
 // rows in one millisecond stably, not correctly — the same trade ListReviews makes.
 func (s *Store) ListValidations(ctx context.Context, versionID string) ([]*domain.Validation, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+validationCols+` FROM validation WHERE version_id=?
 		 ORDER BY validated_at DESC, id DESC`), versionID)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *Store) ListValidations(ctx context.Context, versionID string) ([]*domai
 // ClearValidationConditions sets conditions_cleared_at once. The IS NULL guard is in the
 // statement, not a read before it, so two concurrent clears cannot both move the timestamp.
 func (s *Store) ClearValidationConditions(ctx context.Context, versionID, id string, at int64) error {
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`UPDATE validation SET conditions_cleared_at=?
 		 WHERE id=? AND version_id=? AND conditions_cleared_at IS NULL`), at, id, versionID)
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *Store) ClearValidationConditions(ctx context.Context, versionID, id str
 	}
 	// Nothing updated: either the row is not there, or it was already cleared.
 	var one int
-	err = s.db.QueryRowContext(ctx, s.rb(
+	err = s.q.QueryRowContext(ctx, s.rb(
 		`SELECT 1 FROM validation WHERE id=? AND version_id=?`), id, versionID).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.NotFound("validation '" + id + "' not found on this version")
@@ -129,7 +129,7 @@ func (s *Store) ListMRMInventory(ctx context.Context, o domain.ListOptions, f do
 	}
 	q += ` ORDER BY m.created_at DESC, m.id DESC`
 
-	rows, err := s.db.QueryContext(ctx, s.rb(q), append(joinArgs, args...)...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), append(joinArgs, args...)...)
 	if err != nil {
 		return nil, err
 	}

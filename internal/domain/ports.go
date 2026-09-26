@@ -43,6 +43,7 @@ type Selector struct {
 // test double, a background sweeper) depend on the two methods it uses instead of all fifty.
 // Adding a capability area is a new embedded line, not a longer list.
 type MetadataStore interface {
+	Transactor
 	ModelStore
 	VersionStore
 	ArtifactStore
@@ -56,6 +57,25 @@ type MetadataStore interface {
 	ChangePlanStore
 	RetentionStore
 	AttestationStore
+}
+
+// Transactor is the port's unit of work (§02.5). InTx runs fn against a store bound to one
+// transaction: every call made on tx joins it, and it all commits when fn returns nil or none
+// of it does. This is what lets the core write a change and its audit event atomically without
+// knowing what a transaction is in any engine.
+//
+// Rules for fn:
+//   - Use only tx. On an adapter with one writer connection (SQLite) or a store-wide lock
+//     (memory), a call on the outer store from inside fn waits on fn itself.
+//   - No side effects outside the store (events, metrics, blob writes): fn may be rolled back,
+//     and they could not be. The caller does them after InTx returns nil.
+//   - Do not retain tx past fn.
+//
+// Nesting joins: InTx on a tx runs fn in the same transaction, so a store method that needs its
+// own atomicity (SetStage, CreateChangePlan, …) composes inside a caller's unit of work instead
+// of committing early. There are no savepoints — an inner error fails the whole unit.
+type Transactor interface {
+	InTx(ctx context.Context, fn func(tx MetadataStore) error) error
 }
 
 // ModelStore persists models (§02.3.1).

@@ -25,7 +25,7 @@ func (s *Store) SealableEpochs(ctx context.Context, notAfter int64, limit int) (
 		  AND NOT EXISTS (SELECT 1 FROM audit_epoch a WHERE a.epoch = e.epoch)
 		ORDER BY e.epoch ASC
 		LIMIT ?`
-	rows, err := s.db.QueryContext(ctx, s.rb(q), notAfter, limit)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), notAfter, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *Store) SealableEpochs(ctx context.Context, notAfter int64, limit int) (
 // AuditEventsInEpoch returns the window's rows unordered — SortAuditEvents owns leaf order,
 // so no root ever depends on an engine's collation (§19.5.1).
 func (s *Store) AuditEventsInEpoch(ctx context.Context, epoch int64) ([]*domain.AuditEvent, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+auditCols+` FROM audit_event WHERE epoch = ?`), epoch)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (s *Store) AuditEventsInEpoch(ctx context.Context, epoch int64) ([]*domain.
 // duplicated sealer or a rewrite, and the unique violation surfaces it instead of letting an
 // UPSERT quietly replace a root someone may already have cited.
 func (s *Store) AppendEpoch(ctx context.Context, e *domain.AuditEpoch) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO audit_epoch (epoch,root,prev_root,leaf_count,interval_ms,sealed_at)
 		 VALUES (?,?,?,?,?,?)`),
 		e.Epoch, e.Root, nullStr(e.PrevRoot), e.LeafCount, e.IntervalMillis, e.SealedAt)
@@ -76,7 +76,7 @@ func (s *Store) AppendEpoch(ctx context.Context, e *domain.AuditEpoch) error {
 }
 
 func (s *Store) LatestSealedEpoch(ctx context.Context) (*domain.AuditEpoch, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := s.q.QueryRowContext(ctx,
 		`SELECT epoch,root,prev_root,leaf_count,interval_ms,sealed_at FROM audit_epoch ORDER BY epoch DESC LIMIT 1`)
 	e, err := scanEpoch(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -93,7 +93,7 @@ func (s *Store) ListEpochs(ctx context.Context, from, to int64) ([]*domain.Audit
 		args = append(args, to)
 	}
 	q += ` ORDER BY epoch ASC`
-	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (s *Store) ListEpochs(ctx context.Context, from, to int64) ([]*domain.Audit
 }
 
 func (s *Store) GetAuditEvent(ctx context.Context, id string) (*domain.AuditEvent, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(`SELECT `+auditCols+` FROM audit_event WHERE id = ?`), id)
+	row := s.q.QueryRowContext(ctx, s.rb(`SELECT `+auditCols+` FROM audit_event WHERE id = ?`), id)
 	e, err := scanAudit(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.NotFound("audit event '" + id + "' not found")
@@ -120,7 +120,7 @@ func (s *Store) GetAuditEvent(ctx context.Context, id string) (*domain.AuditEven
 
 func (s *Store) FirstAttestedEpoch(ctx context.Context) (int64, bool, error) {
 	var min sql.NullInt64
-	if err := s.db.QueryRowContext(ctx,
+	if err := s.q.QueryRowContext(ctx,
 		`SELECT MIN(epoch) FROM audit_event WHERE epoch IS NOT NULL`).Scan(&min); err != nil {
 		return 0, false, err
 	}

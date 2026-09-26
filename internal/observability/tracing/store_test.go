@@ -116,3 +116,27 @@ func TestStoreSpanRecordsError(t *testing.T) {
 		t.Errorf("failed call did not mark its span; errored spans = %v", got)
 	}
 }
+
+// A unit of work is one span, and the store handed to it is decorated too — otherwise every
+// write the core now makes inside InTx would drop out of the trace.
+func TestStoreSpansCoverUnitOfWork(t *testing.T) {
+	rec := &recorder{}
+	st := tracing.Store(memstore.New(), rec)
+	ctx := context.Background()
+
+	m := &domain.Model{ID: domain.NewID(), Name: "fraud-detector", CreatedAt: domain.NowMillis()}
+	if err := st.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateModel(ctx, m); err != nil {
+			return err
+		}
+		return tx.AppendAudit(ctx, &domain.AuditEvent{ID: domain.NewID(), At: domain.NowMillis(), Action: "model.create"})
+	}); err != nil {
+		t.Fatalf("InTx: %v", err)
+	}
+	spans := rec.spans()
+	for _, want := range []string{"store.InTx", "store.CreateModel", "store.AppendAudit"} {
+		if !has(spans, want) {
+			t.Errorf("missing span %q; got %v", want, spans)
+		}
+	}
+}
