@@ -17,14 +17,14 @@ interface PositionedNode {
   y: number;
 }
 
-const NODE_W = 230;
-const NODE_H = 64;
-const ROOT_W = 250;
-const ROOT_H = 82;
-const COLUMN_GAP = 145;
-const ROW_GAP = 28;
-const PADDING_X = 42;
-const PADDING_Y = 48;
+const NODE_W = 236;
+const NODE_H = 84;
+const ROOT_W = 252;
+const ROOT_H = 92;
+const COLUMN_GAP = 120;
+const ROW_GAP = 22;
+const PADDING_X = 24;
+const PADDING_Y = 28;
 
 function nodeKey(node: LineageNode) {
   return node.type === "model_version" ? `v:${node.id}` : `ext:${node.ref}`;
@@ -82,11 +82,35 @@ function truncate(text: string, limit = 32) {
 }
 
 function kindFor(node: LineageNode, relation?: string) {
-  if (node.type === "model_version") return "model version";
-  if (relation === "trained_on") return "dataset";
-  if (relation === "produced_by") return "pipeline run";
-  if (relation === "deployed_as") return "deployment";
-  return "external reference";
+  if (node.type === "model_version") return "Model version";
+  if (relation === "trained_on") return "Dataset";
+  if (relation === "produced_by") return "Pipeline run";
+  if (relation === "deployed_as") return "Deployment";
+  return "External reference";
+}
+
+// Each connector is labelled in the direction it is drawn — left to right, source to what was
+// made from it — so "A → derived → B" reads as "B was derived from A".
+const FLOW_LABEL: Record<string, string> = {
+  derived_from: "derived",
+  trained_on: "trained",
+  produced_by: "produced",
+  deployed_as: "deployed as",
+};
+
+const STAGE_TONE: Record<string, { fill: string; text: string; label: string }> = {
+  production: { fill: "var(--ok-soft)", text: "var(--ok)", label: "Production" },
+  staging: { fill: "var(--brand-soft)", text: "var(--brand)", label: "Staging" },
+  draft: { fill: "var(--secondary)", text: "var(--muted-foreground)", label: "Draft" },
+  archived: { fill: "var(--secondary)", text: "var(--muted-foreground)", label: "Archived" },
+};
+
+/** An external ref reads best as its last path segment, with the scheme and host as context. */
+function splitRef(ref: string): [string, string] {
+  const trimmed = ref.replace(/\/+$/, "");
+  const cut = trimmed.lastIndexOf("/");
+  if (cut <= 0) return [trimmed, ""];
+  return [trimmed.slice(cut + 1), trimmed.slice(0, cut + 1)];
 }
 
 function relationForNode(graph: LineageGraph, key: string, side: Side) {
@@ -126,7 +150,7 @@ function layout(graph: LineageGraph) {
   const upstreamDepth = maxDepth(upstream);
   const downstreamDepth = maxDepth(downstream);
   const rows = Math.max(1, maxRows(upstream), maxRows(downstream));
-  const height = Math.max(360, PADDING_Y * 2 + rows * NODE_H + Math.max(0, rows - 1) * ROW_GAP);
+  const height = Math.max(ROOT_H + PADDING_Y * 2, PADDING_Y * 2 + rows * NODE_H + Math.max(0, rows - 1) * ROW_GAP);
   const rootX = PADDING_X + upstreamDepth * (NODE_W + COLUMN_GAP);
   const width =
     PADDING_X * 2 +
@@ -175,25 +199,36 @@ function MindmapNode({ item, graph }: { item: PositionedNode; graph: LineageGrap
   const height = isRoot ? ROOT_H : NODE_H;
   const relation = item.side === "root" ? undefined : relationForNode(graph, item.key, item.side);
   const href = nodeHref(item.node);
-  const label = item.node.label.replace("@", " ");
+  const n = item.node;
+  const x = item.x + 16;
+  const version = n.type === "model_version";
+  const [primary, secondary] = version ? [n.model ?? n.label, n.version ?? ""] : splitRef(n.ref ?? n.label);
+  const stage = version && n.stage ? STAGE_TONE[n.stage] : undefined;
   const content = (
     <g className={`lineage-map__node-group${isRoot ? " lineage-map__subject" : ""}`}>
-      <rect className="lineage-map__node" x={item.x} y={item.y} width={width} height={height} />
-      <text className="lineage-map__kind" x={item.x + 14} y={item.y + 21}>
-        {isRoot ? "this version" : kindFor(item.node, relation)}
+      <rect className="lineage-map__node" x={item.x} y={item.y} width={width} height={height} rx={10} />
+      <text className="lineage-map__kind" x={x} y={item.y + 22}>
+        {isRoot ? "This version" : kindFor(n, relation)}
       </text>
-      <text className={isRoot ? "lineage-map__subject-name" : "lineage-map__name"} x={item.x + 14} y={item.y + 43}>
-        {truncate(label, isRoot ? 24 : 27)}
+      {stage && (
+        <g>
+          <rect x={item.x + width - 16 - stage.label.length * 6.4 - 16} y={item.y + 10} width={stage.label.length * 6.4 + 16} height={18} rx={9} style={{ fill: stage.fill }} />
+          <text x={item.x + width - 16 - (stage.label.length * 6.4 + 16) / 2} y={item.y + 23} textAnchor="middle" className="lineage-map__stage" style={{ fill: stage.text }}>
+            {stage.label}
+          </text>
+        </g>
+      )}
+      <text className={isRoot ? "lineage-map__subject-name" : "lineage-map__name"} x={x} y={item.y + (isRoot ? 50 : 47)}>
+        {truncate(primary, isRoot ? 24 : 26)}
       </text>
-      <text className="lineage-map__meta" x={item.x + 14} y={item.y + (isRoot ? 65 : 57)}>
-        {nodeMeta(item.node, relation)}
+      <text className="lineage-map__meta" x={x} y={item.y + (isRoot ? 72 : 67)}>
+        {truncate(secondary, 34)}
       </text>
-      <title>{`${label} · ${nodeMeta(item.node, relation)}`}</title>
     </g>
   );
 
   return href && !isRoot ? (
-    <a href={href} className="lineage-map__node-link" aria-label={`Open ${item.node.label}`}>
+    <a href={href} className="lineage-map__node-link" aria-label={`Open ${n.label}`}>
       {content}
     </a>
   ) : (
@@ -237,14 +272,13 @@ export function LineageGraphView({ graph, empty }: { graph?: LineageGraph; empty
       <figure className="lineage-map">
         <svg
           viewBox={`0 0 ${map.width} ${map.height}`}
-          style={{ minWidth: `${Math.max(760, map.width)}px` }}
+          width={map.width}
+          height={map.height}
           role="img"
-          aria-labelledby="lineage-map-title lineage-map-description"
+          aria-label={`Lineage of ${map.root.label}. ${description}`}
         >
-          <title id="lineage-map-title">Lineage map for {map.root.label}</title>
-          <desc id="lineage-map-description">{description}</desc>
           <defs>
-            <marker id="lineage-map-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <marker id="lineage-map-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
               <path className="lineage-map__arrow" d="M 0 0 L 10 5 L 0 10 z" />
             </marker>
           </defs>
@@ -255,13 +289,16 @@ export function LineageGraphView({ graph, empty }: { graph?: LineageGraph; empty
             const fromH = from.side === "root" ? ROOT_H : NODE_H;
             const toH = to.side === "root" ? ROOT_H : NODE_H;
             const labelX = (from.x + fromW + to.x) / 2;
-            const labelY = (from.y + fromH / 2 + to.y + toH / 2) / 2 - 8;
+            const labelY = (from.y + fromH / 2 + to.y + toH / 2) / 2;
+            const text = FLOW_LABEL[edge.relation] ?? edge.relation.replace(/_/g, " ");
+            const pillW = text.length * 6.6 + 18;
             return (
               <g key={`${side}:${edge.id}`} className="lineage-map__edge">
                 <path className="lineage-map__hit" d={d} />
-                <path className="lineage-map__branch" d={d} markerStart="url(#lineage-map-arrow)" />
-                <text className="lineage-map__relation" x={labelX} y={labelY} textAnchor="middle">
-                  {edge.relation.replace(/_/g, " ")}
+                <path className="lineage-map__branch" d={d} markerEnd="url(#lineage-map-arrow)" />
+                <rect className="lineage-map__pill" x={labelX - pillW / 2} y={labelY - 10} width={pillW} height={20} rx={10} />
+                <text className="lineage-map__relation" x={labelX} y={labelY + 4} textAnchor="middle">
+                  {text}
                 </text>
               </g>
             );

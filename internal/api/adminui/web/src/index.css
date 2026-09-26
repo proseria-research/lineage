@@ -220,21 +220,22 @@
   margin: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  padding: 0.5rem 0;
 }
 
+/* Centred when it fits; when wider than the card it starts at the left and scrolls, so the
+   first column is never pushed out of reach. */
 .lineage-map svg {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: 42rem;
+  margin-inline: auto;
+  max-width: none;
 }
 
 .lineage-map__branch {
   fill: none;
-  stroke: var(--color-muted-foreground);
-  stroke-width: 2.25;
+  stroke: var(--color-input);
+  stroke-width: 1.75;
   stroke-linecap: round;
-  stroke-dasharray: 0 8;
 }
 
 .lineage-map__arrow {
@@ -248,41 +249,50 @@
   pointer-events: stroke;
 }
 
+.lineage-map__pill {
+  fill: var(--color-card);
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
 .lineage-map__relation {
   fill: var(--color-muted-foreground);
-  stroke: var(--color-card);
-  stroke-width: 7px;
-  stroke-linejoin: round;
-  paint-order: stroke;
   font-family: var(--font-sans);
   font-size: 11px;
 }
 
 .lineage-map__node {
   fill: var(--color-card);
-  stroke: var(--color-input);
+  stroke: var(--color-border);
   stroke-width: 1.25;
-  rx: 8px;
 }
 
 .lineage-map__kind,
 .lineage-map__meta {
   fill: var(--color-muted-foreground);
-  font-family: var(--font-sans);
 }
 
 .lineage-map__kind {
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.lineage-map__stage {
+  font-family: var(--font-sans);
   font-size: 10.5px;
+  font-weight: 500;
 }
 
 .lineage-map__name {
   fill: var(--color-foreground);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .lineage-map__meta {
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .lineage-map__subject .lineage-map__node {
@@ -291,9 +301,9 @@
   stroke-width: 2;
 }
 
-.lineage-map__subject .lineage-map__kind,
-.lineage-map__subject .lineage-map__meta {
-  fill: var(--color-muted-foreground);
+.lineage-map__subject .lineage-map__kind {
+  fill: var(--color-brand);
+  font-weight: 500;
 }
 
 .lineage-map__subject-name {
@@ -313,7 +323,7 @@
 }
 
 .lineage-map__edge:hover .lineage-map__branch {
-  stroke: var(--color-foreground);
+  stroke: var(--color-brand);
 }
 
 .lineage-map__edge:hover .lineage-map__relation {
