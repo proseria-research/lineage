@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -149,7 +150,9 @@ func main() {
 	ready := observability.Ready(observability.StoreReady(store), observability.StorageReady(backend))
 	servers := []*http.Server{
 		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, tracer, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
-		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc, cfg.ActorHeader).Handler())},
+		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc, cfg.ActorHeader).WithClientInfo(adminui.ClientInfo{
+			ModelAPIURL: cfg.PublicModelAPIURL, ModelAPIPort: portOf(cfg.ModelAPIAddr), DocsURL: cfg.DocsURL,
+		}).Handler())},
 		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready, map[string]any{"retention": svc.Retention(), "auditAttestation": svc.Attestation()})},
 	}
 	names := []string{"model-api " + cfg.ModelAPIAddr, "admin-ui " + cfg.AdminAddr, "ops " + cfg.MetricsAddr}
@@ -255,4 +258,13 @@ func stageStrings(m map[domain.Stage]int) map[string]int {
 		out[string(k)] = v
 	}
 	return out
+}
+
+// portOf is the port in a listen address like ":8081" or "0.0.0.0:8081", for the console to
+// guess the Model API's URL when LINEAGE_PUBLIC_MODEL_API_URL is not set.
+func portOf(addr string) string {
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		return addr[i+1:]
+	}
+	return ""
 }

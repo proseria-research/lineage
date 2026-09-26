@@ -4,6 +4,7 @@
 package adminui
 
 import (
+	"github.com/proseria-research/lineage/internal/api"
 	"net/http"
 
 	"github.com/proseria-research/lineage/internal/core"
@@ -12,16 +13,32 @@ import (
 type Router struct {
 	svc         *core.Service
 	actorHeader string // LINEAGE_ACTOR_HEADER, shared with the Model API (§03.1)
+	client      ClientInfo
 }
 
 func New(svc *core.Service, actorHeader string) *Router {
 	return &Router{svc: svc, actorHeader: actorHeader}
 }
 
+// ClientInfo is what the console needs to show people how to reach this registry from their
+// own code: the Model API address, its port for when no address is configured, and the docs.
+type ClientInfo struct {
+	ModelAPIURL  string `json:"modelApiUrl,omitempty"`
+	ModelAPIPort string `json:"modelApiPort,omitempty"`
+	DocsURL      string `json:"docsUrl,omitempty"`
+}
+
+// WithClientInfo sets what GET /api/config reports.
+func (r *Router) WithClientInfo(ci ClientInfo) *Router {
+	r.client = ci
+	return r
+}
+
 func (r *Router) Handler() http.Handler {
 	mux := http.NewServeMux()
 	// UI-shaped BFF (§06.3); more specific than "/", so these win over the SPA handler.
 	mux.HandleFunc("GET /api/overview", r.overview)
+	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) { api.WriteJSON(w, http.StatusOK, r.client) })
 	mux.HandleFunc("GET /api/models", r.models)
 	mux.HandleFunc("GET /api/models/{model}", r.modelDetail)
 	mux.HandleFunc("GET /api/models/{model}/versions/{version}", r.versionDetail)

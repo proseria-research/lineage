@@ -104,6 +104,7 @@ breaks sharded models; including `DOC` puts model cards in a serving directory.
 ```bash
 lineage pull fraud-detector --dest ./model                      # all MODEL artifacts
 lineage pull fraud-detector --dest ./model --artifact model.onnx  # one by name
+lineage pull fraud-detector --dest ./model --version 1.4.0       # an exact version
 lineage pull fraud-detector --dest ./model --kind ""              # everything
 ```
 

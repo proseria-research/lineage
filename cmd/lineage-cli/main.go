@@ -54,7 +54,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: lineage-cli model list | version publish -m MODEL -n VERSION -a FILE | version promote -m MODEL -n VERSION --to STAGE | resolve MODEL [--stage STAGE] | pull MODEL --dest DIR [--kind KIND] [--artifact NAME] | lineage MODEL@VERSION")
+	fmt.Fprintln(os.Stderr, "usage: lineage-cli model list | version publish -m MODEL -n VERSION -a FILE | version promote -m MODEL -n VERSION --to STAGE | resolve MODEL [--stage STAGE | --version VERSION] | pull MODEL --dest DIR [--stage STAGE | --version VERSION] [--kind KIND] [--artifact NAME] | lineage MODEL@VERSION")
 	os.Exit(2)
 }
 func env(k, d string) string {
@@ -197,12 +197,17 @@ func uploadParts(path string, ticket map[string]any) []map[string]any {
 func pull(c client, args []string) {
 	f := flag.NewFlagSet("pull", flag.ExitOnError)
 	stage, dest := f.String("stage", "production", "stage"), f.String("dest", "", "destination")
+	version := f.String("version", "", "pull an exact version instead of a stage")
 	kind, only := f.String("kind", "MODEL", "artifact kind to pull (empty for all)"), f.String("artifact", "", "pull one artifact by name")
 	model := operand(f, args)
 	if *dest == "" {
 		usage()
 	}
-	r := c.do("GET", "/v1/models/"+url.PathEscape(model)+"/resolve?stage="+url.QueryEscape(*stage), nil, nil)
+	sel := "stage=" + url.QueryEscape(*stage)
+	if *version != "" {
+		sel = "version=" + url.QueryEscape(*version)
+	}
+	r := c.do("GET", "/v1/models/"+url.PathEscape(model)+"/resolve?"+sel, nil, nil)
 	arts, _ := r["artifacts"].([]any)
 	// Mirrors the lineage:// initializer (§04.5): every MODEL artifact, since sharded weights,
 	// config and tokenizer are separate artifacts of one version and pulling only the first

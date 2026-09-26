@@ -29,6 +29,12 @@ type Config struct {
 	Retention     domain.RetentionConfig   // §19.4 — the delete floor, echoed at /healthz and /v1
 	Attestation   domain.AttestationConfig // §19.5 — Merkle epoch sealing over the audit log
 	ActorHeader   string                   // trusted identity header for audit (§00 axiom 4)
+	// PublicModelAPIURL is the address clients use to reach the Model API — through an
+	// ingress, say. Shown in the console's usage snippets; empty means the console assumes
+	// the host it is served from, on the Model API's port.
+	PublicModelAPIURL string
+	// DocsURL is where the console's "Documentation" link points.
+	DocsURL string
 }
 
 // TracingConfig configures OTLP span export (§09.4). Empty endpoint = tracing off, which is
@@ -147,7 +153,9 @@ func Load() (Config, error) {
 		},
 		// The trusted identity header (§03.1). Its name is part of the integration contract
 		// with whatever front door sets it; the value is recorded verbatim, never authorized.
-		ActorHeader: env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
+		ActorHeader:       env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
+		PublicModelAPIURL: strings.TrimRight(env("LINEAGE_PUBLIC_MODEL_API_URL", ""), "/"),
+		DocsURL:           env("LINEAGE_DOCS_URL", "https://lineage.proseria.dev"),
 	}
 	if !validHeaderName(c.ActorHeader) {
 		// A name no client can send would attribute every write to nobody, silently.

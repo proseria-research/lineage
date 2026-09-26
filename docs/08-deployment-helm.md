@@ -76,6 +76,7 @@ observability:                                   # otlpEndpoint "" = tracing off
   prometheusRule: { enabled: false }             # SLO alerts (09.5)
 migrations: { auto: true }                       # run migrate hook
 actorHeader: X-Lineage-Actor                     # LINEAGE_ACTOR_HEADER; a contract (03.1)
+publicModelApiUrl: ""                            # LINEAGE_PUBLIC_MODEL_API_URL; shown in the console's usage snippets
 ```
 
 ## 4. Profiles

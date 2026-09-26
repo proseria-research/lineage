@@ -149,6 +149,10 @@ env (Postgres DSN, S3 keys) is added separately via secretKeyRef.
   value: {{ .Values.storage.gc.prefix | quote }}
 - name: LINEAGE_ACTOR_HEADER
   value: {{ .Values.actorHeader | quote }}
+{{- if .Values.publicModelApiUrl }}
+- name: LINEAGE_PUBLIC_MODEL_API_URL
+  value: {{ .Values.publicModelApiUrl | quote }}
+{{- end }}
 - name: LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS
   value: {{ .Values.compliance.retention.minArchivedVersionDays | quote }}
 - name: LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS
