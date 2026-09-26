@@ -55,10 +55,14 @@ func (s *Service) AddLineage(ctx context.Context, actor, model, version string, 
 	} else {
 		e.DstRef = in.To.URI
 	}
-	if err := s.store.AddLineageEdge(ctx, e); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.AddLineageEdge(ctx, e); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "lineage.add", "model_version", v.ID, model+"@"+version+" "+string(in.Relation), nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "lineage.add", "model_version", v.ID, model+"@"+version+" "+string(in.Relation), nil)
 	return e, nil
 }
 
@@ -75,10 +79,14 @@ func (s *Service) DeleteLineage(ctx context.Context, actor, model, version, edge
 	if err != nil {
 		return err
 	}
-	if err := s.store.DeleteLineageEdge(ctx, edgeID, v.ID); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.DeleteLineageEdge(ctx, edgeID, v.ID); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "lineage.delete", "model_version", v.ID, "removed lineage edge "+edgeID, nil)
+	}); err != nil {
 		return err
 	}
-	s.audit(ctx, actor, "lineage.delete", "model_version", v.ID, "removed lineage edge "+edgeID, nil)
 	return nil
 }
 
@@ -110,10 +118,14 @@ func (s *Service) CreateDeployment(ctx context.Context, actor, model, version st
 		EndpointURI: in.EndpointURI, Status: in.Status, ExternalRef: in.ExternalRef,
 		CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.store.CreateDeployment(ctx, d); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateDeployment(ctx, d); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "deployment.create", "deployment", d.ID, "deployed "+model+"@"+version+" to "+in.Environment, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "deployment.create", "deployment", d.ID, "deployed "+model+"@"+version+" to "+in.Environment, nil)
 	return d, nil
 }
 
@@ -151,18 +163,26 @@ func (s *Service) PatchDeployment(ctx context.Context, actor, id string, in Depl
 		d.ExternalRef = *in.ExternalRef
 	}
 	d.UpdatedAt = domain.NowMillis()
-	if err := s.store.UpdateDeployment(ctx, d); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.UpdateDeployment(ctx, d); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "deployment.update", "deployment", d.ID, "updated deployment "+d.ID, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "deployment.update", "deployment", d.ID, "updated deployment "+d.ID, nil)
 	return d, nil
 }
 
 func (s *Service) DeleteDeployment(ctx context.Context, actor, id string) error {
-	if err := s.store.DeleteDeployment(ctx, id); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.DeleteDeployment(ctx, id); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "deployment.delete", "deployment", id, "deleted deployment "+id, nil)
+	}); err != nil {
 		return err
 	}
-	s.audit(ctx, actor, "deployment.delete", "deployment", id, "deleted deployment "+id, nil)
 	return nil
 }
 

@@ -172,22 +172,15 @@ func (s *Service) WriteInsight(ctx context.Context, actor, model, version string
 		in.FieldSources = nil
 	}
 
-	if err := s.store.UpsertInsight(ctx, in); err != nil {
-		return nil, err
-	}
+	// Layers are checked before anything is written, so a bad breakdown refuses the whole
+	// submission rather than landing the facts without it.
+	var blocks []*domain.LayerBlock
 	if w.Layers != nil {
-		blocks, err := normalizeLayers(*w.Layers)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.store.ReplaceLayerBlocks(ctx, v.ID, blocks); err != nil {
+		if blocks, err = normalizeLayers(*w.Layers); err != nil {
 			return nil, err
 		}
 		in.FieldSources = ensureMap(in.FieldSources)
 		in.FieldSources["layers"] = attribution
-		if err := s.store.UpsertInsight(ctx, in); err != nil {
-			return nil, err
-		}
 	}
 
 	action, summary := "insight.update", "updated insight for "+model+"@"+version
@@ -197,7 +190,19 @@ func (s *Service) WriteInsight(ctx context.Context, actor, model, version string
 	data, _ := json.Marshal(map[string]any{
 		"fields": touched, "source": w.Source, "reporter": w.Reporter, "forced": force,
 	})
-	s.audit(ctx, actor, action, "model_version", v.ID, summary, data)
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.UpsertInsight(ctx, in); err != nil {
+			return err
+		}
+		if w.Layers != nil {
+			if err := tx.ReplaceLayerBlocks(ctx, v.ID, blocks); err != nil {
+				return err
+			}
+		}
+		return s.audit(ctx, tx, actor, action, "model_version", v.ID, summary, data)
+	}); err != nil {
+		return nil, err
+	}
 	// Insight can ride along on a resolution (?include=insight, §11.6.3), so a write has to
 	// drop that model's cached resolutions.
 	s.events.Publish(domain.Event{Type: "insight.updated", Model: model, Version: version})
@@ -233,11 +238,15 @@ func (s *Service) AddEvaluation(ctx context.Context, actor, model, version strin
 		HarnessName: in.HarnessName, HarnessVersion: in.HarnessVersion, Params: in.Params,
 		EvidenceArtifactID: in.EvidenceArtifactID, Source: in.Source, RunAt: in.RunAt, CreatedAt: now,
 	}
-	if err := s.store.CreateEvaluation(ctx, e); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateEvaluation(ctx, e); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "evaluation.create", "model_version", v.ID,
+			"recorded "+in.Suite+"/"+in.Metric+" for "+model+"@"+version, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "evaluation.create", "model_version", v.ID,
-		"recorded "+in.Suite+"/"+in.Metric+" for "+model+"@"+version, nil)
 	return e, nil
 }
 
@@ -266,11 +275,15 @@ func (s *Service) PutFootprint(ctx context.Context, actor, model, version, scena
 		ActivationBytes: in.ActivationBytes, RuntimeOverheadBytes: in.RuntimeOverheadBytes,
 		TotalBytes: in.TotalBytes, Source: in.Source, Basis: in.Basis, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.store.UpsertFootprint(ctx, f); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.UpsertFootprint(ctx, f); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "footprint.update", "model_version", v.ID,
+			"recorded footprint '"+scenario+"' for "+model+"@"+version, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "footprint.update", "model_version", v.ID,
-		"recorded footprint '"+scenario+"' for "+model+"@"+version, nil)
 	return f, nil
 }
 
