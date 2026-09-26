@@ -47,8 +47,9 @@ Everything in the table above is implemented and running. Three properties of th
 worth calling out, because they are what make it dependable under scrutiny.
 
 **Events are written transactionally.** Every audit event is committed in the same transaction
-as the change it describes. If a change committed, its event exists. There is no asynchronous
-pipeline that can fall behind and no buffer that can drop entries.
+as the change it describes. If a change committed, its event exists; if the event cannot be
+written, the change is rolled back and the request fails. There is no asynchronous pipeline
+that can fall behind and no buffer that can drop entries.
 
 **Events are append-only.** Audit records are never modified or deleted, and they are retained
 beyond the removal of the model or version they describe. The history remains intact.

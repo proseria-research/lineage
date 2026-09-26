@@ -207,7 +207,9 @@ history is provably intact*, not *the last second is*. `:verify` reports `openEp
 the unsealed window is explicit rather than assumed.
 
 The sealer waits `sealGraceSeconds` (default 5) past an epoch's end before sealing it, so a
-transaction that began inside the window commits before its epoch closes.
+transaction that began inside the window commits before its epoch closes. An event's `at` —
+and so its epoch — is stamped inside the change's transaction, before commit (`02.5`
+invariant 4); grace covers that gap.
 
 ### 5.4 Enabling it later
 

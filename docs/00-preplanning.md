@@ -380,6 +380,18 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     contribution**: a DCO certifies provenance but conveys no right to relicense, so the CLA
     is the only thing that keeps BSL or AGPL available if a hyperscaler ever does appear.
     Revisit only on that event.
+17. ✅ **Audit atomicity → a unit of work on the `MetadataStore` port.** The port gains
+    `InTx(ctx, fn(tx MetadataStore) error)`; the core runs each write and its `AppendAudit`
+    inside one, so axiom 7 holds by construction (`02.5` invariant 4). Until this, events
+    were appended after the change committed with the error discarded — a failed audit write
+    left an unrecorded change. **Nested `InTx` joins** the outer unit (no savepoints): store
+    methods that need their own atomicity (`SetStage`, `CreateChangePlan`, …) compose inside
+    the caller's, and the Postgres model lock is held to the outer commit. `sqlstore` binds
+    every method to a querier (`*sql.DB`, or the `*sql.Tx` on a transaction's view);
+    `memory` runs `fn` on a deep copy under its write lock and swaps it in on success.
+    Rejected: a core-side outbox or `AppendAudit` retry (the change is still visible before
+    its record), and per-method `…WithAudit` variants (doubles the port for every new area).
+    Side effects outside the store — events, metrics, blob writes — follow commit.
 
 ## 12. Preplanning Done When
 

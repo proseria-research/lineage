@@ -207,9 +207,19 @@ stateDiagram-v2
    `uri`/`digest`/`size_bytes` cannot change. New content ⇒ new version. (App-enforced.)
 3. **Singleton stage** invariant (§4) enforced transactionally on promote — Postgres via
    `SELECT … FOR UPDATE` on the model row; SQLite via its single-writer serialization.
-4. **Audit-in-transaction.** Every create/update/delete/transition appends exactly one
+4. **Audit-in-transaction.** Every create/update/delete/transition appends its
    `audit_event` within the same DB transaction as the change — no change without a
-   record, no record without a change.
+   record, no record without a change. One event per write; the exception is a superseding
+   change-plan declaration, which records `change_plan.declare` and `change_plan.supersede`
+   (`22.7`). Mechanism: the core runs the write and `AppendAudit` inside one
+   `MetadataStore.InTx` unit of work (`00.11.17`).
+   - A failed audit write fails the request and rolls the change back.
+   - Store methods with their own transaction (`SetStage`, `CreateChangePlan`, …) join the
+     caller's, so the singleton lock (invariant 3) is held until the event commits too.
+   - Non-row side effects — `EventBus` publish (cache invalidation, webhooks), metrics —
+     run only after commit.
+   - Uploaded bytes land in the backend before the row; if the row's unit fails they are
+     unreferenced and left to the reference-counted sweeper (`05.8`).
 5. **Cascade deletes:** deleting a `model` → its versions → their artifacts &
    deployments (DB FK cascade). Polymorphic rows (`label`, `lineage_edge`,
    `audit_event`) are cleaned by the repository layer, except `audit_event` which is

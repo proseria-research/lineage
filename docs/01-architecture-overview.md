@@ -115,9 +115,12 @@ sequenceDiagram
     else client registers existing URI
         S->>B: stat(uri) → digest, size
     end
-    S->>DB: persist version + artifact (LIVE, stage=draft)
-    S->>DB: append AuditEvent
-    S->>E: emit version.created
+    rect rgba(128, 128, 128, 0.12)
+        Note over S,DB: one InTx — commits or rolls back as a unit (02.5)
+        S->>DB: persist version + artifact (LIVE, stage=draft)
+        S->>DB: append AuditEvent
+    end
+    S->>E: emit version.created (after commit)
     S-->>A: 201 Created (version)
     A-->>CI: version + artifact refs
 ```
@@ -168,8 +171,11 @@ sequenceDiagram
     U->>A: POST /v1/models/{m}/versions/{v}:transition {to: production}
     A->>L: transition(v, production)
     L->>L: validate state machine + singleton stage
-    L->>DB: update stage + demote prior production
-    L->>DB: append AuditEvent
+    rect rgba(128, 128, 128, 0.12)
+        Note over L,DB: one InTx, under the model lock (02.4, 02.5)
+        L->>DB: update stage + demote prior production
+        L->>DB: append AuditEvent
+    end
     L->>C: invalidate(m, production) & (m, prior)
     L->>E: emit version.stage_changed
     L-->>A: 200 OK
@@ -240,7 +246,8 @@ flowchart TB
 - **Native consumption:** resolution output carries native `storageUri` + `signedUrl` +
   `digest` + `modelFormat` so KServe/Modal/Baseten consume with no glue (§00.5.1).
 - **Auditable:** every mutating flow appends an `AuditEvent` in the same transaction as
-  the change.
+  the change, via the `MetadataStore.InTx` unit of work; events and cache invalidation
+  follow commit (`02.5`).
 
 ## 8. Deferred To Later Docs
 
