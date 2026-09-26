@@ -158,7 +158,7 @@ Open the console at <http://localhost:8080> and the API contract at
 
 With the registry running, seed a demo dataset — five models across every stage, with
 uploaded and by-reference artifacts, lineage edges, deployments, risk classifications,
-model-risk tiers and validations, and a real audit trail:
+model-risk tiers and validations, change control plans, and a real audit trail:
 
 ```bash
 make seed                       # or: go run ./cmd/lineage-seed

@@ -56,11 +56,11 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16,M17 done;
-    class M18,M19 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16,M17,M18 done;
+    class M19 todo;
 ```
 
-**Next up:** M19 whenever there is capacity. M18 is built when a user needs it.
+**Next up:** M19 whenever there is capacity.
 
 ## Status Summary
 
@@ -84,13 +84,12 @@ flowchart LR
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ✅ |
 | M16 | EU modification review (Art. 25) | `17` | ✅ |
 | M17 | Model risk management: tier, validation, monitoring | `20` | ✅ |
-| M18 | Change control plans (FDA PCCP shape) | `22` | ⬜ |
+| M18 | Change control plans (FDA PCCP shape) | `22` | ✅ |
 | M19 | API contract guarantees | `03` | ⬜ |
 
-**Open work:** M18 covers the last non-EU regime specced, doc `22`; M17 (doc `20`) has
-shipped. It is built on demand, not by dependency (§15.6.1). M19 turns two
-existing API contracts into CI checks. There are no blocked decisions: §00.11.11–16 are all
-resolved.
+**Open work:** M19 turns two existing API contracts into CI checks. Both non-EU regimes
+specced, docs `20` and `22`, have shipped (M17, M18). There are no blocked decisions:
+§00.11.11–16 are all resolved.
 
 ---
 
@@ -769,33 +768,46 @@ version's own state.
 - [x] Seed: `fraud-detector` tier 1 and stale (`conditions_outstanding`), `churn-predictor`
       tier 3 and current, `demand-forecast` tier 2 and unvalidated, plus one self-validation
 
-## M18 — Change Control Plans ⬜
+## M18 — Change Control Plans ✅
 
 **Goal:** record a declared envelope of permitted changes, and check what actually shipped
 against it (§22).
-**Acceptance:** declare a plan allowing `["identical", "reweighted"]`, then publish a version
+**Acceptance (met):** declare a plan allowing `["identical", "reweighted"]`, then publish a version
 whose §11.4 verdict is `rescaled`. The version appears in
 `GET /v1/change-plans/conformance?status=outside_plan` with its basis, **and the publish is
 not blocked**.
 **Depends on:** the §11.4 fingerprints. **Phase:** 10.
+**Done:** `8e825ce`…`7d45c70`. Acceptance is asserted over HTTP in `modelapi` and in core, not
+yet verified on a live binary. Store conformance — round trip, overlap, supersession history,
+the edge scan, the cascade — passes on memory, SQLite, and real Postgres. The seeded registry
+shows one `within_plan`, one `outside_plan` and one `undetermined` row, and a superseded plan.
 
-- [ ] `change_plan` table (§22.6.1), append-only. Superseding a plan adds a new row and sets
+**The work forced five corrections, all recorded in `22`.** `no_plan` means the model has no
+plans; `uncovered` that none was in force at publish. Windows are **half-open**, so a
+supersession instant has one plan. **Any `unknown`** verdict is `undetermined`, not only a
+missing weights hash. Supersession is **explicit** (`supersedes` in the body; 409
+`already_superseded` for a closed plan). `basis` is §17.6.2's two-list pair beside `hashes`.
+Also: `unknown` is not plannable, an empty `allowedMethods` is refused, `outside_plan` carries
+`reasons`, rows are per edge, `protocol_artifact_id` has no foreign key, and the audit event
+follows the commit like every other write rather than sharing its transaction.
+
+- [x] `change_plan` table (§22.6.1), append-only. Superseding a plan adds a new row and sets
       `effective_to` on the old one, because the key question is *which plan was in force when
       a given version shipped*
-- [ ] The envelope uses the §11.4.1 **verdict vocabulary**, not free text (§22.3). A phrase
+- [x] The envelope uses the §11.4.1 **verdict vocabulary**, not free text (§22.3). A phrase
       like *"minor retraining only"* cannot be checked and would never flag anything
-- [ ] Conformance is **computed on read, never stored** (§22.4). A stored verdict would be a
+- [x] Conformance is **computed on read, never stored** (§22.4). A stored verdict would be a
       second source of truth that goes stale as soon as either side changes
-- [ ] `undetermined` (no `weights_hash`) is **queued, not passed** (§22.4.1). Treating a
+- [x] `undetermined` (no `weights_hash`) is **queued, not passed** (§22.4.1). Treating a
       missing hash as conformant would hide any producer that never computes one
-- [ ] `uncovered` is distinct from `outside_plan` (§22.4.2): a version published before the plan
+- [x] `uncovered` is distinct from `outside_plan` (§22.4.2): a version published before the plan
       existed is not a violation
-- [ ] Overlapping active plans are rejected with `409 plan_overlap`, so there is always exactly
+- [x] Overlapping active plans are rejected with `409 plan_overlap`, so there is always exactly
       one applicable plan
-- [ ] Every queue row includes a `basis`, so readers see *why* it was flagged, not just the label
-- [ ] **Publishing is never blocked** (§22.5). A registry that refused publishes based on a
+- [x] Every queue row includes a `basis`, so readers see *why* it was flagged, not just the label
+- [x] **Publishing is never blocked** (§22.5). A registry that refused publishes based on a
       derived legal judgement would often be wrong, and users would quickly work around it
-- [ ] Tests: each conformance branch; supersession preserves history; overlaps are rejected;
+- [x] Tests: each conformance branch; supersession preserves history; overlaps are rejected;
       publishing succeeds while `outside_plan`
 
 ---
