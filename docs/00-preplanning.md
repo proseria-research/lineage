@@ -18,7 +18,7 @@ compatibility** — match what it does, with our own cleaner data model and API.
 ## 2. Axioms
 
 1. **Self-hosting is the only distribution model.** There is no hosted service, now or
-   later (`§11.15`). Any commercial tier ships as a licence into the customer's own install.
+   later (`§11.15`).
 2. **Helm is a first-class product surface** — versioned and tested with the code.
    One `helm install` yields a working, secure registry. No Istio dependency.
 3. **Single binary, two surfaces on two ports.** One Go binary, one Deployment,
@@ -241,17 +241,14 @@ The chart is a product surface.
 | `15-regulatory-landscape.md` | Who governs model evidence worldwide, what each regime asks of a registry, and where Lineage sits. Frames `16`–`22`: honest coverage map, non-goals, build order. No schema |
 | `16-eu-risk-classification.md` | Declared `eu_system_risk_class` + `eu_gpai_tier`; the per-regime `classification` row; the drift predicate; inventory query |
 | `17-eu-modification-review.md` | Art. 25 — routing the `11.4` fingerprint verdict to a human when a derivation may transfer provider liability |
-| `18-evidence-export.md` | Bundle profiles (Annex XII / Annex IV), bundle shape, gap reporting, determinism. **Regime-neutral** — the profile is the extension seam |
 | `19-retention-and-hold.md` | Legal hold, retention floor, optional tamper-evident audit chain. **Regime-neutral** |
-| `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection; the `mrm` profile |
-| `21-assurance-profiles.md` | ISO/IEC 42001 and NIST AI RMF profiles, plus install-scope bundles. **Zero schema** — the proof that `18`'s profile seam is a design rather than a claim |
+| `20-model-risk-management.md` | `mrm_tier` + `validation` records serving SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set; unmonitored-in-production detection |
 | `22-change-control-plans.md` | `change_plan` — a declared change envelope (FDA PCCP shape) and a conformance predicate derived from `11.4` verdicts. Reports, never adjudicates |
-| `24-commercial-boundary.md` | The public open-core boundary: what is free, what the commercial tier adds, what will never be gated, and the standing commitments. **Normative** — the strategy behind it lives in the private `lineage-ee` repo, and where the two disagree this one wins |
 
 Docs `16` and `17` carry an `eu-` prefix because their *mechanism* is jurisdictional; `15`,
-`18`–`22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime landscape and
-names the EU as the one built out; `20`–`22` are the non-EU regimes worth building, and only
-one of the three needs new tables.
+`19`, `20` and `22` do not, because theirs is not (`15.4.3`). `15` maps the wider regime
+landscape and names the EU as the one built out; `20` and `22` are the non-EU regimes worth
+building.
 
 ## 11. Decisions
 
@@ -303,14 +300,11 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
 10. ✅ **Auth → out of scope.** Infra (ingress/gateway/mesh/NetworkPolicy) owns
     authN/authZ; Lineage trusts already-authenticated requests and records an
     infra-provided identity header for audit attribution only (axiom 4).
-11. ✅ **Regulatory posture → evidence substrate, not a compliance product.** Lineage emits
-    the facts it holds in a regulation's own structure and **names every heading it cannot
-    fill** (`18.4` — Annex IV is 2 held / 5 partial / 3 not held). It does not assess
+11. ✅ **Regulatory posture → evidence substrate, not a compliance product.** Lineage records
+    the facts it holds and is explicit about what it does not hold. It does not assess
     conformity, certify, or submit. Rationale: the same boundary as `11.1` (store facts,
-    don't derive them) applied one level up. A bundle that looked complete because it
-    omitted unfilled headings would convert a gap into false confidence — strictly worse
-    than emitting nothing. Stated in `15.3`; this also fixes the ceiling on what `14` may
-    claim.
+    don't derive them) applied one level up. Stated in `15.3`; this also fixes the ceiling on
+    what `14` may claim.
 12. ✅ **Risk classification is `declared`, never inferred — and jurisdiction is in the field
     name.** `eu_system_risk_class` and `eu_gpai_tier` (`16.7.1`) are operator claims carried
     with `11.2` provenance; there is no `derived` path in the schema. `unclassified` is a
@@ -335,8 +329,8 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
 13. ✅ **Retention floor + legal hold → deletion refuses** (`19.3`, `19.4`). `legal_hold` on
     `model`/`model_version`; `DELETE` on a held subject, or on one younger than the configured
     retention floor, returns **`409 failed_precondition`** with `details.reason`
-    (`legal_hold` / `retention_floor`). The floor is reported at `/healthz` and in every
-    bundle so a filing can cite what the registry was actually running under.
+    (`legal_hold` / `retention_floor`). The floor is reported at `/healthz` and on `/v1`
+    so a filing can cite what the registry was actually running under.
     **Refusal beats soft-delete**: hiding the row satisfies the caller and destroys the fact
     — six months on nobody can tell whether a record was retained deliberately or merely not
     yet purged (`19.3.2`). This is the one **non-additive** change in `15`–`19`: an endpoint
@@ -364,30 +358,25 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     need for a truly self-hosted, physically isolated platform"*. `14.6` supplies the other
     half: Neptune's hosted registry closed on 2026-03-06 with all cloud data permanently
     deleted and no recovery. A registry is a system of record, and a system of record that can
-    be switched off by its vendor is not one. **Consequences:** commercial = a licence into the
-    customer's own install (`24.4`); licence validation must work fully offline, since an
-    air-gapped install is the normal case, not the exception; there is no hosted control plane,
-    so one binary per install stays the only shape (`24.1`); and "no vanishing SaaS" (`14.11`) becomes
+    be switched off by its vendor is not one. **Consequences:** an air-gapped install is the normal
+    case, not the exception; there is no hosted control plane, so one binary per install stays
+    the only shape; and "no vanishing SaaS" (`14.11`) becomes
     a permanent structural claim rather than a current-roadmap one.
 16. ✅ **Core stays Apache-2.0 — not BSL — and a CLA keeps that reversible.** BSL's
     additional-use grant exists to stop a competing *hosted* service. `§11.15` means we never
-    host, so nothing we would otherwise earn is at risk: the commercial tier is licensed into
-    the customer's own cluster, and `14.7`'s buyer — who needs "a truly self-hosted, physically
-    isolated platform" — was never going to use a hosted fork. **BSL would defend revenue this
-    project has decided not to have.** Against that, the cost is real: core's job is adoption
-    — recording and detecting compliance state stay free (`24.3`), because free detection is
-    what creates the demand for the paid tier — and a non-OSI licence
-    puts a legal review in front of the free tier aimed at precisely the regulated buyer we
-    want; `14.2`–`14.3` pit us against Apache-licensed MLflow and Kubeflow, where a *more*
-    restrictive licence is a fresh objection rather than an answer; distributions and chart
-    repositories exclude non-OSI terms; and `24` is a published boundary that only works if it
-    is credible, which a restricted core undercuts. Precedent agrees that BSL is a move for a
-    project with adoption worth defending — HashiCorp's BUSL produced OpenTofu, Redis's
-    produced Valkey, and Elastic reversed to AGPL — whereas Lineage is pre-code and would pay
-    the whole adoption cost for protection against a threat it does not face. **A CLA, not a
-    DCO, is required from the first outside contribution** (`24.5`): a DCO certifies
-    provenance but conveys no right to relicense, so the CLA is the only thing that keeps BSL
-    or AGPL available if a hyperscaler ever does appear. Revisit only on that event.
+    host, and `14.7`'s buyer — who needs "a truly self-hosted, physically isolated platform" —
+    was never going to use a hosted fork. **BSL would defend against a threat this project
+    does not face.** Against that, the cost is real: a non-OSI licence puts a legal review in
+    front of precisely the regulated buyer we want; `14.2`–`14.3` pit us against
+    Apache-licensed MLflow and Kubeflow, where a *more* restrictive licence is a fresh
+    objection rather than an answer; and distributions and chart repositories exclude non-OSI
+    terms. Precedent agrees that BSL is a move for a project with adoption worth defending —
+    HashiCorp's BUSL produced OpenTofu, Redis's produced Valkey, and Elastic reversed to AGPL
+    — whereas Lineage is pre-code and would pay the whole adoption cost for protection against
+    a threat it does not face. **A CLA, not a DCO, is required from the first outside
+    contribution**: a DCO certifies provenance but conveys no right to relicense, so the CLA
+    is the only thing that keeps BSL or AGPL available if a hyperscaler ever does appear.
+    Revisit only on that event.
 
 ## 12. Preplanning Done When
 

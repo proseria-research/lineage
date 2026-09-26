@@ -6,8 +6,7 @@
 >
 > Status: **Implemented (M14; clause 4 wired in M16).** This is how we store how risky a model is — as something a person
 > **states**, never something we guess — and how we notice when that statement has gone out
-> of date. Who decides what, and by when, is `15`; the review queue this feeds is `17`; the
-> report that carries it out the door is `18`.
+> of date. Who decides what, and by when, is `15`; the review queue this feeds is `17`.
 >
 > Throughout, **regime** means "one body of rules" — the EU AI Act is one, US model risk
 > supervision (`20`) is another. It's the word the rest of these docs use and it's a column
@@ -20,7 +19,7 @@
 | Store the risk class someone declared for a model under the **EU AI Act** | Decide what the risk class should be (`15.3.1`) |
 | Notice when a stored class has gone out of date | Change, downgrade, or block anything when it does |
 | Answer "which high-risk models do we have?" | Track systems, deployments, or regulatory filings |
-| — | Non-EU rules — see §3.1; those are specced in `20`–`22` |
+| — | Non-EU rules — see §3.1; those are specced in `20` and `22` |
 
 ## 2. The Problem
 
@@ -295,7 +294,7 @@ GET /v1/models?euSystemRiskClass=high_annex_iii&classificationState=stale
 ```
 
 Filtering on `euSystemRiskClass` selects the EU row, so `classification` is that one row and
-`regime` names which one — the same object `18.4` embeds in a bundle. `GET
+`regime` names which one. `GET
 /v1/models/{m}/classifications` returns the list instead.
 
 ## 9. Console (`06`)
@@ -325,7 +324,6 @@ Filtering on `euSystemRiskClass` selects the EU row, so `classification` is that
 |---|---|
 | Who decides what, by when, and in what order we build it | `15` |
 | The review queue that class gates, and that trips §5 check 4 | `17` |
-| How the class ends up in a filing | `18` |
 | The second regime, on its own row | `20.4` |
 | Entities, audit invariants | `02` |
 | API conventions, error codes | `03` |

@@ -3,7 +3,7 @@
 > **Regime: sectoral pre-market (US FDA, with Health Canada and UK MHRA).** Serves the
 > [Predetermined Change Control Plan](https://www.fda.gov/medical-devices/software-medical-device-samd/predetermined-change-control-plans-machine-learning-enabled-medical-devices-guiding-principles)
 > shape: declare in advance which model changes are pre-authorised, then show what actually
-> changed. UNECE R156 asks the same question of vehicle software (§9).
+> changed. UNECE R156 asks the same question of vehicle software (§8).
 >
 > Status: **Proposed**. One new table and a derived predicate. The comparison it rests on
 > already exists — `11.4` fingerprint verdicts — so this doc is mostly about **not**
@@ -16,7 +16,7 @@
 | Recording a declared change envelope against a model | Authoring, filing, or amending a submission |
 | Reporting whether a new version falls inside it | Deciding whether a new submission is required (`15.3`) |
 | Flagging versions that fall outside, or cannot be judged | Blocking a publish or a promotion |
-| Exporting the plan next to what happened (`18`) | Clinical evidence, labelling, or device-level documentation |
+| — | Clinical evidence, labelling, or device-level documentation |
 
 ## 2. The Problem
 
@@ -219,46 +219,27 @@ The overlap rule keeps "which plan was in force" a single-valued question. Two l
 would make the §4 predicate ambiguous, and resolving it by picking the newest would hide a
 data-entry error that matters.
 
-## 8. The `pccp` Profile (`18`)
-
-Four sections on the `18.2` seam.
-
-| # | Section id | Covers | Status | Source |
-|---|---|---|---|---|
-| 1 | `pccp_plan` | The declared envelope in force, its ref, and the protocol document | ✅ | `change_plan` |
-| 2 | `pccp_changes` | Every version under the plan, its verdict, and its conformance | ✅ | §4, `11.4`, `07.2` |
-| 3 | `pccp_validation` | Tests run on each version under the plan | ◐ | `evaluation` (`11.3.4`); **the modification protocol itself is a document** |
-| 4 | `pccp_impact` | Impact assessment | ✗ | A clinical judgement, not a registry fact |
-
-Fixed gap notes (`18.6`):
-
-| Section | Note |
-|---|---|
-| `pccp_validation` | *"Partially held. The registry records evaluations run against each version; the modification protocol they were meant to satisfy is a submitted document."* |
-| `pccp_impact` | *"Not held by the registry. The impact assessment is a clinical and engineering judgement about the device."* |
-
-## 9. UNECE R156 Is the Same Shape
+## 8. UNECE R156 Is the Same Shape
 
 Vehicle software update management asks the same question — *was this update within what the
 type approval covers* — against the same two facts: a declared envelope and an observed
-change. The `change_plan` table serves it with different `ref` semantics and a different
-profile.
+change. The `change_plan` table serves it with different `ref` semantics.
 
 Not built now: nothing in `15.2.4` suggests an automotive buyer before a medical one, and a
-second profile over the same table is a fixture, not a redesign. Recorded here so the table is
+second regime over the same table is a fixture, not a redesign. Recorded here so the table is
 not named `pccp_plan` and boxed in.
 
-## 10. Deferred
+## 9. Deferred
 
 | Item | When |
 |---|---|
 | Per-tensor envelope (*"only `lm_head` and `*.q_proj` may change"*) | `11.4.2` retains per-tensor digests, so the predicate could tighten. Wait for a plan that needs it |
 | Metric floors in the envelope (*"AUC must not fall below 0.94"*) | Natural and tempting; needs `evaluation` comparability rules (`11.6`) to be load-bearing rather than advisory |
-| R156 profile | §9 |
+| R156 support | §8 |
 | Plan-level approval workflow | Not a registry concern; the plan is recorded, not routed |
 | Blocking publish on `outside_plan` | Never. §5 |
 
-## 11. See Also
+## 10. See Also
 
 | For | Doc |
 |---|---|
@@ -266,5 +247,4 @@ not named `pccp_plan` and boxed in.
 | Fingerprint hashes and the verdict table this rests on | `11.4` |
 | `derived_from` edges and the declared `method` | `07.2`, `11.3.6` |
 | The review precedent — queue an `unknown`, freeze what was witnessed | `17.4`, `17.5` |
-| Bundle shape, gap rules, determinism | `18.5`–`18.7` |
 | Boundary: report, never adjudicate | `15.3` |

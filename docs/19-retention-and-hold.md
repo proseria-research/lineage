@@ -8,10 +8,8 @@
 > Status: **Implemented** (M15). Both decisions resolved — `00.11.13` ✅ deletion **refuses**;
 > `00.11.14` ✅ tamper-evidence by **Merkle epoch sealing**, on by default. Makes evidence
 > survive: deletion refuses where the law requires retention, and the audit log proves it was
-> not rewritten. Posture is `15`.
->
-> `18`'s bundle used to be where the floor was cited. Export is commercial now (`24 §4.1`), so
-> core reports the floor itself — `/healthz` **and** `GET /v1/retention` (§4).
+> not rewritten. Posture is `15`. The floor is reported at `/healthz` **and**
+> `GET /v1/retention` (§4).
 
 ## 1. Scope
 
@@ -33,7 +31,7 @@ deletion — the spirit is there. Three gaps:
 | Gap | Addition |
 |---|---|
 | Deletion can destroy evidence | `legal_hold` on `model` / `model_version` (§3) |
-| No stated floor | Config keys (§4), reported at `/healthz` and in every bundle |
+| No stated floor | Config keys (§4), reported at `/healthz` and `GET /v1/retention` |
 | No tamper evidence | Merkle epoch sealing (§5) |
 
 ## 3. Legal Hold (`00.11.13` ✅)
@@ -119,9 +117,8 @@ a retention floor would otherwise turn into an install with no floor at all.
   it to. It is the number a filing cites.
 - `/healthz` **and `GET /v1/retention`** echo the configured values, so a filing can cite the
   floor the registry was actually running under rather than the one someone believes was
-  configured. It is on `/v1` and not only the ops port because export is commercial (`24 §4.1`)
-  and `24 §4.3` requires every fact to be reachable through the public API — an exporter
-  reading over HTTP has no access to `/healthz`.
+  configured. It is on `/v1` and not only the ops port because every fact must be reachable
+  through the public API — a client reading over HTTP has no access to `/healthz`.
 - `0` disables a floor. It is a real choice and must not be confused with an unset value. A
   negative value is a startup error, never read as "extra disabled".
 - **The binary's own default is `0`; every way of actually running Lineage sets `3650`** — the
@@ -414,7 +411,7 @@ error table stable.
 |---|---|
 | Hold expiry dates | Post-v1. An expiring hold is a scheduler, and a hold that lapses silently is worse than one someone has to clear |
 | Per-model retention overrides | If an install needs two floors. One configured floor is the honest v1 |
-| External anchoring of an epoch root (timestamping authority, or a public log) | Post-v1. The epoch root is already the right thing to anchor — one hash per interval, not per row. Signing is commercial (`24 §4`); the root it signs is core |
+| External anchoring of an epoch root (timestamping authority, or a public log) | Post-v1. The epoch root is already the right thing to anchor — one hash per interval, not per row. |
 | Retention floor on artifacts in the backend | `05.8` GC already refuses to touch objects it did not write; a floor there is a storage-driver concern |
 
 ## 10. See Also
@@ -422,7 +419,6 @@ error table stable.
 | For | Doc |
 |---|---|
 | Posture, boundary, build order | `15` |
-| The commercial boundary this doc sits inside | `24 §4.1`, `24 §4.3` |
 | Audit invariants, cascade rules | `02.5` |
 | Error codes, `details` conventions | `03.9` |
 | Chart values, config surface | `08` |

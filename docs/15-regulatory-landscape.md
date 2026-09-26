@@ -1,12 +1,12 @@
 # 15 — Regulatory Landscape
 
 > **Regime: neutral.** This doc maps the governing bodies that ask for model evidence, what
-> each one asks for, and where Lineage sits against them. The EU AI Act is the regime `16`–`19`
-> build out; §4 scopes it, and §4.3 says which of those four docs are EU-only.
+> each one asks for, and where Lineage sits against them. The EU AI Act is the regime `16`, `17`
+> and `19` build out; §4 scopes it, and §4.3 says which of those docs are EU-only.
 >
-> Status: **Proposed**. The framing doc for `16`–`19`: what Lineage will and will not claim,
-> which obligations actually bind, how far our coverage honestly reaches, and the order we
-> build in. **No schema, no API** — those live in the four docs this one governs.
+> Status: **Proposed**. The framing doc for `16`, `17` and `19`: what Lineage will and will not
+> claim, which obligations actually bind, how far our coverage honestly reaches, and the order
+> we build in. **No schema, no API** — those live in the docs this one governs.
 >
 > ⚠️ **Volatile.** Every status below was verified **August 2026** against the primary source
 > linked. This area moves faster than any other regulatory domain — Colorado repealed its AI
@@ -20,13 +20,12 @@ Regulators, auditors and buyers increasingly ask a company to produce a dossier 
 model it puts into production. Today it is assembled by hand — the facts are scattered across
 a registry, a wiki, and a spreadsheet.
 
-**Lineage already stores most of those facts. `16`–`19` make it print them in the shape
-someone asks for, and state plainly which parts it does not hold.**
+**Lineage already stores most of those facts. `16`, `17` and `19` add what is missing: a
+declared risk class, modification review, and retention.**
 
-Nothing in those four docs is a new source of truth. Every capability is a query, an export,
-or a lock over data `02`–`11` already own. That is why this doc leads with the landscape
-rather than one statute: the *evidence* is regime-agnostic, and only the *packaging* is
-jurisdictional (`18.2`).
+Nothing in those docs is a new source of truth. Every capability is a query or a lock over
+data `02`–`11` already own. That is why this doc leads with the landscape rather than one
+statute: the *evidence* is regime-agnostic.
 
 ## 2. The Landscape
 
@@ -92,8 +91,8 @@ problem, not a reason to skip the regime.
 
 ### 2.6 What each shape asks of a registry
 
-Geography is the wrong axis. **Shape** is what decides whether a `18` profile is a mapping
-table or a research project.
+Geography is the wrong axis. **Shape** is what decides whether a regime is a small addition or
+a research project.
 
 ```mermaid
 flowchart TB
@@ -113,60 +112,52 @@ flowchart TB
     disc --> st["US states · EU Art. 50"]
 ```
 
-| Shape | Wants | Lineage fit | Profile cost |
+| Shape | Wants | Lineage fit | Cost |
 |---|---|---|---|
-| **Dossier** | A structured technical file, per model, before market | Direct — this is `18` | Built (EU); a sibling per regime |
-| **Management system** | Evidence a process is followed: inventory, records, change control | Direct — the audit log *is* the evidence | Low — mapping table + fixtures |
+| **Dossier** | A structured technical file, per model, before market | Direct — the facts are `02`–`11` | Built (EU); a sibling per regime |
+| **Management system** | Evidence a process is followed: inventory, records, change control | Direct — the audit log *is* the evidence | Low — no new schema |
 | **Model risk** | Governed inventory, validation records, ongoing monitoring | Direct — a registry is the native artifact | Low |
 | **Change control** | Pre-declared update envelope + what actually changed | Strong — `17` verdicts + `11.4` fingerprints | Medium — needs the regulator's form |
 | **Filing** | Register the algorithm with a state body | Weak — the output is a submission, not a dossier | Out of scope (§5) |
 | **Disclosure** | Tell the end user an AI was involved | None — a runtime/UI concern | Out of scope (§5) |
 
-**The seam is `18.2`.** A third profile is a mapping table and a fixture set, not new schema.
-`16` and `17` would each gain a sibling for a second dossier regime; `18` and `19` would
-survive untouched (§4.3).
+`16` and `17` would each gain a sibling for a second dossier regime; `19` would survive
+untouched (§4.3).
 
 ### 2.7 What we would have to build, per regime
 
-Plain terms. "Profile" means a mapping from facts we already store to someone else's document
-structure (`18.2`) — no new tables, no new API.
-
 | Regime | What it asks us for | What we build | Effort |
 |---|---|---|---|
-| **EU AI Act** — GPAI, Annex XII | A model card to hand downstream users | `annex-xii` profile | **Specced** — phase 2 |
-| **EU AI Act** — high-risk, Annex IV | A technical file, with the holes named | `annex-iv` profile + gap notes | **Specced** — phase 6 |
 | **EU AI Act** — Art. 25 | A warning when editing someone else's model makes you the provider | Modification review queue | **Specced** — phase 5 |
 | **EU AI Act** — Art. 18 | Keep the records ten years | Retention floor + legal hold | **Specced** — phase 4 |
-| **ISO/IEC 42001** | Proof a process is actually followed: what models exist, who changed them, when | `iso-42001` profile over the model inventory + audit log | **Specced** — `21`. Zero schema |
-| **NIST AI RMF** | The same facts, filed under GOVERN / MAP / MEASURE / MANAGE | `nist-ai-rmf` profile | **Specced** — `21`. Zero schema |
-| **SR 26-2 · PRA SS1/23 · OSFI E-23** | A model inventory with a risk tier per model, validation records, and evidence of monitoring | `mrm_tier` on its own `classification` row (`16.3.2`), a `validation` record, and an `mrm` profile | **Specced** — `20`. One column, one row, one table |
+| **SR 26-2 · PRA SS1/23 · OSFI E-23** | A model inventory with a risk tier per model, validation records, and evidence of monitoring | `mrm_tier` on its own `classification` row (`16.3.2`) and a `validation` record | **Specced** — `20`. One column, one row, one table |
 | **FDA PCCP** | What you pre-declared you would change, next to what actually changed | `change_plan` table + a conformance predicate over `11.4` verdicts | **Specced** — `22`. One table, nothing stored that is derivable |
 | **Korea AI Framework Act** | A high-impact declaration, plus labelling for generative output | A sibling of `16` with Korean enums | **Small** — `16` was built to be twinned |
-| **Brazil PL 2338** | An EU-shaped dossier, if it passes | A sibling of `16` + a third profile | **Medium**, and not yet worth starting |
+| **Brazil PL 2338** | An EU-shaped dossier, if it passes | A sibling of `16` | **Medium**, and not yet worth starting |
 | **China CAC** | Register the algorithm with a government body | — | **Not building.** The output is a state filing, not a dossier (§5) |
 | **US states · EU Art. 50** | Tell the end user an AI was involved | — | **Not building.** A runtime and UI concern (§5) |
 
 Two things this table is meant to make obvious:
 
-1. **The expensive column is empty.** Every buildable row is a profile, a field, or a record
-   type. Nothing asks for a new subsystem, because the facts are already stored — which is the
-   claim §1 makes and the reason `18` was written regime-neutral in the first place.
-2. **The financial regimes are the cheapest serious win.** One field, one record type and one
-   profile cover three jurisdictions, against budget that already exists (§2.2).
+1. **The expensive column is empty.** Every buildable row is a field, a record type, or a
+   table. Nothing asks for a new subsystem, because the facts are already stored — which is
+   the claim §1 makes.
+2. **The financial regimes are the cheapest serious win.** One field and one record type cover
+   three jurisdictions, against budget that already exists (§2.2).
 
 ## 3. Where Lineage Sits
 
-**Lineage is an evidence substrate, not a compliance product.** It shapes facts; it does not
+**Lineage is an evidence substrate, not a compliance product.** It records facts; it does not
 adjudicate them. The same distinction `11.1` draws — the registry stores facts and does not
 derive them — applied one level up. This holds for every regime in §2, not just the EU.
 
 | Lineage does | Lineage does not |
 |---|---|
-| Emit stored facts in a regulation's structure | Say a filing is complete or correct |
+| Record the facts a filing draws on | Say a filing is complete or correct |
 | Record a **declared** risk class and flag staleness | Decide a risk class |
 | Report what changed technically between versions | Rule on whether that change is *substantial* in law |
 | Refuse deletions that would destroy evidence | Advise on retention periods |
-| Make export an audited, reproducible act | Sign, certify, or submit anything |
+| Prove the audit log was not rewritten (`19.5`) | Sign, certify, or submit anything |
 
 Three rules follow. Each is load-bearing, and each is enforced in a specific doc.
 
@@ -182,12 +173,11 @@ needs. Enforced in `16.3` (two fields, not one) and `16.7` (`source` is always `
 
 ### 3.2 Never fill a gap
 
-An unfilled dossier heading is emitted as an explicit `"not_held_by_registry"`, never as an
-absent key. A blank reads as finished; a gap that announces itself is a to-do list.
+An unknown is stored and shown as unknown, never as a default. A blank reads as finished; a
+gap that announces itself is a to-do list.
 
-This is `12.2` rule 1 applied to a legal artifact, where the cost of a silent omission is
-borne by whoever files it. Enforced in `18.4` (the ten-heading status table) and `18.6`
-(fixed gap-note strings).
+This is `12.2` rule 1 applied to legal facts, where the cost of a silent omission is borne by
+whoever files it. Enforced in `16.3` (`unclassified` never reads as `minimal`).
 
 ### 3.3 The audit log is not runtime logging
 
@@ -218,8 +208,7 @@ standards-availability trigger was dropped.
 | High-risk, Annex I product-embedded | **2 Aug 2028** |
 
 **The registry-shaped obligation that binds today is GPAI, not high-risk.** Annex XII is
-substantially a model-card schema plus a 14-day response deadline to downstream integrators —
-so it is the export profile that ships first (`18.3`, §6 here).
+substantially a model-card schema plus a 14-day response deadline to downstream integrators.
 
 High-risk work has a runway landing ahead of a 2027 procurement cycle: worth designing now,
 worth nobody's crash schedule.
@@ -231,9 +220,9 @@ coverage is narrower than the article range suggests.
 
 | Article | Fit | Where |
 |---|---|---|
-| **53 + Annex XII** — GPAI to downstream | **direct** | `18.3` — the profile that binds now |
+| **53 + Annex XII** — GPAI to downstream | **direct** | `02`–`11` — the obligation that binds now |
 | **25** — modification makes you the provider | **direct** | `17` |
-| **11 + Annex IV** — technical documentation | **partial, strongest** | `18.4` — 2 held / 5 partial / 3 not held |
+| **11 + Annex IV** — technical documentation | **partial, strongest** | `02`–`11` — 2 held / 5 partial / 3 not held |
 | **18** — documentation kept 10 years | gap → `19` | `archived` retains, but no hold and no stated floor |
 | **10** — data governance | pointer only | `trained_on` names the dataset; curation methodology lives elsewhere |
 | **49** — EU database registration | thin | registration fields are mostly `02` already |
@@ -242,19 +231,18 @@ coverage is narrower than the article range suggests.
 
 ### 4.3 Which of `16`–`19` are EU-only
 
-Three of the five carry `eu-` in their name. Two deliberately do not, and the split is a
-design claim rather than a filing convention.
+Two of the four carry `eu-` in their name. Two deliberately do not, and the split is a design
+claim rather than a filing convention.
 
 | Doc | EU-marked | Why |
 |---|---|---|
 | `15` this doc | **no** | Retitled from *EU AI Act Posture*: the landscape is the frame, and the EU is one regime inside it (§2) |
 | `16` classification | **yes** | The enums *are* EU citations — `high_annex_iii` is not a risk level. Fields are `eu_*`-prefixed (`16.3.1`) |
 | `17` modification review | **yes** | Art. 25 is the entire reason it exists; the queue gate reads `16`'s EU class |
-| `18` evidence export | **no** | The mechanism is a **profile** — a mapping from stored facts to one document structure. Both shipped profiles are EU; ISO/IEC 42001 and NIST AI RMF are named as future profiles (`18.11`). Marking the doc EU would contradict its own extension seam |
 | `19` retention & hold | **no** | Legal hold and retention floors are jurisdiction-neutral — the term comes from US litigation practice. Only the *default values* (3650 days) cite Art. 18, and they are config, not schema |
 
 The rule this follows: **mark the doc EU when the mechanism is EU, not when the current
-content happens to be.** `18` and `19` would survive a second regime untouched; `16` and `17`
+content happens to be.** `19` would survive a second regime untouched; `16` and `17`
 would each gain a sibling.
 
 ```mermaid
@@ -262,13 +250,10 @@ flowchart LR
     p["<b>15</b> landscape<br/>regimes · boundary · coverage"]
     c["<b>16</b> classification<br/>+ drift"]
     m["<b>17</b> modification<br/>review"]
-    e["<b>18</b> evidence<br/>export"]
     r["<b>19</b> retention<br/>+ hold"]
-    p --> c & m & e & r
+    p --> c & m & r
     c -->|"class gates the queue"| m
     m -->|"derivation trips drift"| c
-    c & m --> e
-    r -->|"floor cited in bundle"| e
 ```
 
 ## 5. Non-Goals
@@ -279,9 +264,9 @@ Global to `16`–`19`. Per-doc non-goals sit in each doc.
 |---|---|
 | Determining a risk class | §3.1. A legal judgement about a system, from context the registry does not hold. |
 | Asserting substantial modification | `17.3`. The registry reports the technical delta only. |
-| Conformity assessment, CE marking, EU database submission | Filing workflows. The bundle is an input to them. |
+| Conformity assessment, CE marking, EU database submission | Filing workflows. Registry facts are an input to them. |
 | Runtime inference logging (EU Art. 12/19 and equivalents) | §3.3. A concern for the deployed system. |
-| Risk management, human oversight, cybersecurity | Process obligations. Named as gaps in the bundle (`18.6`). |
+| Risk management, human oversight, cybersecurity | Process obligations with no registry surface (§4.2). |
 | Advising on retention periods | `19`. Lineage enforces a configured floor and reports it. |
 | Legal advice on which regime applies | §2 is a map, not counsel. Jurisdictional scope is the operator's call. |
 | Filing and disclosure regimes | §2.6. No dossier to produce — the output is a state submission or a UI notice. |
@@ -294,36 +279,31 @@ doesn't need.
 | Phase | Ships | Doc | Depends on |
 |---|---|---|---|
 | **1** | `classification` table, `PUT`/`GET`, drift predicate, inventory filter | `16` | — |
-| **2** | `annex-xii` bundle + `evidence_bundle` + determinism test | `18` | 1 |
-| **3** | Console inventory + compliance panel | `16`, `18` | 1, 2 |
+| **3** | Console inventory + compliance panel | `16` | 1 |
 | **4** | `legal_hold`, retention floor, config keys | `19` | — |
 | **5** | `modification_review`, queue, console review view | `17` | 1, `11.4` |
-| **6** | `annex-iv` profile + gap notes | `18` | 2, 5 |
 | **7** | `audit_epoch`, sealer, `:verify`, `:proof` | `19` | — |
 
 **Nothing is blocked.** `00.11.13` and `00.11.14` are both resolved (deletion refuses; Merkle
 epoch sealing, on by default), so the sequence is now ordering by value rather than by which
 decision is open.
 
-**Phases 1–3 are the shippable near-term slice** — they answer a live GPAI obligation (§4.1).
-Phase 4 comes next because a retention story is what makes phases 2 and 6 credible rather than
-decorative. Phase 7 is last only because it is independent, not because it is uncertain: the
+**Phases 1 and 3 are the shippable near-term slice** — they answer a live GPAI obligation
+(§4.1). Phase 4 comes next because a retention story is what makes the rest credible rather
+than decorative. Phase 7 is last only because it is independent, not because it is uncertain: the
 `13` measurement that once gated it is moot now that sealing costs the write path nothing
 (`19.5.2`).
 
 ### 6.1 Beyond the EU
 
-Specced in `20`–`22`, sequenced after phase 7 and orderable by demand rather than dependency —
-none of the three blocks another.
+Specced in `20` and `22`, sequenced after phase 7 and orderable by demand rather than
+dependency — neither blocks the other.
 
 | Phase | Ships | Doc | Depends on |
 |---|---|---|---|
-| **8** | `iso-42001` + `nist-ai-rmf` profiles, install-scope bundles | `21` | 2 |
-| **9** | `mrm_tier`, `validation`, `mrm` profile, unmonitored-in-production query | `20` | 1, 2 |
-| **10** | `change_plan`, conformance predicate, `pccp` profile | `22` | 2, `11.4` |
+| **9** | `mrm_tier`, `validation`, unmonitored-in-production query | `20` | 1 |
+| **10** | `change_plan`, conformance predicate | `22` | `11.4` |
 
-**Phase 8 first if the next conversation is a procurement one** — it is the cheapest of the
-three (zero schema, `21.6`) and ISO/IEC 42001 is the certificate buyers actually ask to see.
 **Phase 9 first if the next conversation is with a bank** — it is the only regime here with
 budget that already exists rather than a deadline that is coming, and one field set covers
 three jurisdictions (`20.3`). Phase 10 waits for a regulated-device buyer; it is well-specced
@@ -335,7 +315,6 @@ precisely so it does not have to be designed under one.
 |---|---|
 | Risk classification, drift predicate | `16` |
 | Art. 25 modification review queue | `17` |
-| Bundle profiles, shape, determinism | `18` |
 | Legal hold, retention floor, Merkle epoch sealing | `19` |
 | Entities, audit invariants | `02` |
 | Fingerprint verdicts | `11.4` |

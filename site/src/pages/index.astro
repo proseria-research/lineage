@@ -142,19 +142,14 @@ const ledger = [
 ];
 
 /*
- * The regulatory build-out — specced in docs/15–22, tracked as M13–M16. All four are still
- * ⬜, so the section is framed as a roadmap and each item is labelled as such. The internal
- * milestone ids stay out of public copy.
+ * The regulatory build-out — specced in docs/15–22, tracked as M13–M16. The section is framed
+ * as a roadmap and each item is labelled as such. The internal milestone ids stay out of public
+ * copy.
  */
 const buildout = [
 	{
 		title: 'Risk classification',
 		body: 'Record the risk classification your team has assigned to each model, with the reasoning and the review date attached, and see automatically when a retrain or a promotion has left that assessment out of date.',
-		status: 'In design',
-	},
-	{
-		title: 'Evidence export',
-		body: 'Generate the documentation a framework asks for directly from the registry, in its own structure, with every section the registry cannot supply clearly identified rather than left blank.',
 		status: 'In design',
 	},
 	{
@@ -330,7 +325,7 @@ const sections = [
 					The EU AI Act, ISO/IEC 42001, NIST AI RMF and supervisory model risk guidance differ in
 					structure and vocabulary, but they ask for the same underlying facts about each model you
 					operate: what exists, what changed, who approved it, what produced it, and how it was
-					evaluated. Only the presentation is specific to the framework.
+					evaluated.
 				</p>
 				<p>
 					Lineage captures those facts as part of everyday work, not as a separate exercise. Every
@@ -501,14 +496,8 @@ const sections = [
 					following in December 2027. Support is being built in that order.
 				</p>
 				<p>
-					<strong>Designed in the open.</strong> The full specifications for this work — including
-					precisely what each export will and will not contain — are published in the repository
-					alongside the code, so you can evaluate the approach before it ships.
-				</p>
-				<p>
-					<strong>Governance stays in the core.</strong> Recording classifications, detecting when
-					one has gone out of date, the audit trail and its integrity guarantees, and evidence
-					export remain part of the free, Apache-2.0 product.
+					<strong>Designed in the open.</strong> The full specifications for this work are published
+					in the repository alongside the code, so you can evaluate the approach before it ships.
 				</p>
 			</div>
 		</div>

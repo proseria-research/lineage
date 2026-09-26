@@ -8,7 +8,7 @@
 >
 > Status: **Proposed**. A governed model inventory: a risk tier per model, an independent
 > validation record per version, and evidence that production models are still being watched.
-> The landscape is `15.2.2`; the profile that exports it is `18`.
+> The landscape is `15.2.2`.
 
 ## 1. Scope
 
@@ -17,7 +17,7 @@
 | A declared **risk tier** per model | Deciding a tier, or computing one (`15.3`) |
 | Recording an **independent validation** and its outcome | Performing validation, or judging its quality |
 | Flagging models whose validation has gone stale or unmonitored | Blocking a promotion, or downgrading a tier |
-| Exporting all of it as an `mrm` bundle (`18`) | The firm's MRM policy, capital impact, or committee minutes |
+| — | The firm's MRM policy, capital impact, or committee minutes |
 
 ## 2. Why This One Fits
 
@@ -123,8 +123,8 @@ independenceEvidenced(v) := validation.validated_by IS NOT NULL
 
 **It flags, it does not refuse.** A one-person team, a shared service account, or an actor
 header that carries a team rather than a person are all legitimate and would all trip it. The
-bundle emits `independenceEvidenced: false` with the reason, and a human decides whether that
-is a finding — `15.3` applied to a field where the registry genuinely cannot know.
+API returns `independenceEvidenced: false`, and a human decides whether that is a finding —
+`15.3` applied to a field where the registry genuinely cannot know.
 
 ## 7. `mrmState` — Reusing the Drift Machinery
 
@@ -298,30 +298,7 @@ GET /v1/models?mrmTier=tier_1&mrmState=stale
 | Client-supplied `validatedBy` / `validatedAt` | `invalid_argument` | 400 | |
 | Clearing conditions on a non-`conditional` validation | `failed_precondition` | 409 | `reason: "not_conditional"` |
 
-## 10. The `mrm` Profile (`18`)
-
-A third profile on the `18.2` seam. Five sections; the shape and gap rules are `18.5`
-unchanged.
-
-| # | Section id | Covers | Status | Source |
-|---|---|---|---|---|
-| 1 | `mrm_inventory` | Model identity, owner, tier, basis, intended purpose | ✅ | `model`, `classification` |
-| 2 | `mrm_development` | Architecture, lineage, third-party components, change history | ✅ | `11.3`, `07.2`, `audit_event` |
-| 3 | `mrm_validation` | Outcome, scope, findings, conditions, independence | ✅ | `validation` (§8.2) |
-| 4 | `mrm_monitoring` | Evaluations since promotion, deployments served | ◐ | `evaluation`, `deployment`; **thresholds and the monitoring plan not held** |
-| 5 | `mrm_governance` | Committee approval, policy, capital treatment | ✗ | Not a registry fact |
-
-Fixed gap notes (`18.6`):
-
-| Section | Note |
-|---|---|
-| `mrm_monitoring` | *"Partially held. The registry records measurements taken and deployments served; monitoring thresholds and the monitoring plan are not registry facts."* |
-| `mrm_governance` | *"Not held by the registry. Committee approval, MRM policy and capital treatment are firm process artefacts; Lineage records model facts."* |
-
-**Three held, one partial, one not held.** Better coverage than `annex_iv` (`18.4`) because
-this regime asks about the model, and Lineage is a model registry.
-
-## 11. Console (`06`)
+## 10. Console (`06`)
 
 - **Inventory view** gains a tier column and an `mrmState` filter, beside `16`'s EU columns —
   the same table, a second regime's lens.
@@ -330,7 +307,7 @@ this regime asks about the model, and Lineage is a model registry.
 - `untiered` renders as `untiered`, never as `tier_3`. Guessing low is the expensive direction.
 - Validation history is a timeline, not a current-value field — the supersession is the point.
 
-## 12. Deferred
+## 11. Deferred
 
 | Item | When |
 |---|---|
@@ -338,9 +315,9 @@ this regime asks about the model, and Lineage is a model registry.
 | Monitoring **thresholds** (PSI limits, drift bounds) | These are a monitoring system's facts; Lineage would be storing someone else's config |
 | Model-family (rather than version) validation | If a firm validates at the model level; the table would move, not change shape |
 | Automatic scope inference for the SR 26-2 genAI carve-out | Never. `15.3` — the registry does not decide what a regulation covers |
-| Committee workflow, sign-off routing | Not a registry concern. The bundle is an input to whatever tool does it |
+| Committee workflow, sign-off routing | Not a registry concern. Registry facts are an input to whatever tool does it |
 
-## 13. See Also
+## 12. See Also
 
 | For | Doc |
 |---|---|
@@ -349,5 +326,4 @@ this regime asks about the model, and Lineage is a model registry.
 | The drift predicate reused here | `16.5` |
 | Append-only review precedent (`undetermined`, frozen server-set fields) | `17.5` |
 | `evaluation` — the measurement this is not | `11.3.4` |
-| Bundle shape, gap rules, determinism | `18.5`–`18.7` |
 | Entities, audit invariants, migrations | `02` |

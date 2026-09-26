@@ -38,9 +38,8 @@ comes down to the same set of questions.
 | How was it evaluated? | Recorded evaluations, with suite, metric, split and harness |
 | Where has it been deployed? | Deployment records covering the served inventory |
 
-Only the presentation is specific to a framework. That is the central design decision behind
-this work: because the evidence itself is framework-neutral, supporting an additional standard
-is a mapping exercise rather than a new subsystem.
+The evidence itself is framework-neutral, so supporting an additional standard does not need a
+new subsystem.
 
 ## Available today
 
@@ -63,43 +62,36 @@ model](/operate/security-model/).
 ## On the roadmap
 
 The remaining capabilities are fully specified, and the specifications are published in the
-repository alongside the code. The **Tier** column says which are part of the free product.
+repository alongside the code.
 
-| Capability | What it provides | Tier | Status |
-| --- | --- | --- | --- |
-| **Risk classification** | A recorded classification per model and per framework, with the reasoning, the author and the review date attached — and automatic detection when a retrain, a promotion or a lapsed review date leaves it out of date | Free | **Available** |
-| **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | Free | **Available** |
-| **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared, and recording what a reviewer concluded | Free | **Available** |
-| **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | Free | In design |
-| **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | Free | In design |
-| **Evidence export** | Documentation generated in a framework's own structure — EU Annex IV and XII, ISO/IEC 42001, NIST AI RMF, supervisory model risk, FDA change control — with any section the registry cannot supply explicitly identified | Commercial | In design |
+| Capability | What it provides | Status |
+| --- | --- | --- |
+| **Risk classification** | A recorded classification per model and per framework, with the reasoning, the author and the review date attached — and automatic detection when a retrain, a promotion or a lapsed review date leaves it out of date | **Available** |
+| **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | **Available** |
+| **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared, and recording what a reviewer concluded | **Available** |
+| **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | In design |
+| **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | In design |
 
 If you are evaluating Lineage against a compliance deadline, please plan on the basis of this
 table. The registry, its audit record, risk classification, retention and legal hold, and
-modification review are production-ready; the rest is specified and not yet built.
-
-Note the split: **recording and detecting** are free at every level, including the drift
-detection that is the hard part. What the commercial tier adds is the rendering step — turning
-those records into a named framework's document. The facts themselves are always reachable
-through the public API.
+modification review are production-ready; the rest is specified and not yet built. Every
+regulatory fact an install holds is reachable through the public `/v1` API.
 
 ## Two principles behind the design
 
-These govern how the export layer will behave, and they are the reason it is being designed
-carefully rather than quickly.
+These govern how Lineage records regulatory facts.
 
 ### Gaps are identified, never filled
 
-Where a framework asks for something the registry does not hold, the export will say so
-explicitly rather than leave the section blank. A blank section reads as complete; an
-identified gap is an actionable item.
+Where a framework asks for something the registry does not hold, Lineage says so explicitly
+rather than implying it. A blank reads as complete; an identified gap is an actionable item.
 
-The EU AI Act's high-risk technical documentation, for example, has ten headings. Lineage will
-supply two in full, contribute partially to five, and hold nothing relevant to three — human
-oversight measures, cybersecurity controls and the provider's risk management system are
-organisational processes rather than model facts. That result is the accurate one. An export
-claiming complete coverage from a metadata registry would not be, and the organisation filing
-it would carry the consequences.
+The EU AI Act's high-risk technical documentation, for example, has ten headings. Lineage's
+records supply two in full, contribute partially to five, and hold nothing relevant to three —
+human oversight measures, cybersecurity controls and the provider's risk management system are
+organisational processes rather than model facts. That result is the accurate one. A metadata
+registry claiming complete coverage would not be, and the organisation filing would carry the
+consequences.
 
 ### A model is not an AI system
 
@@ -119,7 +111,7 @@ Being specific about this is more useful than a longer list of claims.
 | Out of scope | Reason |
 | --- | --- |
 | Determining a risk classification, or asserting that a modification is substantial | Legal assessments of a system, requiring context the registry does not hold |
-| Conformity assessment, CE marking, or regulatory submissions | Filing processes. An export is an input to them, not a replacement |
+| Conformity assessment, CE marking, or regulatory submissions | Filing processes. Registry records are an input to them, not a replacement |
 | Runtime inference logging | A separate record answering a separate question. The audit trail covers changes to the registry, not the behaviour of a deployed system |
 | Risk management, human oversight and cybersecurity documentation | Organisational processes, identified as gaps rather than filled |
 | Advising on retention periods | Lineage will enforce and report the floor you configure; setting it is your decision |
@@ -144,27 +136,6 @@ date before relying on it.
 The EU AI Act is being addressed first: it is the most prescriptive of the frameworks, an
 obligation is already in force, and supporting it exercises the widest range of what the
 registry holds.
-
-## Open core
-
-Lineage is open core. The boundary runs between holding a fact and shaping it into a specific
-regulator's document: **the record is free, the filing is the product.**
-
-Recording classifications, detecting when one has gone out of date, the audit trail and its
-integrity guarantees, retention and legal hold, modification review, and model risk records
-are all part of the free, Apache-2.0 product. Every regulatory fact an install holds is
-queryable from that install, and always will be.
-
-A commercial tier adds evidence export — the framework profiles and the generation of bundles
-from them, on a schedule, signed with a managed key — along with identity and access control,
-and reporting across multiple installations.
-
-A profile is a mapping from stored facts to one framework's document structure, and it needs
-nothing the public API does not already expose. Writing your own against `/v1` is a supported
-path, not a workaround: the free product is tested to keep that possible.
-
-The full boundary, including the capabilities committed never to be gated, is published in the
-repository so that it is predictable in advance.
 
 ## Next
 
