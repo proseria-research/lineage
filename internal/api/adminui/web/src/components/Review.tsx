@@ -1,3 +1,4 @@
+import { useRowLink } from "@/lib/useRowLink";
 import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -79,8 +80,12 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
   // submitted a hash after the review. That divergence is the thing worth seeing (§17.7).
   const moved = it.review && it.review.verdictAtReview !== it.verdict;
 
+  const row = useRowLink()(`/models/${encodeURIComponent(it.model)}/versions/${encodeURIComponent(it.version)}?tab=governance`);
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0">
+    <div
+      onClick={row.onClick}
+      className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0 ${row.rowClass}`}
+    >
       {/* The marks, side by side. Changed petals keep their colour and matched petals recede,
           so the delta reads before any text does (§12.6.2). */}
       {anyHash ? (
