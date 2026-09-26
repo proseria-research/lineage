@@ -1,0 +1,208 @@
+---
+title: Data model
+description: Reference for Lineage's entities — models, versions, artifacts, stages, labels, lineage edges, deployments, evaluations and audit events — with their wire fields.
+sidebar:
+  order: 3
+---
+
+import StageMachine from '../../../components/diagrams/StageMachine.astro';
+
+All IDs are 26-character, time-ordered Crockford base32 strings. All timestamps are epoch
+milliseconds. Models and versions are addressed by name in URLs; IDs appear in responses and in
+lineage and audit records.
+
+| Entity | Belongs to | Holds |
+| --- | --- | --- |
+| Model | — | Many versions |
+| Version | One model | Artifacts, outgoing lineage edges, deployments, evaluations |
+| Artifact | One version | One stored file: URI, digest, size, format |
+| Lineage edge | Its source version | A typed link to another version of the same model or to a URI |
+| Deployment, evaluation | One version | Where it runs; how it scored |
+| Audit event | — | One change, whose subject is a model, version or other record |
+
+## Names
+
+| Name | Pattern | Notes |
+| --- | --- | --- |
+| Model, version | `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$` | Lowercase, 1–63 chars. Version names are unique per model |
+| Artifact | `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$`, not `.` or `..` | Filenames: mixed case and a leading dot allowed (`README.md`, `.gitattributes`). Unique per version; uploads also refuse a case-insensitive clash |
+
+## Model
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | |
+| `name` | string | Immutable URL identity |
+| `description` | string | |
+| `owner` | string | Free text, e.g. a team |
+| `state` | `ACTIVE` \| `ARCHIVED` | `POST /v1/models/{model}:archive` sets `ARCHIVED` |
+| `labels` | map string→string | See [Labels](#labels) |
+| `customProperties` | any JSON | Opaque to Lineage |
+| `legalHold` | `{heldSince, heldBy}` | Present only while held. See [Compliance](/governance/compliance/) |
+| `createdAt`, `updatedAt` | int64 | |
+
+`PATCH /v1/models/{model}` accepts `description`, `owner`, `labels`, `customProperties`, `state`.
+
+## Version
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id`, `modelId` | string | |
+| `model`, `name` | string | Model name and version name |
+| `description`, `author` | string | The Python SDK sets `author` to its `actor` |
+| `stage` | `draft` \| `staging` \| `production` \| `archived` | Always `draft` on creation |
+| `labels` | map string→string | |
+| `customProperties` | any JSON | Settable through `PATCH` only, not on publish |
+| `stageChangedAt` | int64 | When the version entered its current stage |
+| `lockedAt` | int64 | When the artifact set froze. Absent while unlocked; never cleared |
+| `legalHold` | `{heldSince, heldBy}` | The version's own hold only; a hold on the model is not copied here |
+| `createdAt`, `updatedAt` | int64 | |
+
+`PATCH .../versions/{version}` accepts `description`, `author`, `labels`, `customProperties`.
+Stage changes only go through `:transition`.
+
+## Stages
+
+<StageMachine />
+
+- `POST .../versions/{version}:transition` with `{"to": "<stage>", "reason": "..."}`. `reason` is
+  stored on the audit event.
+- A move not in the graph returns `409 failed_precondition` with `details.allowedTargets`.
+- Transitioning to the current stage is a no-op that returns the version.
+- `production` holds at most one version per model. Promoting into it moves the incumbent to
+  `archived` in the same transaction.
+- Resolving without a selector returns the `production` version.
+
+Details and rollback patterns: [Promotion](/api/promotion/).
+
+### Artifact lock
+
+The first time a version enters `staging` (or `production`), `lockedAt` is set and the artifact
+set freezes. It stays frozen after demotion, return to `draft`, or archival.
+
+| On a locked version | Result |
+| --- | --- |
+| Register, initiate upload, send upload bytes, finalize, delete artifact | `409 failed_precondition`, `details.reason: "version_locked"` |
+| `PATCH` artifact `mediaType`, `serviceAccount`, `customProperties` | Allowed |
+| Version `PATCH`, transitions, lineage, deployments, evaluations | Allowed |
+
+To change files, publish a new version. Independently of the lock, an artifact's `uri`,
+`digest` and `sizeBytes` can never be changed by `PATCH`.
+
+:::note
+The `:transition` response reflects the new `stage` but not the `lockedAt` or `stageChangedAt`
+it just set. `GET` the version to read them.
+:::
+
+## Artifact
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id`, `versionId` | string | |
+| `kind` | `MODEL` \| `DOC` | Default `MODEL`. `DOC` is model cards, licences and similar |
+| `name` | string | Filename; the key under the version |
+| `uri` | string | Native location: `file://`, `s3://`, `oci://`, or any URI registered by reference |
+| `storageBackend` | string | Configured backend name (`default`) for uploaded artifacts |
+| `storagePath` | string | `<model>/<version>/<name>` for uploaded artifacts |
+| `sizeBytes` | int64 | |
+| `digest` | string | `sha256:<hex>` |
+| `mediaType` | string | |
+| `modelFormat` | `{name, version}` | e.g. `{"name":"onnx","version":"1.16"}` |
+| `serviceAccount` | string | Hint passed through to consumers in resolutions |
+| `customProperties` | any JSON | |
+| `createdAt`, `updatedAt` | int64 | |
+
+Artifacts arrive two ways: uploaded (initiate, send bytes, finalize; Lineage computes or verifies
+the digest) or registered by reference with a `uri` (inline on publish or via
+`POST .../artifacts`; digest and size are filled from the backend when it can stat the URI). See
+[Publishing](/api/publishing/).
+
+## Labels
+
+String-to-string maps on models and versions.
+
+- Filter lists with `label.<key>=<value>`, repeatable, all must match:
+  `GET /v1/models?label.team=risk`, `GET .../versions?label.track=canary`.
+- Resolve by label: `GET .../resolve?label.track=canary` returns the newest version carrying it.
+- `PATCH` with `labels` replaces the whole map, not individual keys.
+
+## Lineage edge
+
+Directed from a version (`src`) to another version of the same model or to an external URI.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | |
+| `srcType`, `srcId` | string | Always `model_version` and the source version ID |
+| `relation` | enum | See below |
+| `dstType`, `dstId` | string | `model_version` and the target version ID, for internal targets |
+| `dstRef` | string | The URI, for external targets |
+| `properties` | any JSON | How the relation came about, e.g. `{"method":"quantize"}` |
+| `createdAt` | int64 | |
+
+| Relation | Typical target |
+| --- | --- |
+| `derived_from` | Parent version: fine-tune, quantization, distillation |
+| `trained_on` | Dataset URI |
+| `produced_by` | Training run or commit URI |
+| `deployed_as` | Serving endpoint or release URI |
+
+Create with `{"relation": "...", "to": {"version": "1.3.0"}}` or `{"to": {"uri": "s3://..."}}`,
+exactly one of the two. Traversal (upstream, downstream, depth): [Lineage](/api/lineage/).
+
+## Deployment
+
+An informational record. Lineage does not deploy anything.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id`, `versionId` | string | |
+| `environment` | string | Required, e.g. `prod-eu` |
+| `endpointUri` | string | |
+| `status` | `ACTIVE` \| `INACTIVE` | Default `ACTIVE` |
+| `externalRef` | string | ID in the serving system |
+| `createdAt`, `updatedAt` | int64 | |
+
+`PATCH` accepts `endpointUri`, `status`, `externalRef`.
+
+## Evaluation
+
+A metric result on a version, written with `POST .../evaluations`. There is no update or delete
+route.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | |
+| `suite`, `metric` | string | Required |
+| `split` | string | e.g. `test` |
+| `value` | number | |
+| `higherIsBetter` | bool | Required; never inferred from the metric name |
+| `nSamples` | int64 | |
+| `harnessName`, `harnessVersion` | string | |
+| `params` | any JSON | |
+| `evidenceArtifactId` | string | Artifact holding the raw report |
+| `source` | `declared` \| `derived` \| `measured` | Default `measured` |
+| `runAt` | int64 | Defaults to write time |
+| `createdAt` | int64 | |
+
+## Audit event
+
+Written in the same transaction as every mutation; append-only.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | |
+| `at` | int64 | |
+| `actor` | string | Value of the identity header, verbatim; empty if absent |
+| `action` | string | e.g. `version.stage_changed` |
+| `subjectType`, `subjectId` | string | `model`, `model_version`, `artifact`, `deployment`, … |
+| `summary` | string | Human-readable one-liner |
+| `data` | any JSON | Action detail; for transitions `{"from","to","reason"}` |
+| `epoch` | int64 | Attestation sealing window; absent if the row is not attested |
+
+Core actions: `model.create|update|delete`, `version.create|update|delete|stage_changed`,
+`artifact.register|upload|update|delete`, `lineage.add|delete`,
+`deployment.create|update|delete`, `evaluation.create`. Querying and verification:
+[Audit](/governance/audit/).
+
+Next: [Publishing](/api/publishing/) · [Promotion](/api/promotion/) · [Audit](/governance/audit/)

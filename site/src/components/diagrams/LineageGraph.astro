@@ -1,0 +1,50 @@
+---
+/** One version's lineage edges. Every edge is stored from a version to its target; the
+ *  relation is written on the box at the far end of the edge. */
+import Diagram from './Diagram.astro';
+
+const BOX = { w: 190, h: 64 };
+const centre = { x: 250, y: 118, w: 180, h: 64 };
+const CY = centre.y + centre.h / 2;
+const TX = 490;
+const targets = [
+	{ y: 20, rel: 'trained_on', kind: 'dataset', name: 's3://data/txn-2026-q2' },
+	{ y: 118, rel: 'derived_from', kind: 'version', name: 'fraud-detector@1.3.0' },
+	{ y: 216, rel: 'deployed_as', kind: 'endpoint', name: 'serve.example.com' },
+];
+---
+
+<Diagram
+	width={680}
+	height={320}
+	title="Lineage edges of fraud-detector 1.4.0"
+	desc="fraud-detector 1.4.0 has three outgoing edges: trained_on the dataset s3://data/txn-2026-q2, derived_from fraud-detector 1.3.0, and deployed_as an HTTPS endpoint. fraud-detector 1.5.0 has an edge derived_from 1.4.0, so it points in."
+>
+	<rect class="dg__box" x="0" y={centre.y} width={BOX.w} height={BOX.h} rx="8" />
+	<text class="dg__sub" x="14" y={centre.y + 24}>
+		<tspan class="dg__rel">derived_from</tspan><tspan dx="6">this version</tspan>
+	</text>
+	<text class="dg__title dg__mono" x="14" y={centre.y + 46}>fraud-detector@1.5.0</text>
+	<path class="dg__edge" d={`M ${BOX.w} ${CY} L ${centre.x - 2} ${CY}`} marker-end="url(#dg-arrow)" />
+
+	{targets.map((t) => {
+		const ty = t.y + BOX.h / 2;
+		const x0 = centre.x + centre.w;
+		return (
+			<g>
+				<path class="dg__edge" d={`M ${x0} ${CY} C ${x0 + 36} ${CY}, ${TX - 36} ${ty}, ${TX - 2} ${ty}`} marker-end="url(#dg-arrow)" />
+				<rect class="dg__box" x={TX} y={t.y} width={BOX.w} height={BOX.h} rx="8" />
+				<text class="dg__sub" x={TX + 14} y={t.y + 24}>
+					<tspan class="dg__rel">{t.rel}</tspan><tspan dx="6">{t.kind}</tspan>
+				</text>
+				<text class="dg__title dg__mono" x={TX + 14} y={t.y + 46}>{t.name}</text>
+			</g>
+		);
+	})}
+
+	<rect class="dg__box dg__box--brand dg__box--strong" x={centre.x} y={centre.y} width={centre.w} height={centre.h} rx="10" />
+	<text class="dg__sub dg__on-brand" x={centre.x + 14} y={centre.y + 24}>This version</text>
+	<text class="dg__title dg__mono" x={centre.x + 14} y={centre.y + 46}>fraud-detector@1.4.0</text>
+
+	<text class="dg__note" x="340" y="312" text-anchor="middle">Edges are stored from a version to its target. Upstream walks follow them; downstream walks follow them backwards.</text>
+</Diagram>

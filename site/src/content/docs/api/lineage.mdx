@@ -1,0 +1,219 @@
+---
+title: Lineage and version insight
+description: Record typed provenance edges, traverse them for ancestry and impact, report a version's architecture fingerprint, and diff two versions.
+sidebar:
+  order: 4
+---
+
+import LineageGraph from '../../../components/diagrams/LineageGraph.astro';
+
+Lineage keeps two kinds of fact about a version beyond its artifacts: **edges** (what it came
+from) and **insight** (what it is made of). Both are reported by your pipelines. The registry
+stores, attributes and queries them. It never opens an artifact to derive them.
+
+## Lineage edges
+
+An edge runs from one version to a target, with a typed relation.
+
+| Relation | Typical target |
+| --- | --- |
+| `derived_from` | Parent version (fine-tune, quantize, distill), or an external base model |
+| `trained_on` | Dataset URI |
+| `produced_by` | Training run or pipeline URI |
+| `deployed_as` | Serving endpoint URI |
+
+The target is exactly one of:
+
+- `to.version`: another version **of the same model**, by name.
+- `to.uri`: any external reference, stored verbatim. Use this for datasets, runs, and models
+  in other registries or other Lineage models.
+
+`properties` is free-form JSON describing how the relation came about. On `derived_from`, set
+`properties.method` (e.g. `quantize`, `fine_tune`): modification review and change-control
+conformance read it as the declared intent.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/v1/models/{model}/versions/{version}/lineage` | Add an edge. `201`, audited as `lineage.add` |
+| `GET` | `/v1/models/{model}/versions/{version}/lineage` | Edges touching this version, both directions. With `?direction`, a traversal |
+| `DELETE` | `/v1/models/{model}/versions/{version}/lineage/{edgeId}` | `204`, audited as `lineage.delete` |
+
+```bash
+curl -X POST localhost:8081/v1/models/fraud-detector/versions/1.4.0/lineage \
+  -H 'Content-Type: application/json' -H 'X-Lineage-Actor: ci@example.com' \
+  -d '{"relation":"derived_from","to":{"version":"1.3.0"},"properties":{"method":"fine_tune"}}'
+```
+
+```json
+{
+  "id": "01K5Q8X2N4...",
+  "srcType": "model_version",
+  "srcId": "01K5Q8W7C1...",
+  "relation": "derived_from",
+  "dstType": "model_version",
+  "dstId": "01K5M2R9T0...",
+  "properties": { "method": "fine_tune" },
+  "createdAt": 1790000000000
+}
+```
+
+An edge to a URI carries `dstRef` instead of `dstType`/`dstId`. Setting both or neither of
+`to.version` and `to.uri` is `400`, as is an unknown relation.
+
+## Traversal and impact analysis
+
+Add `direction` to the `GET` and the response becomes a `LineageGraph`.
+
+| Parameter | Values | Default |
+| --- | --- | --- |
+| `direction` | `upstream`, `downstream`, `both` | unset: flat edge list |
+| `depth` | hops from the root; values above 25 are capped at 25 | `3` |
+| `relations` | comma-separated relations to follow | all |
+
+<LineageGraph />
+
+- **Upstream** (ancestry) follows edges **out of** each version: parents, datasets, runs,
+  endpoints.
+- **Downstream** (impact) follows edges **into** each version from other versions: everything
+  derived from it.
+- The walk is breadth-first and cycle-safe; each version is expanded once.
+
+A walk always starts from a version. External URIs are leaf nodes: there is no reverse lookup
+from a dataset URI, so run impact analysis from the affected version.
+
+```bash
+curl -s "localhost:8081/v1/models/fraud-detector/versions/1.3.0/lineage?direction=downstream&depth=5&relations=derived_from"
+```
+
+```json
+{
+  "root": "v:01K5M2R9T0...",
+  "direction": "downstream",
+  "nodes": [
+    { "type": "model_version", "id": "01K5M2R9T0...", "model": "fraud-detector",
+      "version": "1.3.0", "stage": "archived", "label": "fraud-detector@1.3.0", "depth": 0 },
+    { "type": "model_version", "id": "01K5Q8W7C1...", "model": "fraud-detector",
+      "version": "1.4.0", "stage": "production", "label": "fraud-detector@1.4.0", "depth": 1 }
+  ],
+  "edges": [ { "id": "01K5Q8X2N4...", "relation": "derived_from", "srcId": "01K5Q8W7C1...",
+               "dstId": "01K5M2R9T0...", "srcType": "model_version",
+               "dstType": "model_version", "createdAt": 1790000000000 } ]
+}
+```
+
+`root` is a node key (`v:<versionId>`). External nodes have `type: "external"` and `ref`.
+Nodes sort by depth, then label.
+
+## Version insight
+
+Insight is a per-version record of composition facts: parameter counts, dtype, sizes, a layer
+breakdown, and the **architecture fingerprint**. Producers (a CI scanner, your publish script)
+submit it; nothing is computed server-side.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `PATCH` | `/v1/models/{model}/versions/{version}/insight` | Merge per field. The default write |
+| `PUT` | `/v1/models/{model}/versions/{version}/insight` | Replace the whole record. Only when one producer owns every field |
+| `GET` | `/v1/models/{model}/versions/{version}/insight` | `404` if nobody has reported. `?include=layers,sources` |
+| `GET` | `/v1/insight-schema.json` | The JSON Schema this server enforces |
+| `POST`/`GET` | `/v1/models/{model}/versions/{version}/evaluations` | Append/list evaluation results |
+| `PUT` | `/v1/models/{model}/versions/{version}/footprints/{scenario}` | Upsert a memory-footprint scenario |
+| `GET` | `/v1/models/{model}/versions/{version}/footprints` | List scenarios |
+
+### The fingerprint
+
+Four separable hashes, computed by the producer over a canonical architecture document:
+
+| Level | Covers | Excludes |
+| --- | --- | --- |
+| `topology` | Ordered op graph: op types, connectivity, non-weight attributes (heads, kernel, activation) | Shapes, dtypes, weights |
+| `shape` | Topology plus every tensor shape | Dtypes, weights |
+| `dtype` | The per-tensor dtype vector | Weights |
+| `weights` | Merkle root over per-tensor content digests, sorted by name | — |
+
+Submit whatever levels you can compute. A header-only scanner can send the first three; a
+publish step that streams the bytes can add `weights` later, since `hashes` merges per level.
+
+```bash
+curl -X PATCH localhost:8081/v1/models/fraud-detector/versions/1.4.0/insight \
+  -H 'Content-Type: application/json' -H 'X-Lineage-Actor: ci@example.com' \
+  -d '{
+    "schemaVersion": "1",
+    "source": "derived",
+    "reporter": "fp-scanner", "reporterVersion": "0.3.1",
+    "facts": {
+      "paramCountTotal": 2400000, "dtypeDominant": "fp32",
+      "hashes": { "topology": "sha256:3a9f...", "shape": "sha256:b71c...",
+                  "dtype": "sha256:0d42...", "weights": "sha256:e5a8..." },
+      "archDoc": { "tensors": [ { "name": "dense.0.weight", "shape": [64, 32],
+                                  "dtype": "fp32", "digest": "sha256:91be..." } ] }
+    }
+  }'
+```
+
+Write rules:
+
+- `schemaVersion` (`"1"`) and `source` (`declared`, `derived`, `measured`) are required.
+  Unknown fields are `400`, never silently dropped.
+- On `PATCH`, an absent key is unchanged and an explicit `null` clears it.
+- Attribution (`source`, `reporter`, `at`) is stamped on every field the write touched;
+  read it with `?include=sources`.
+- A `weights` hash that differs from the one already recorded is `409`: a version's content
+  is immutable. `?force=true` overrides; the audit event records `"forced": true`.
+- Every write is audited as `insight.update` (`PATCH`) or `insight.replace` (`PUT`).
+- `archDoc.tensors[].digest` is the only part of `archDoc` the registry reads, for the
+  per-tensor diff.
+
+## Version diff
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/v1/models/{model}/diff?from={version}&to={version}` |
+| `GET` | `/v1/diff?from={model}@{version}&to={model}@{version}` (across models) |
+
+The verdict is a table lookup over the four hashes, checked top-down. A level counts as
+**present** only when both sides supplied it.
+
+| Level checked | Changed | Equal | Missing on either side |
+| --- | --- | --- | --- |
+| `topology` | `rearchitected` | check `shape` | `unknown`, no candidates |
+| `shape` | `rescaled` | check `dtype` | `unknown`; candidates `identical`, `reweighted`, `recast`, `rescaled` |
+| `dtype` | `recast` | check `weights` | `unknown`; candidates `identical`, `reweighted`, `recast` |
+| `weights` | `reweighted` | `identical` | `unknown`; candidates `identical`, `reweighted` |
+
+`unknown` means the submitted hashes do not reach a verdict. It is never "nothing changed".
+`missing` names the level that stopped the lookup; `candidates` lists the verdicts still
+possible. A version with no insight is a legitimate `unknown`, not a `404`.
+
+```json
+{
+  "from": { "model": "fraud-detector", "version": "1.3.0" },
+  "to":   { "model": "fraud-detector", "version": "1.4.0" },
+  "verdict": "unknown",
+  "candidates": ["identical", "reweighted"],
+  "missing": ["weights"],
+  "hashes": {
+    "topology": { "from": "sha256:3a9f...", "to": "sha256:3a9f...", "changed": false, "present": true },
+    "shape":    { "from": "sha256:b71c...", "to": "sha256:b71c...", "changed": false, "present": true },
+    "dtype":    { "from": "sha256:0d42...", "to": "sha256:0d42...", "changed": false, "present": true },
+    "weights":  { "to": "sha256:e5a8...", "present": false }
+  },
+  "basis": { "fromHasInsight": true, "toHasInsight": true,
+             "fromHashes": ["topology", "shape", "dtype"],
+             "toHashes": ["topology", "shape", "dtype", "weights"], "tensorDigests": false }
+}
+```
+
+Beyond the verdict, the diff returns, when the facts exist:
+
+| Field | Content |
+| --- | --- |
+| `tensors` | Unchanged/changed/added/removed counts from `archDoc` digests; `changedPatterns` collapses block indices (`layers.*.q_proj`), separating a merged adapter from a full fine-tune |
+| `params` | Deltas for `paramCountTotal`, `tensorCount`, `diskBytes`, `weightsBytes`, with each side's source |
+| `footprints` | Per scenario; only the same scenario name compares |
+| `metrics` | Latest result per suite, metric, split and harness version. `direction` is `better`/`worse`/`same` from `higherIsBetter`; anything else is `comparable: false` with a `reason` |
+
+The same verdict drives [modification review](/governance/compliance/#modification-review-art-25)
+and [change-control conformance](/governance/compliance/#change-control-plans).
+
+Next: [Compliance](/governance/compliance/) · [Audit log](/governance/audit/) · [Publishing](/api/publishing/)

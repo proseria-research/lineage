@@ -158,9 +158,9 @@ const attention = [
 	{
 		tone: 'warn',
 		area: 'Modification review',
-		model: 'credit-scorer-lite 0.4.0',
+		model: 'credit-scorer 2.2.0',
 		title: 'Modification waiting for review',
-		detail: 'Derived from credit-scorer 2.1.0, a high-risk model. Someone needs to judge whether the change was substantial.',
+		detail: 'Fine-tuned from credit-scorer 2.1.0, a high-risk model. Someone needs to judge whether the change was substantial.',
 		action: 'Review',
 	},
 ];
@@ -230,12 +230,12 @@ const infra = [
 ];
 
 const guides = [
-	{ title: 'Start here', links: [['Quickstart', '/start/quickstart/'], ['Core concepts', '/start/concepts/'], ['Your first model', '/start/first-model/']] },
-	{ title: 'Registry', links: [['Publishing versions', '/guides/publishing-versions/'], ['Stages and promotion', '/guides/stages-and-promotion/'], ['Comparing versions', '/guides/version-diff/']] },
-	{ title: 'Delivery', links: [['Resolving a model', '/delivery/resolve/'], ['KServe', '/delivery/kserve/'], ['Custom runtimes', '/delivery/custom-runtimes/']] },
-	{ title: 'Governance', links: [['Compliance and evidence', '/start/compliance/'], ['The audit trail', '/guides/audit-trail/'], ['The lineage graph', '/guides/lineage-graph/']] },
-	{ title: 'Run it', links: [['Deploy with Helm', '/deploy/helm/'], ['Production checklist', '/deploy/production-checklist/'], ['Configuration', '/operate/configuration/']] },
-	{ title: 'Clients', links: [['Python SDK', '/clients/python-sdk/'], ['CLI', '/clients/cli/'], ['API conventions', '/clients/api-conventions/']] },
+	{ title: 'Start here', links: [['Introduction', '/start/introduction/'], ['Quickstart', '/start/quickstart/'], ['Data model', '/start/data-model/']] },
+	{ title: 'Model API', links: [['Publishing', '/api/publishing/'], ['Promotion', '/api/promotion/'], ['Resolve and delivery', '/api/resolve/']] },
+	{ title: 'Provenance', links: [['Lineage and fingerprints', '/api/lineage/'], ['API conventions', '/api/conventions/']] },
+	{ title: 'Governance', links: [['Compliance records', '/governance/compliance/'], ['Audit and retention', '/governance/audit/']] },
+	{ title: 'Operate', links: [['Configuration', '/operate/configuration/'], ['Deploy with Helm', '/operate/deploy/'], ['Storage and databases', '/operate/storage/'], ['Observability and security', '/operate/observability/']] },
+	{ title: 'Clients', links: [['Python SDK and CLI', '/clients/sdk-cli/']] },
 ];
 
 const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd lineage && make run';
@@ -255,7 +255,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 				</p>
 				<div class="hero__actions">
 					<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
-					<a class="btn" href="/start/what-lineage-is/">Documentation</a>
+					<a class="btn" href="/start/introduction/">Documentation</a>
 				</div>
 				<div class="cmd">
 					<code class="cmd__text">{COMMAND}</code>
@@ -339,7 +339,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 			</div>
 			<p class="band__foot">
 				Serving on KServe? Set <code>storageUri: lineage://fraud-detector/production</code> and the
-				storage initializer resolves it at pull time. <a href="/delivery/kserve/">KServe guide</a>
+				storage initializer resolves it at pull time. <a href="/api/resolve/">KServe guide</a>
 			</p>
 		</div>
 	</section>
@@ -363,7 +363,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 						))
 					}
 				</dl>
-				<p class="split__link"><a href="/guides/version-diff/">Version comparison</a></p>
+				<p class="split__link"><a href="/api/lineage/">Version comparison</a></p>
 			</div>
 
 			<figure class="compare" tabindex="0" aria-describedby="compare-verdict">
@@ -478,7 +478,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 				}
 			</ul>
 			<p class="band__foot">
-				Guidance on how Lineage works, not legal advice. <a href="/start/compliance/">Framework mapping</a>
+				Guidance on how Lineage works, not legal advice. <a href="/governance/compliance/">Framework mapping</a>
 			</p>
 		</div>
 	</section>
@@ -494,7 +494,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 				</p>
 			</header>
 			<LineageMap />
-			<p class="band__foot"><a href="/guides/lineage-graph/">Recording lineage</a></p>
+			<p class="band__foot"><a href="/api/lineage/">Recording lineage</a></p>
 		</div>
 	</section>
 
@@ -552,7 +552,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 			</p>
 			<div class="hero__actions">
 				<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
-				<a class="btn" href="/deploy/helm/">Deploy with Helm</a>
+				<a class="btn" href="/operate/deploy/">Deploy with Helm</a>
 			</div>
 		</div>
 	</section>

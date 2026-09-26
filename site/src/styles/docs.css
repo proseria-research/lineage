@@ -55,9 +55,32 @@ h1#_top {
 	padding: 0.1rem 0.35rem;
 }
 
-/* Tables read like the console's: a soft header row, hairlines between rows. */
+/* Tables read like the console's: full width, a soft header row, hairlines between rows.
+   Starlight renders them as blocks so they can scroll; at desktop widths they are real
+   tables spanning the column, and below that they fall back to scrolling. */
 .sl-markdown-content table {
+	display: table;
+	width: 100%;
 	font-size: 0.92rem;
+	border-collapse: collapse;
+}
+
+.sl-markdown-content :is(th, td) {
+	padding: 0.6rem 0.9rem;
+	border-bottom: 1px solid var(--border);
+	vertical-align: top;
+}
+
+.sl-markdown-content th {
+	border-bottom-color: var(--sl-color-gray-5);
+	text-align: left;
+}
+
+@media (max-width: 640px) {
+	.sl-markdown-content table {
+		display: block;
+		overflow-x: auto;
+	}
 }
 
 .sl-markdown-content th {
@@ -84,18 +107,195 @@ nav.sidebar .top-level > li > details > summary .large {
 	border-radius: var(--radius-sm);
 }
 
-/* Mermaid diagrams sit in the same card as everything else. */
-.mermaid,
-pre.mermaid {
+/* Guide diagrams (components/diagrams): a card holding an SVG drawn in the console's language.
+   Boxes are white with a hairline; the subject is brand blue; stages use their badge colours. */
+.dg {
+	margin: 1.75rem 0;
 	border: 1px solid var(--border);
-	border-radius: var(--radius);
-	background: var(--card);
-	padding: 1.25rem;
+	border-radius: var(--radius-lg);
+	background: var(--bg);
+}
+
+.dg__scroll {
 	overflow-x: auto;
+	padding: 1rem 0.75rem;
+}
+
+.dg svg {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: visible;
+}
+
+.dg__caption {
+	padding: 0.75rem 1.25rem;
+	border-top: 1px solid var(--border);
+	color: var(--muted-fg);
+	font-size: 0.875rem;
+}
+
+.dg__box {
+	fill: var(--card);
+	stroke: var(--input);
+	stroke-width: 1.25;
+}
+
+.dg__box--muted {
+	fill: var(--muted);
+	stroke: var(--border);
+}
+
+.dg__box--brand {
+	fill: var(--brand-soft);
+	stroke: var(--brand);
+}
+
+.dg__box--strong {
+	stroke-width: 2;
+}
+
+.dg__box--ok {
+	fill: var(--ok-soft);
+	stroke: var(--ok);
+}
+
+.dg__box--dashed {
+	fill: var(--card);
+	stroke: var(--muted-fg);
+	stroke-dasharray: 4 3;
+}
+
+.dg__group {
+	fill: none;
+	stroke: var(--brand);
+	stroke-width: 1.25;
+	stroke-dasharray: 5 4;
+}
+
+.dg__group-label {
+	fill: var(--brand);
+	font: 600 12.5px var(--sans);
+}
+
+.dg__title {
+	fill: var(--fg);
+	font: 500 14px var(--sans);
+}
+
+.dg__sub {
+	fill: var(--muted-fg);
+	font: 12.5px var(--sans);
+}
+
+.dg__mono {
+	font-family: var(--mono);
+	font-size: 12.5px;
+}
+
+.dg__on-brand {
+	fill: var(--brand);
+	font-weight: 500;
+}
+
+.dg__edge {
+	fill: none;
+	stroke: var(--muted-fg);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.dg__edge--strong {
+	stroke: var(--fg);
+	stroke-width: 1.75;
+}
+
+.dg__edge--dashed {
+	stroke-dasharray: 5 4;
+}
+
+.dg__arrowhead {
+	fill: var(--muted-fg);
+}
+
+.dg__lifeline {
+	stroke: var(--border);
+	stroke-width: 1.5;
+	stroke-dasharray: 3 4;
+}
+
+.dg__pill {
+	fill: var(--card);
+	stroke: var(--border);
+}
+
+.dg__label {
+	fill: var(--muted-fg);
+	font: 12.5px var(--sans);
+}
+
+.dg__label.dg__mono {
+	font-size: 11.5px;
+}
+
+.dg__label--msg {
+	fill: var(--fg);
+	font-family: var(--mono);
+	font-size: 12px;
+}
+
+.dg__note {
+	fill: var(--muted-fg);
+	font: italic 12.5px var(--sans);
+}
+
+.dg__step {
+	fill: var(--brand);
+}
+
+.dg__step-num {
+	fill: var(--on-brand);
+	font: 600 12px var(--sans);
 }
 
 /* Wide code scrolls inside its own box; the page never scrolls sideways. */
 .sl-markdown-content pre {
 	max-width: 100%;
 	overflow-x: auto;
+}
+
+/* Readable prose: slightly larger body text, strong headings, links that look like links. */
+.sl-markdown-content {
+	font-size: 1rem;
+	line-height: 1.7;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4) {
+	color: var(--sl-color-white);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+	color: var(--brand);
+	font-weight: 500;
+	text-underline-offset: 3px;
+}
+
+.sl-markdown-content code:not(:where(pre code)) {
+	color: var(--sl-color-gray-1);
+	border: 1px solid var(--border);
+}
+
+/* Sidebar links: full ink, not the pale default. */
+.sidebar-content a {
+	color: var(--sl-color-gray-2);
+}
+
+.sidebar-content a:hover {
+	color: var(--sl-color-white);
+}
+
+.dg__rel {
+	fill: var(--brand);
+	font-family: var(--mono);
+	font-weight: 500;
 }

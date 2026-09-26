@@ -1,0 +1,58 @@
+---
+/** Uploading an artifact: initiate, send bytes (directly to storage, or through the API), then
+ *  finalize. Lineage verifies the object before it records the artifact. */
+import Diagram from './Diagram.astro';
+
+const X = { client: 90, api: 340, store: 590 };
+const lanes = [
+	{ x: X.client, label: 'Client' },
+	{ x: X.api, label: 'Model API' },
+	{ x: X.store, label: 'Object storage' },
+];
+type Msg = { n?: number; y: number; from: number; to: number; label: string; reply?: boolean; dashed?: boolean };
+const msgs: Msg[] = [
+	{ n: 1, y: 92, from: X.client, to: X.api, label: 'POST …:initiateUpload' },
+	{ y: 128, from: X.api, to: X.client, label: '202  upload ticket', reply: true },
+	{ n: 2, y: 176, from: X.client, to: X.store, label: 'PUT bytes to the signed URL (or each part)' },
+	{ y: 214, from: X.client, to: X.api, label: 'or PUT through the API', dashed: true },
+	{ y: 236, from: X.api, to: X.store, label: 'stream, hashing', dashed: true },
+	{ n: 3, y: 286, from: X.client, to: X.api, label: 'POST …:finalizeUpload {digest}' },
+	{ y: 318, from: X.api, to: X.store, label: 'verify the object' },
+	{ y: 354, from: X.api, to: X.client, label: '201  artifact', reply: true },
+];
+---
+
+<Diagram
+	width={680}
+	height={390}
+	title="Artifact upload"
+	desc="1. The client asks the Model API to initiate an upload and receives a ticket. 2. It sends the bytes straight to object storage with the signed URL, or each multipart part, or streams them through the API, which hashes them as it writes. 3. The client finalizes with the digest; the API verifies the object in storage and returns the artifact."
+>
+	{lanes.map((l) => (
+		<g>
+			<rect class="dg__box dg__box--muted" x={l.x - 72} y="10" width="144" height="40" rx="8" />
+			<text class="dg__title" x={l.x} y="35" text-anchor="middle">{l.label}</text>
+			<line class="dg__lifeline" x1={l.x} y1="50" x2={l.x} y2="378" />
+		</g>
+	))}
+	{msgs.map((m) => {
+		const dir = m.to > m.from ? 1 : -1;
+		const mid = (m.from + m.to) / 2;
+		return (
+			<g>
+				<path
+					class={`dg__edge ${m.reply || m.dashed ? 'dg__edge--dashed' : 'dg__edge--strong'}`}
+					d={`M ${m.from} ${m.y} L ${m.to - dir * 3} ${m.y}`}
+					marker-end="url(#dg-arrow)"
+				/>
+				<text class="dg__label dg__label--msg" x={mid} y={m.y - 8} text-anchor="middle">{m.label}</text>
+				{m.n && (
+					<g>
+						<circle class="dg__step" cx="16" cy={m.y - 4} r="11" />
+						<text class="dg__step-num" x="16" y={m.y} text-anchor="middle">{m.n}</text>
+					</g>
+				)}
+			</g>
+		);
+	})}
+</Diagram>

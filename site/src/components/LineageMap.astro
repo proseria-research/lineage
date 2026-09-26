@@ -28,7 +28,7 @@ const ancestry: Leaf[] = [
 
 const impact: Leaf[] = [
 	{ kind: 'Deployment', name: 'kserve / prod-eu-1', relation: 'deployed as', cy: 136 },
-	{ kind: 'Model version', name: 'fraud-detector-lite 0.1.0', relation: 'derived from it', cy: 308, stage: 'Staging' },
+	{ kind: 'Model version', name: 'fraud-detector 1.5.0', relation: 'derived from it', cy: 308, stage: 'Draft' },
 ];
 
 const branch = (leaf: Leaf, side: 'left' | 'right', fan: number) =>
@@ -59,8 +59,8 @@ const pillW = (s: string) => s.length * 6.6 + 20;
 			<desc id="map-desc">
 				fraud-detector 1.4.0 was trained on s3://data/transactions-2026-q1 (trained_on), produced
 				by pipeline run kfp://runs/8b21c4de (produced_by), and derived from fraud-detector 1.2.0
-				(derived_from). It is deployed as kserve / prod-eu-1 (deployed_as), and fraud-detector-lite
-				0.1.0 is derived from it.
+				(derived_from). It is deployed as kserve / prod-eu-1 (deployed_as), and fraud-detector 1.5.0
+				is derived from it.
 			</desc>
 			<defs>
 				<marker id="map-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">

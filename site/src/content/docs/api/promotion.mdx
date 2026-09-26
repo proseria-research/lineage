@@ -1,0 +1,140 @@
+---
+title: Promotion
+description: Move versions between stages with :transition, and what each move locks, demotes and records.
+sidebar:
+  order: 2
+---
+
+import StageMachine from '../../../components/diagrams/StageMachine.astro';
+
+Every stage change goes through one action. There is no other way to set `stage`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/models/{model}/versions/{version}:transition` | Move a version to another stage |
+| `GET` | `/v1/models/{model}/versions?stage=production` | List versions in a stage |
+| `DELETE` | `/v1/models/{model}/versions/{version}` | Delete a version (guarded) |
+| `POST` / `GET` | `/v1/models/{model}/versions/{version}/deployments` | Record / list deployments |
+| `GET` / `PATCH` / `DELETE` | `…/deployments/{id}` | Read / update / delete one deployment |
+
+## Transition
+
+```bash
+curl -X POST 'localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition' \
+  -H 'Content-Type: application/json' -H 'X-Lineage-Actor: release-bot' \
+  -d '{"to":"staging","reason":"passed offline eval"}'
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `to` | yes | `draft`, `staging`, `production` or `archived` |
+| `reason` | no | Free text, stored on the audit event (not on the version) |
+
+`200` returns the `ModelVersion` with its new `stage`.
+
+:::note
+The response's `stageChangedAt`, `updatedAt` and `lockedAt` still hold their values from
+before the move. `GET` the version to read the new ones.
+:::
+
+## Allowed transitions
+
+<StageMachine />
+
+| From | Allowed `to` |
+| --- | --- |
+| `draft` | `staging`, `archived` |
+| `staging` | `production`, `draft`, `archived` |
+| `production` | `staging`, `archived` |
+| `archived` | `draft` |
+
+Moves go one stage at a time: `draft → production` and `archived → staging` are refused.
+
+| Request | Result |
+| --- | --- |
+| `to` equals the current stage | `200`, version unchanged, no audit event |
+| Edge not in the table | `409 failed_precondition`, `details.allowedTargets` lists the legal targets |
+| Unknown `to` | `400 invalid_argument` |
+| Unknown model or version | `404 not_found` |
+
+```json
+{
+  "type": "https://lineage.dev/errors/failed_precondition",
+  "title": "failed_precondition",
+  "status": 409,
+  "code": "failed_precondition",
+  "detail": "illegal stage transition draft→production",
+  "details": {"allowedTargets": ["staging", "archived"]}
+}
+```
+
+## Production is a singleton
+
+A model has at most one version in `production`. Promoting a version moves the incumbent
+to `archived` in the same transaction; on Postgres the model row is locked for the
+duration, so two concurrent promotions serialize. `staging`, `draft` and `archived` can hold
+any number of versions.
+
+To roll back to the previous version, walk it back up: `archived → draft → staging →
+production`. Its artifacts are unchanged because it was locked when it first reached staging.
+
+## The artifact lock
+
+The first entry into `staging` (or `production`) sets `lockedAt` and freezes the artifact
+set. Later moves, including back to `draft`, never clear it. Artifact writes on a locked
+version return `409 failed_precondition` with `details.reason: "version_locked"`. See
+[Publishing](/api/publishing/#the-artifact-lock).
+
+## What a transition records
+
+Each effective transition writes one audit event in the same transaction as the stage
+change, then invalidates the model's cached resolutions.
+
+```json
+{
+  "id": "01K5ZB4…",
+  "at": 1790007200000,
+  "actor": "release-bot",
+  "action": "version.stage_changed",
+  "subjectType": "model_version",
+  "subjectId": "01K5Z8Q2M4…",
+  "summary": "fraud-detector@1.4.0 → staging",
+  "data": {"from": "draft", "to": "staging", "reason": "passed offline eval"}
+}
+```
+
+`actor` is the value of the actor header, absent if the request had none. The demoted
+incumbent gets no event of its own: its move to `archived` is implied by the promotion event.
+Read the trail at `GET /v1/models/{model}/audit`; see [Audit](/governance/audit/).
+
+## Deployments
+
+Deployments are descriptive records of where a version is served. Lineage does not deploy
+anything, and transitions do not create, change or remove deployment records.
+
+```bash
+curl -X POST localhost:8081/v1/models/fraud-detector/versions/1.4.0/deployments \
+  -H 'Content-Type: application/json' -H 'X-Lineage-Actor: cd-pipeline' \
+  -d '{"environment":"prod-eu-1","endpointUri":"https://infer.eu.example.com/v2/models/fraud-detector",
+       "status":"ACTIVE","externalRef":"kserve://risk/fraud-detector"}'
+```
+
+`environment` is required; `status` is `ACTIVE` (default) or `INACTIVE`. Create, update and
+delete are audited as `deployment.create`, `deployment.update` and `deployment.delete`.
+
+## Deletion, holds and retention
+
+Legal holds do not block transitions; they block deletes. `DELETE` on a version or model
+checks, in order:
+
+| Check | Refusal | Overridden by `?force=true` |
+| --- | --- | --- |
+| Legal hold on the subject or its model | `409`, `details.reason: "legal_hold"`, `heldSince`, `heldBy`, `heldSubject` when inherited | No |
+| Retention floor (youngest record the delete destroys is newer than the floor) | `409`, `details.reason: "retention_floor"`, `floorDays`, `ageDays` | No |
+| Version in `production` (or model with one) | `409 failed_precondition`, `details.hint` | Yes |
+
+The binary's retention floor defaults to off; the Helm chart sets 3650 days. Archive instead
+of deleting when you only want a version out of stage-based resolution. See
+[Compliance](/governance/compliance/).
+
+Next: [Resolve](/api/resolve/) · [Audit](/governance/audit/) · [Conventions](/api/conventions/)

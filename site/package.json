@@ -18,10 +18,7 @@
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@lucide/astro": "^1.48.0",
-    "@mermaid-js/layout-elk": "^0.2.2",
     "astro": "^7.0.2",
-    "astro-mermaid": "^2.1.0",
-    "mermaid": "^11.16.0",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
