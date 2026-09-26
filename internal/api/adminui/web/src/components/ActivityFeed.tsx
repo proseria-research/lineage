@@ -1,6 +1,6 @@
 import { ArrowRightLeft, Boxes, GitBranch, Package, Ruler, ShieldCheck } from "lucide-react";
 import type { AuditEvent } from "@/lib/api";
-import { actionArea, actionLabel, STAGE_LABEL, type ActionArea } from "@/lib/labels";
+import { actionArea, actionLabel, STAGE_LABEL, tidySummary, type ActionArea } from "@/lib/labels";
 import { cn, fmtTime, relTime } from "@/lib/utils";
 
 const AREA_ICON: Record<ActionArea, typeof Boxes> = {
@@ -32,7 +32,7 @@ export function EventRow({ e, compact = false }: { e: AuditEvent; compact?: bool
               ? `Moved ${STAGE_LABEL[e.data.from]} → ${STAGE_LABEL[e.data.to as keyof typeof STAGE_LABEL]}`
               : actionLabel(e.action)}
           </span>
-          <span className="text-muted-foreground"> · {e.summary}</span>
+          <span className="text-muted-foreground"> · {tidySummary(stage ? e.summary.replace(/\s*→.*$/, "") : e.summary)}</span>
         </div>
         <div className="mt-0.5 text-xs text-muted-foreground">
           {e.actor ? e.actor : "unattributed"}

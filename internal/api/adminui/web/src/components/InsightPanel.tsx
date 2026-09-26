@@ -18,11 +18,29 @@ const sourceVariant: Record<FactSource, "solid" | "outline" | "muted" | "dashed"
   declared: "dashed", // a claim: attributed, not verified
 };
 
+const SOURCE_LABEL: Record<string, string> = {
+  measured: "Measured",
+  derived: "Computed",
+  declared: "Stated",
+};
+
+const SOURCE_HELP: Record<string, string> = {
+  measured: "Measured by running the model, for example an evaluation.",
+  derived: "Computed from the model files by the tool that reported it.",
+  declared: "Stated by a person or tool without being checked.",
+};
+
+const PARAM_METHOD: Record<string, string> = {
+  from_tensors: "counted from the weights",
+  from_config: "read from the config",
+  declared: "as stated",
+};
+
 function SourceTag({ source, help }: { source?: FactSource | string; help?: string }) {
   if (!source) return null;
   const v = sourceVariant[source as FactSource] ?? "muted";
-  const badge = <Badge variant={v}>{source}</Badge>;
-  return help ? <Tooltip content={help} align="end">{badge}</Tooltip> : badge;
+  const badge = <Badge variant={v}>{SOURCE_LABEL[source] ?? source}</Badge>;
+  return <Tooltip content={help ?? SOURCE_HELP[source] ?? source} align="end">{badge}</Tooltip>;
 }
 
 /** One labelled fact. `value` is null/undefined when nobody reported it. */
@@ -116,7 +134,7 @@ export function InsightPanel({
               value={
                 insight?.paramCountTotal === null || insight?.paramCountTotal === undefined
                   ? null
-                  : `${fmtCount(insight.paramCountTotal)}${insight.paramCountMethod ? ` · ${insight.paramCountMethod}` : ""}`
+                  : `${fmtCount(insight.paramCountTotal)}${insight.paramCountMethod ? `, ${PARAM_METHOD[insight.paramCountMethod] ?? insight.paramCountMethod.replace(/_/g, " ")}` : ""}`
               }
               attribution={fs("paramCountTotal")}
             />
