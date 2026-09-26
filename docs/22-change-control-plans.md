@@ -197,9 +197,8 @@ GET  /v1/change-plans/conformance?status=outside_plan|undetermined
 ```
 
 Audit actions: `change_plan.declare`, `change_plan.supersede`, with the envelope and window as
-event data. As built they are written by the core's shared audit path right after the plan
-commits — the same path every other write uses — not inside the store transaction that
-`02.5` invariant 4 describes.
+event data, written in the declaration's transaction under the model's write lock (`02.5`
+invariant 4).
 
 ### 7.1 Declare a plan
 
