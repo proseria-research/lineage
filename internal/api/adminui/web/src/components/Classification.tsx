@@ -47,7 +47,7 @@ export const GPAI_LABEL: Record<string, string> = {
 export const STALE_REASON_TEXT: Record<StaleReason, string> = {
   review_due_passed: "the review date has passed",
   version_published_since: "a version was published since it was classified",
-  production_changed_since: "what is in production changed since it was classified (a version was promoted, or files were added to it)",
+  production_changed_since: "what is in production changed since it was classified (a version was promoted to production)",
   derivation_since: "a modification review was opened since it was classified",
   // The model-risk clauses (§20.7). Their own panel phrases version_published_since against
   // the validation rather than the classification.
