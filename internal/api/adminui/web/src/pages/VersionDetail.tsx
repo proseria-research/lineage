@@ -29,8 +29,8 @@ import { humanize } from "@/lib/labels";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
 const TABS = [
-  { id: "overview", label: "Overview" },
   { id: "use", label: "Use" },
+  { id: "overview", label: "Overview" },
   { id: "structure", label: "Structure & evaluations" },
   { id: "lineage", label: "Lineage" },
   { id: "governance", label: "Governance" },
