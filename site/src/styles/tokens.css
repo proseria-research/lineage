@@ -83,12 +83,43 @@
 
 /* ---- Starlight theme mapping --------------------------------------------
  *
- * Fonts, the accent and the page surfaces. Starlight's own gray ramp is left alone, because
- * it is what guarantees text contrast in both themes.
+ * Starlight draws text from its gray ramp: --sl-color-white is the strongest ink (headings),
+ * gray-2 is body text, gray-3 secondary text, down to gray-7 for faint fills, and
+ * --sl-color-black is the page. The defaults are neutral and pale on our slate paper, so
+ * the whole ramp is mapped to the console's ink, keeping body text near-black for reading.
  *
  * Starlight declares its light values under `:root[data-theme='light']`, which outranks a
  * plain `:root`, so every override is repeated at that specificity.
  */
+
+:root,
+:root[data-theme='light'] {
+	--sl-color-white: #111a27;
+	--sl-color-gray-1: #17202e;
+	--sl-color-gray-2: #263244;
+	--sl-color-gray-3: #475467;
+	--sl-color-gray-4: #667085;
+	--sl-color-gray-5: #c4ccd8;
+	--sl-color-gray-6: #e3e8ef;
+	--sl-color-gray-7: #f0f3f7;
+	--sl-color-black: #ffffff;
+
+	--sl-color-accent-high: var(--brand-strong);
+}
+
+:root[data-theme='dark'] {
+	--sl-color-white: #f5f7fb;
+	--sl-color-gray-1: #e6ebf2;
+	--sl-color-gray-2: #d0d8e4;
+	--sl-color-gray-3: #a9b4c4;
+	--sl-color-gray-4: #7f8b9d;
+	--sl-color-gray-5: #3a4557;
+	--sl-color-gray-6: #232c3a;
+	--sl-color-gray-7: #1b2330;
+	--sl-color-black: #0e131b;
+
+	--sl-color-accent-high: var(--brand-strong);
+}
 
 :root,
 :root[data-theme='light'],
@@ -99,21 +130,14 @@
 	--sl-color-accent: var(--brand);
 	--sl-color-accent-low: var(--brand-soft);
 	--sl-color-text-accent: var(--brand);
+	--sl-color-text: var(--sl-color-gray-2);
 
-	--sl-color-bg: var(--bg);
+	/* The reading area is a white card; navigation sits on the slate paper around it. */
+	--sl-color-bg: var(--card);
 	--sl-color-bg-nav: var(--card);
 	--sl-color-bg-sidebar: var(--bg);
 	--sl-color-bg-inline-code: var(--muted);
 	--sl-color-hairline: var(--border);
 	--sl-color-hairline-light: var(--border);
 	--sl-color-hairline-shade: var(--border);
-}
-
-:root,
-:root[data-theme='light'] {
-	--sl-color-accent-high: var(--brand-strong);
-}
-
-:root[data-theme='dark'] {
-	--sl-color-accent-high: var(--brand-strong);
 }

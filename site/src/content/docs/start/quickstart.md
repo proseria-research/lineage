@@ -1,133 +1,179 @@
 ---
 title: Quickstart
-description: Run Lineage locally, publish a model version, promote it to production, and resolve it — with no dependencies beyond Go.
+description: Run Lineage locally, publish a version with an uploaded file, promote it to production, resolve it and download its bytes with curl.
 sidebar:
   order: 2
 ---
 
-This gets you a working registry with SQLite and local filesystem storage. Nothing else to
-install, nothing to configure.
+This runs a registry with SQLite and local filesystem storage, then walks one version from
+upload to production. You need Go 1.25+, `curl` and `jq`. `make run` also builds the admin
+console, which needs `pnpm`.
 
-## Run it
+## Run the registry
 
 ```bash
 git clone https://github.com/proseria-research/lineage
 cd lineage
-make run          # or: go run ./cmd/lineage
+make run
 ```
 
-Three listeners come up:
+`make run` builds `bin/lineage` with the embedded console and starts it with a 3650-day
+retention floor and audit attestation on, matching the Helm chart defaults. Without `pnpm`, use
+`go run ./cmd/lineage`: the Model API is identical, the console is a placeholder, and the
+retention floor is `0`.
 
-| Port | Surface |
+| Listener | URL |
 | --- | --- |
-| `:8081` | Model API (`/v1`) — publish, resolve, fetch |
-| `:8080` | Admin console |
-| `:9090` | Ops — `/healthz`, `/readyz`, `/metrics` |
+| Model API | `http://localhost:8081/v1` |
+| Admin console | `http://localhost:8080` |
+| Ops | `http://localhost:9090/healthz` |
 
-Check it is alive:
+State lands in `./lineage.db` and `./data/artifacts`. To start over, stop the process and run
+`make reset`. Under the retention floor, deleting a model or version is refused.
+
+The examples send `X-Lineage-Actor`, the identity header an ingress would normally set. Lineage
+records it on every audit event.
 
 ```bash
-curl -s localhost:9090/healthz
+export API=http://localhost:8081/v1
+export ACTOR='X-Lineage-Actor: you@example.com'
 ```
 
-## Publish a model
-
-Create the model, then publish a version with an artifact registered by reference.
+## Create a model and a version
 
 ```bash
-curl -XPOST localhost:8081/v1/models \
-  -H 'Content-Type: application/json' \
-  -H 'X-Lineage-Actor: you@example.com' \
+curl -s -XPOST $API/models -H "$ACTOR" -H 'Content-Type: application/json' \
   -d '{"name":"fraud-detector","owner":"risk-platform"}'
+
+curl -s -XPOST $API/models/fraud-detector/versions -H "$ACTOR" -H 'Content-Type: application/json' \
+  -d '{"name":"1.4.0","description":"Q3 retrain"}'
 ```
 
-```bash
-curl -XPOST localhost:8081/v1/models/fraud-detector/versions \
-  -H 'Content-Type: application/json' \
-  -H 'X-Lineage-Actor: you@example.com' \
-  -d '{
+The second call returns `201` with the version and its (empty) artifact list. New versions start
+in `draft`:
+
+```json
+{
+  "version": {
+    "id": "01K5ZC8Q4W7N3M2B9X6T1RHJDF",
+    "modelId": "01K5ZC8P0A1B2C3D4E5F6G7H8J",
+    "model": "fraud-detector",
     "name": "1.4.0",
-    "artifacts": [{
-      "name": "model.onnx",
-      "uri": "s3://models/fraud-detector/1.4.0/model.onnx",
-      "modelFormat": { "name": "onnx", "version": "1.16" }
-    }]
-  }'
+    "description": "Q3 retrain",
+    "stage": "draft",
+    "createdAt": 1790150400000,
+    "updatedAt": 1790150400000,
+    "stageChangedAt": 1790150400000
+  },
+  "artifacts": []
+}
 ```
 
-The version starts in `draft`.
+## Upload an artifact
 
-## Promote it
-
-Versions move one stage at a time. Promoting to `production` archives whatever was there,
-in the same transaction.
+Uploads are three calls: initiate, send bytes, finalize. With the `fs` backend the ticket is
+stream-through, so bytes go to the Model API. On `s3` the ticket carries a presigned `url`
+instead; see [Publishing](/api/publishing/).
 
 ```bash
-curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition \
-  -H 'Content-Type: application/json' \
-  -H 'X-Lineage-Actor: you@example.com' \
-  -d '{"to":"staging"}'
+head -c 1048576 /dev/urandom > model.onnx
+SIZE=$(wc -c < model.onnx | tr -d ' ')
+DIGEST="sha256:$(shasum -a 256 model.onnx | cut -d' ' -f1)"
 
-curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition \
-  -H 'Content-Type: application/json' \
-  -H 'X-Lineage-Actor: you@example.com' \
+TICKET=$(curl -s -XPOST "$API/models/fraud-detector/versions/1.4.0/artifacts:initiateUpload" \
+  -H "$ACTOR" -H 'Content-Type: application/json' \
+  -d "{\"name\":\"model.onnx\",\"kind\":\"MODEL\",\"sizeBytes\":$SIZE,\"modelFormat\":{\"name\":\"onnx\",\"version\":\"1.16\"}}")
+echo "$TICKET"
+```
+
+```json
+{
+  "uploadId": "01K5ZC9B2Y8R4T6V0W3X5Z7A9C",
+  "streamThrough": true,
+  "contentUrl": "/v1/models/fraud-detector/versions/1.4.0/artifacts:uploadContent?uploadId=01K5ZC9B2Y8R4T6V0W3X5Z7A9C",
+  "expiresAt": 1790154000000
+}
+```
+
+```bash
+curl -s -XPUT "http://localhost:8081$(echo "$TICKET" | jq -r .contentUrl)" --data-binary @model.onnx
+
+curl -s -XPOST "$API/models/fraud-detector/versions/1.4.0/artifacts:finalizeUpload" \
+  -H "$ACTOR" -H 'Content-Type: application/json' \
+  -d "{\"uploadId\":\"$(echo "$TICKET" | jq -r .uploadId)\",\"digest\":\"$DIGEST\"}"
+```
+
+Finalize verifies the digest and size, then returns the artifact (`201`). A mismatch is `422`.
+The ticket expires after one hour.
+
+## Promote
+
+Stages move along a fixed graph; there is no direct `draft` to `production`.
+
+```bash
+curl -s -XPOST "$API/models/fraud-detector/versions/1.4.0:transition" \
+  -H "$ACTOR" -H 'Content-Type: application/json' -d '{"to":"staging"}'
+
+curl -s -XPOST "$API/models/fraud-detector/versions/1.4.0:transition" \
+  -H "$ACTOR" -H 'Content-Type: application/json' \
   -d '{"to":"production","reason":"passed shadow eval"}'
 ```
 
-## Resolve it
+Entering `staging` locked the artifact set: further uploads, registrations and artifact deletes
+on `1.4.0` return `409` with `details.reason: "version_locked"`. Entering `production` archived
+any version that was there before, in the same transaction.
 
-This is the call your serving system makes. It asks for a stage, not a version number.
+## Resolve
+
+This is the call a serving system makes.
 
 ```bash
-curl -s "localhost:8081/v1/models/fraud-detector/resolve?stage=production"
+curl -si "$API/models/fraud-detector/resolve?stage=production"
 ```
 
 ```json
 {
   "model": "fraud-detector",
+  "versionId": "01K5ZC8Q4W7N3M2B9X6T1RHJDF",
   "version": "1.4.0",
   "stage": "production",
-  "digest": "sha256:9f2c4a10...",
+  "digest": "sha256:5f2b8c0e…",
   "modelFormat": { "name": "onnx", "version": "1.16" },
   "artifacts": [
     {
       "name": "model.onnx",
       "kind": "MODEL",
-      "storageUri": "s3://models/fraud-detector/1.4.0/model.onnx",
-      "signedUrl": "https://...",
-      "digest": "sha256:9f2c4a10...",
-      "sizeBytes": 431717888
+      "storageUri": "file://fraud-detector/1.4.0/model.onnx",
+      "sizeBytes": 1048576,
+      "digest": "sha256:5f2b8c0e…"
     }
   ],
-  "resolvedAt": 1785312000
+  "resolvedAt": 1790150700000
 }
 ```
 
-Promote a different version and the same call returns the new one. Nothing redeploys.
+The response has `ETag: "<digest>"` and `Cache-Control: private, no-cache`. The `fs` backend
+cannot sign, so there is no `signedUrl`; on `s3` or `oci` each artifact also carries `signedUrl`
+and `signedUrlExpiresAt`. Omitting `stage` resolves `production`.
 
-## Load sample data
-
-With the registry running, seed a demo dataset — five models across every stage, uploaded and
-by-reference artifacts, lineage edges, deployments, and a real audit trail:
+## Download
 
 ```bash
-make seed                       # or: go run ./cmd/lineage-seed
+curl -sL -o downloaded.onnx \
+  "$API/models/fraud-detector/versions/1.4.0/artifacts/model.onnx/content"
+shasum -a 256 downloaded.onnx
 ```
 
-Seeding is additive and never deletes. A registry with a retention floor refuses deletion by
-design, and a fixture loader is not a reason to reach around that — so starting over means a
-fresh registry: stop it, `make reset`, run again.
+On `fs` the bytes stream through Lineage (with `Range` support). On a signing backend the same
+URL answers `302` to a signed URL, which `-L` follows.
 
-The seeder talks to the Model API like any other client, so `LINEAGE_ENDPOINT` (default
-`http://localhost:8081`) can point it at a port-forward or a remote install.
+## Check the audit trail
 
-## Look at it
+```bash
+curl -s "$API/audit" | jq -r '.items[] | "\(.action)\t\(.actor)\t\(.summary)"'
+```
 
-Open the console at [localhost:8080](http://localhost:8080) and the API contract at
-[localhost:8081/v1/openapi.json](http://localhost:8081/v1/openapi.json).
+The feed is newest first. Each step above wrote one event: `model.create`, `version.create`,
+`artifact.upload` and two `version.stage_changed`.
 
-## Next
-
-- [Register your first model](/start/first-model/) — the same flow with a real file upload
-- [Core concepts](/start/concepts/) — what the entities mean
-- [Deploy with Helm](/deploy/helm/) — the same registry, in a cluster
+Next: [Data model](/start/data-model/) · [SDK and CLI](/clients/sdk-cli/) · [Promotion](/api/promotion/)

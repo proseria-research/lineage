@@ -1,0 +1,68 @@
+---
+/** The deployment picture: callers, the gateway that authenticates them, the one binary and
+ *  its three listeners, and the stores behind it. Inference pulls bytes straight from storage. */
+import Diagram from './Diagram.astro';
+
+const callers = [
+	{ y: 20, title: 'Training pipelines', sub: 'SDK, CLI, HTTP' },
+	{ y: 120, title: 'People', sub: 'Browser' },
+	{ y: 220, title: 'Inference', sub: 'KServe, Modal' },
+];
+const listeners = [
+	{ y: 44, title: 'Model API', sub: ':8081 /v1' },
+	{ y: 124, title: 'Admin console', sub: ':8080' },
+	{ y: 204, title: 'Ops', sub: ':9090 metrics' },
+];
+const stores = [
+	{ y: 20, title: 'Metadata', sub: 'SQLite or Postgres' },
+	{ y: 120, title: 'Resolve cache', sub: 'Memory or Redis' },
+	{ y: 220, title: 'Artifact storage', sub: 'fs, S3, OCI' },
+];
+const H = 60;
+---
+
+<Diagram
+	width={680}
+	height={330}
+	title="Lineage architecture"
+	desc="Training pipelines, people and inference systems reach Lineage through an ingress or gateway that authenticates them and sets the actor header. One Lineage binary serves the Model API on 8081, the admin console on 8080 and ops on 9090, and keeps metadata in SQLite or Postgres, a resolve cache in memory or Redis, and artifacts in filesystem, S3 or OCI storage. Inference downloads artifacts directly from storage with signed URLs."
+>
+	{callers.map((c) => (
+		<g>
+			<rect class="dg__box" x="0" y={c.y} width="140" height={H} rx="8" />
+			<text class="dg__title" x="14" y={c.y + 26}>{c.title}</text>
+			<text class="dg__sub" x="14" y={c.y + 45}>{c.sub}</text>
+			<path class="dg__edge" d={`M 140 ${c.y + H / 2} L 178 ${c.y + H / 2}`} marker-end="url(#dg-arrow)" />
+		</g>
+	))}
+
+	<rect class="dg__box dg__box--muted" x="180" y="20" width="120" height="260" rx="8" />
+	<text class="dg__title" x="194" y="46">Gateway</text>
+	<text class="dg__sub" x="194" y="66">Authenticates</text>
+	<text class="dg__sub" x="194" y="84">and sets the</text>
+	<text class="dg__sub" x="194" y="102">actor header</text>
+
+	<rect class="dg__group" x="336" y="0" width="170" height="290" rx="10" />
+	<text class="dg__group-label" x="350" y="26">lineage binary</text>
+	{listeners.map((l, i) => (
+		<g>
+			<rect class="dg__box dg__box--brand" x="350" y={l.y} width="142" height={H} rx="8" />
+			<text class="dg__title" x="364" y={l.y + 26}>{l.title}</text>
+			<text class="dg__sub dg__mono" x="364" y={l.y + 45}>{l.sub}</text>
+			{i < 2 && <path class="dg__edge" d={`M 300 ${l.y + H / 2} L 348 ${l.y + H / 2}`} marker-end="url(#dg-arrow)" />}
+		</g>
+	))}
+
+	{stores.map((s) => (
+		<g>
+			<path class="dg__edge" d={`M 506 ${s.y + H / 2} L 538 ${s.y + H / 2}`} marker-end="url(#dg-arrow)" />
+			<rect class="dg__box" x="540" y={s.y} width="140" height={H} rx="8" />
+			<text class="dg__title" x="554" y={s.y + 26}>{s.title}</text>
+			<text class="dg__sub" x="554" y={s.y + 45}>{s.sub}</text>
+		</g>
+	))}
+
+	<path class="dg__edge dg__edge--dashed" d="M 70 280 L 70 312 L 610 312 L 610 282" marker-end="url(#dg-arrow)" />
+	<rect class="dg__pill" x="262" y="301" width="156" height="22" rx="11" />
+	<text class="dg__label" x="340" y="316" text-anchor="middle">bytes via signed URLs</text>
+</Diagram>

@@ -1,0 +1,194 @@
+---
+title: Publishing
+description: Create models and versions, attach artifacts by reference or by upload, and know when a version's files freeze.
+sidebar:
+  order: 1
+---
+
+import UploadFlow from '../../../components/diagrams/UploadFlow.astro';
+
+Publishing is a Model API operation (`:8081`, `/v1`). A version is created in `draft` with
+zero or more artifacts; its artifact set stays open until it first enters `staging`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/models` | Create a model |
+| `PATCH` | `/v1/models/{model}` | Update description, owner, labels, customProperties, state |
+| `POST` | `/v1/models/{model}/versions` | Publish a version, optionally with artifacts by reference |
+| `PATCH` | `/v1/models/{model}/versions/{version}` | Update description, author, labels, customProperties |
+| `POST` | `/v1/models/{model}/versions/{version}/artifacts` | Register an artifact by reference |
+| `POST` | `…/artifacts:initiateUpload` | Start an upload, get a ticket |
+| `PUT` | `…/artifacts:uploadContent?uploadId=` | Stream-through sink for backends that cannot sign |
+| `POST` | `…/artifacts:finalizeUpload` | Verify the bytes and create the artifact |
+| `PATCH` | `…/artifacts/{artifact}` | Update mediaType, serviceAccount, customProperties |
+| `DELETE` | `…/artifacts/{artifact}` | Delete the artifact row (bytes are left to storage policy) |
+
+## Names
+
+| Thing | Pattern | Notes |
+| --- | --- | --- |
+| Model, version | `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$` | Lowercase slug; it is the URL identity |
+| Artifact | `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$` | A filename; `.` and `..` rejected; unique per version |
+
+A duplicate model, version or artifact name returns `409 already_exists`.
+
+## Create a model
+
+```bash
+curl -X POST localhost:8081/v1/models \
+  -H 'Content-Type: application/json' -H 'X-Lineage-Actor: ci@example.com' \
+  -d '{"name":"fraud-detector","description":"Card fraud scorer","owner":"risk-ml","labels":{"team":"risk"}}'
+```
+
+`201` returns the `Model` with `id`, `state: "ACTIVE"`, `createdAt` and `updatedAt`
+(epoch-millis). `name` is required; everything else is optional.
+
+## Publish a version
+
+A publish creates the version and any inline artifacts in one transaction: either all of
+them exist afterwards or none do.
+
+```bash
+curl -X POST localhost:8081/v1/models/fraud-detector/versions \
+  -H 'Content-Type: application/json' -H 'X-Lineage-Actor: ci@example.com' \
+  -H 'Idempotency-Key: publish-fraud-detector-1.4.0' \
+  -d '{
+    "name": "1.4.0",
+    "description": "Retrained on Q3 data",
+    "author": "ci@example.com",
+    "labels": {"dataset": "q3-2026"},
+    "artifacts": [{
+      "name": "model.onnx",
+      "uri": "s3://models/fraud-detector/1.4.0/model.onnx",
+      "digest": "sha256:9f2c…",
+      "sizeBytes": 48213377,
+      "modelFormat": {"name": "onnx", "version": "1.16"}
+    }]
+  }'
+```
+
+```json
+{
+  "version": {
+    "id": "01K5Z8Q2M4…", "modelId": "01K5Z7X0C1…", "model": "fraud-detector",
+    "name": "1.4.0", "description": "Retrained on Q3 data", "author": "ci@example.com",
+    "stage": "draft", "labels": {"dataset": "q3-2026"},
+    "createdAt": 1790000000000, "updatedAt": 1790000000000, "stageChangedAt": 1790000000000
+  },
+  "artifacts": [{
+    "id": "01K5Z8Q2N7…", "versionId": "01K5Z8Q2M4…", "kind": "MODEL", "name": "model.onnx",
+    "uri": "s3://models/fraud-detector/1.4.0/model.onnx", "sizeBytes": 48213377,
+    "digest": "sha256:9f2c…", "modelFormat": {"name": "onnx", "version": "1.16"},
+    "createdAt": 1790000000000, "updatedAt": 1790000000000
+  }]
+}
+```
+
+Retries are safe with `Idempotency-Key`; see [Conventions](/api/conventions/#idempotency-keys).
+
+## Artifacts by reference
+
+Use this when the bytes already live in storage. Lineage records the pointer; it does not
+copy or check that the object exists.
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `name` | yes | Filename within the version |
+| `uri` | yes | Native pointer (`s3://`, `oci://`, `file://`, `gs://`, `hf://`, …), returned verbatim as `storageUri` on resolve |
+| `kind` | no | `MODEL` (default) or `DOC` |
+| `digest`, `sizeBytes` | no | If omitted, filled from a `Stat` on the configured backend when it can read the `uri` |
+| `mediaType` | no | Served as `Content-Type` on streamed content |
+| `modelFormat` | no | `{name, version}`, free-form; resolve reports the first `MODEL` artifact's format |
+| `serviceAccount` | no | Hint for runtimes that pull with their own credentials |
+| `storageBackend` | no | Backend name; omit to use the configured backend |
+
+Register one more artifact on an existing, unlocked version with
+`POST …/versions/1.4.0/artifacts` and the same body as one element of `artifacts`.
+
+## Artifacts by upload
+
+Uploads are three calls. The ticket tells you which of three modes the backend supports.
+
+<UploadFlow />
+
+| Mode | When | Ticket fields | Client does |
+| --- | --- | --- | --- |
+| Signed PUT | Backend signs writes (`s3`) | `url`, `method` | `PUT` bytes to `url` |
+| Multipart | `s3` and `sizeBytes` ≥ 64 MiB | `multipart`, `partSize`, `parts[{partNumber, url}]` | `PUT` each part, record each response `ETag` |
+| Stream-through | Backend cannot sign writes (`fs`, `oci`) | `streamThrough`, `contentUrl` | `PUT` raw bytes to `contentUrl` (server-relative; resolve against the Model API origin) |
+
+Every ticket carries `uploadId` and `expiresAt` (one hour). Multipart parts are at least
+5 MiB, at most 10,000 parts. A multipart finalize must send
+`parts: [{"partNumber": 1, "etag": "\"…\""}, …]`.
+
+```bash
+curl -X POST localhost:8081/v1/models/fraud-detector/versions/1.4.0/artifacts:initiateUpload \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"tokenizer.json","kind":"MODEL","sizeBytes":2114,"mediaType":"application/json"}'
+# 202 {"uploadId":"01K5Z9…","streamThrough":true,
+#      "contentUrl":"/v1/models/fraud-detector/versions/1.4.0/artifacts:uploadContent?uploadId=01K5Z9…",
+#      "expiresAt":1790003600000}
+
+curl -X PUT "localhost:8081/v1/models/fraud-detector/versions/1.4.0/artifacts:uploadContent?uploadId=01K5Z9…" \
+  -H 'Content-Type: application/octet-stream' --data-binary @tokenizer.json   # 204
+
+curl -X POST localhost:8081/v1/models/fraud-detector/versions/1.4.0/artifacts:finalizeUpload \
+  -H 'Content-Type: application/json' \
+  -d '{"uploadId":"01K5Z9…","digest":"sha256:3b7e…"}'                         # 201 Artifact
+```
+
+`initiateUpload` fails fast with `409 already_exists` if the version already has an artifact
+with that name, compared case-insensitively.
+
+### Digest verification
+
+Digests are `sha256:<hex>`. Finalize compares your declared `digest` against:
+
+| Mode | Digest Lineage checks against |
+| --- | --- |
+| Stream-through | sha256 computed as the bytes pass through |
+| Signed PUT, ≤ 256 MiB | Object's `x-amz-meta-sha256` if present; else, if you declared a digest, the object is read back once and hashed |
+| Signed PUT > 256 MiB, multipart | Object's `x-amz-meta-sha256` if present; else not recomputed, and your declared digest is recorded |
+
+A mismatch, a size different from the declared `sizeBytes`, or no object at the target returns
+`422 unprocessable`. Rejected stream-through bytes are deleted. A multipart finalize without
+`parts` returns `400` and aborts the multipart upload. An expired ticket returns
+`409 failed_precondition`.
+
+:::caution
+Pending uploads live in the memory of the replica that issued the ticket. The `uploadContent`
+and `finalizeUpload` calls must reach that replica, and a restart discards open tickets
+(`404 not_found` for the `uploadId`).
+:::
+
+## Labels, description, metadata
+
+`PATCH` changes only the fields you send. `labels` replaces the whole map. Stage is not
+patchable; use [`:transition`](/api/promotion/). On artifacts, `uri`, `digest` and
+`sizeBytes` are immutable: sending a different value returns `409 failed_precondition`.
+
+## The artifact lock
+
+A version's artifact set freezes the first time it enters `staging` (or `production`).
+`lockedAt` is set then and never cleared, including after a demotion back to `draft`.
+
+| Refused on a locked version | Still allowed |
+| --- | --- |
+| Register, `initiateUpload`, `uploadContent`, `finalizeUpload`, artifact `DELETE` | Artifact `PATCH` of `mediaType`, `serviceAccount`, `customProperties`; version `PATCH` |
+
+An upload started before the lock and finished after it is refused too.
+
+```json
+{
+  "type": "https://lineage.dev/errors/failed_precondition",
+  "title": "failed_precondition",
+  "status": 409,
+  "code": "failed_precondition",
+  "detail": "cannot register artifact 'tokenizer.json': fraud-detector@1.4.0 is locked — its files froze when it first reached staging; publish a new version instead",
+  "details": {"reason": "version_locked", "lockedAt": 1790007200000}
+}
+```
+
+To change files, publish a new version.
+
+Next: [Promotion](/api/promotion/) · [Storage backends](/operate/storage/) · [SDK and CLI](/clients/sdk-cli/)

@@ -1,0 +1,91 @@
+---
+title: Introduction
+description: What Lineage is, how the single binary is laid out, and how training pipelines and inference systems use it.
+sidebar:
+  order: 1
+---
+
+import Architecture from '../../../components/diagrams/Architecture.astro';
+
+Lineage is a self-hosted AI model registry. It records which models and versions exist, where
+their artifact bytes live, which lifecycle stage each version is in, who changed what, and how a
+consumer fetches the version a stage currently points at.
+
+Lineage owns metadata and pointers. Artifact bytes live in a storage backend; Lineage records
+their location, digest and size, and brokers access to them.
+
+## Architecture
+
+One Go binary serves three listeners.
+
+| Listener | Default | Audience | Serves |
+| --- | --- | --- | --- |
+| Model API | `:8081` | Machines: CI, SDK, CLI, inference | `/v1` — publish, promote, resolve, fetch, lineage, audit. Contract at `/v1/openapi.json` |
+| Admin console | `:8080` | Humans | Web UI for reviewing, promoting and governing; publishing goes through the Model API |
+| Ops | `:9090` | Kubelet, Prometheus | `/healthz`, `/readyz`, `/metrics` |
+
+The port selects the surface; there is no `/admin` path prefix.
+
+<Architecture />
+
+| Component | Options | Config |
+| --- | --- | --- |
+| Metadata store | `sqlite` (default), `postgres`, `memory` | `LINEAGE_DB_ENGINE`, `LINEAGE_DB_PATH` |
+| Artifact storage | `fs` (default), `s3` (any S3-compatible store), `oci` (registry via ORAS) | `LINEAGE_STORAGE_DRIVER` |
+| Resolve cache | `memory` (default), `redis` | `LINEAGE_CACHE_ENGINE` |
+
+SQLite and Postgres share one schema and one migration list behind the same store interface;
+registry behaviour is the same on both. See [Configuration](/operate/configuration/) and
+[Storage](/operate/storage/).
+
+## Authentication
+
+Lineage does no authentication or authorization. Put it behind infrastructure that does
+(ingress, gateway, service mesh, NetworkPolicy). That layer sets an identity header, by default
+`X-Lineage-Actor` (`LINEAGE_ACTOR_HEADER`). Lineage records the value verbatim as the `actor` on
+every audit event and never checks it.
+
+:::caution
+Anything that can reach `:8081` can write. Do not expose the Model API without a front door that
+authenticates callers and controls the actor header.
+:::
+
+## Core objects
+
+| Object | What it is |
+| --- | --- |
+| Model | A named, long-lived entry, e.g. `fraud-detector`. Has an owner, labels and a state |
+| Version | A release of a model, e.g. `1.4.0`, in exactly one stage |
+| Artifact | A file of a version: a pointer (`uri`) plus `digest`, `sizeBytes`, `modelFormat` |
+| Stage | `draft`, `staging`, `production`, `archived`. At most one version per model is in `production` |
+| Lineage edge | A typed link from a version to another version or an external URI |
+| Deployment | An informational record of where a version is served |
+| Evaluation | A metric result recorded against a version |
+| Audit event | An append-only record written with every mutation |
+
+A version's artifact set freezes the first time it enters `staging`: what was tested is what
+ships. Field-level detail is in [Data model](/start/data-model/).
+
+## How inference systems consume it
+
+A consumer asks for a stage, not a version number:
+
+```bash
+curl -s "http://localhost:8081/v1/models/fraud-detector/resolve?stage=production"
+```
+
+The resolution carries what a serving system needs, with no Lineage-specific glue:
+
+- `storageUri` per artifact, in the backend's native scheme (`s3://`, `oci://`, `file://`, or
+  whatever URI was registered), for systems that pull from storage directly.
+- `signedUrl` when the backend can sign (s3, oci), for systems that fetch over HTTPS.
+- `digest`, `sizeBytes`, `modelFormat`, and `ociImage` when the model lives in an OCI registry.
+- An `ETag` equal to the resolution digest, so pollers can revalidate with `If-None-Match`.
+
+`GET .../artifacts/{name}/content` brokers the bytes: a `302` to a fresh signed URL where the
+backend signs, otherwise a stream through Lineage. For KServe, the `lineage-init` storage initializer accepts
+`lineage://<model>[/<stage>][@<version>][#<artifact>]` and downloads the resolved version's
+`MODEL` artifacts. Promoting a different version changes what the next resolve returns; no
+manifest changes.
+
+Next: [Quickstart](/start/quickstart/) · [Data model](/start/data-model/) · [Resolve and fetch](/api/resolve/)

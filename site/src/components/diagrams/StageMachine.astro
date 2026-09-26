@@ -1,0 +1,56 @@
+---
+/** The version lifecycle: every allowed transition, with the two facts that matter most. */
+import Diagram from './Diagram.astro';
+
+const W = 124;
+const H = 44;
+const node = {
+	draft: { x: 80, y: 96, label: 'Draft', tone: '' },
+	staging: { x: 290, y: 96, label: 'Staging', tone: 'dg__box--brand' },
+	production: { x: 500, y: 96, label: 'Production', tone: 'dg__box--ok' },
+	archived: { x: 290, y: 236, label: 'Archived', tone: 'dg__box--dashed' },
+};
+const cx = (n: { x: number }) => n.x + W / 2;
+---
+
+<Diagram
+	width={680}
+	height={300}
+	title="Version stages"
+	desc="A published version starts in draft. Draft can move to staging or archived. Staging can move to production, back to draft, or to archived. Production can move back to staging or to archived. Archived can be restored to draft."
+>
+	<!-- publish -->
+	<path class="dg__edge" d="M 0 118 L 78 118" marker-end="url(#dg-arrow)" />
+	<text class="dg__label" x="30" y="108" text-anchor="middle">publish</text>
+
+	<!-- promotions -->
+	<path class="dg__edge dg__edge--strong" d="M 204 118 L 288 118" marker-end="url(#dg-arrow)" />
+	<path class="dg__edge dg__edge--strong" d="M 414 118 L 498 118" marker-end="url(#dg-arrow)" />
+	<text class="dg__label" x="246" y="108" text-anchor="middle">promote</text>
+	<text class="dg__label" x="456" y="108" text-anchor="middle">promote</text>
+
+	<!-- demotions, as arcs above -->
+	<path class="dg__edge" d={`M ${cx(node.staging)} 96 C ${cx(node.staging)} 40, ${cx(node.draft)} 40, ${cx(node.draft)} 94`} marker-end="url(#dg-arrow)" />
+	<path class="dg__edge" d={`M ${cx(node.production)} 96 C ${cx(node.production)} 40, ${cx(node.staging)} 40, ${cx(node.staging) + 0} 94`} marker-end="url(#dg-arrow)" />
+	<text class="dg__label" x="247" y="42" text-anchor="middle">demote</text>
+	<text class="dg__label" x="457" y="42" text-anchor="middle">demote</text>
+
+	<!-- archive -->
+	<path class="dg__edge" d={`M ${cx(node.draft)} 140 C ${cx(node.draft)} 220, 250 258, 288 258`} marker-end="url(#dg-arrow)" />
+	<path class="dg__edge" d={`M ${cx(node.staging)} 140 L ${cx(node.staging)} 234`} marker-end="url(#dg-arrow)" />
+	<path class="dg__edge" d={`M ${cx(node.production)} 140 C ${cx(node.production)} 220, 460 258, 416 258`} marker-end="url(#dg-arrow)" />
+	<text class="dg__label" x="365" y="196" text-anchor="middle">archive</text>
+
+	<!-- restore -->
+	<path class="dg__edge dg__edge--dashed" d={`M 290 274 C 60 290, 40 200, ${node.draft.x + 14} 142`} marker-end="url(#dg-arrow)" />
+	<text class="dg__label" x="96" y="250" text-anchor="middle">restore</text>
+
+	{Object.values(node).map((n) => (
+		<g>
+			<rect class={`dg__box ${n.tone}`} x={n.x} y={n.y} width={W} height={H} rx="22" />
+			<text class="dg__title" x={cx(n)} y={n.y + 27} text-anchor="middle">{n.label}</text>
+		</g>
+	))}
+
+	<text class="dg__note" x={cx(node.staging)} y="160" text-anchor="middle">files lock here</text>
+</Diagram>
