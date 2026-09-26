@@ -124,6 +124,32 @@ func (s *Service) ListChangePlans(ctx context.Context, model string) ([]*domain.
 	return s.store.ListChangePlans(ctx, m.ID)
 }
 
+// NamedChangePlan is a plan with its model's name, for a reader listing plans across models.
+type NamedChangePlan struct {
+	*domain.ChangePlan
+	Model string `json:"model"`
+}
+
+// AllChangePlans returns every plan on the install, newest effective_from first, each named —
+// the console's plan register. Two reads, not one per model.
+func (s *Service) AllChangePlans(ctx context.Context) ([]*NamedChangePlan, error) {
+	plans, err := s.store.ListChangePlans(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	names := map[string]string{}
+	out := make([]*NamedChangePlan, 0, len(plans))
+	for _, p := range plans {
+		if _, ok := names[p.ModelID]; !ok {
+			if m, err := s.store.GetModel(ctx, p.ModelID); err == nil {
+				names[p.ModelID] = m.Name
+			}
+		}
+		out = append(out, &NamedChangePlan{ChangePlan: p, Model: names[p.ModelID]})
+	}
+	return out, nil
+}
+
 // VersionConformance answers §22.4 for one version: one item per derived_from edge. A version
 // with none has nothing to compare, which is 409 no_predecessor (§22.7.3) rather than an
 // empty list a caller could mistake for "within plan".

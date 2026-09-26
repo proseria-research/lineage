@@ -9,6 +9,7 @@ import { ClassifyDialog } from "@/components/ClassifyDialog";
 import { EvidencePanel } from "@/components/Hold";
 import { ReviewQueue } from "@/components/Review";
 import { MRMStateBadge, TierBadge } from "@/components/MRM";
+import { ChangePlanSection } from "@/components/ChangePlan";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
 
@@ -185,7 +186,7 @@ export default function Compliance() {
 
   return (
     <div>
-      <PageHeader title="Compliance" sub="EU AI Act risk classification and drift · model risk management" />
+      <PageHeader title="Compliance" sub="EU AI Act risk classification and drift · model risk management · change control plans" />
 
       {/* Whether the record can be trusted comes before what the record says. §19.8 keeps
           this off model pages because it describes the install, not any one model. */}
@@ -232,6 +233,10 @@ export default function Compliance() {
           <ReviewQueue />
 
           <ModelRiskWork models={models} />
+
+          {/* Change control (§22.7). Its own regime, after the other two; renders nothing
+              until some model has a plan. */}
+          <ChangePlanSection />
 
           {covered.length > 0 && (
             <section className="mt-6">

@@ -509,3 +509,22 @@ func (r *Router) recordReview(w http.ResponseWriter, req *http.Request) {
 	}
 	api.WriteJSON(w, http.StatusCreated, rev)
 }
+
+// ---- Change control plans (§22) ----
+
+// changePlans backs the console's change-control section: the plan register and every
+// conformance row, in one payload. No status filter — the page separates what needs a look
+// (outside_plan, undetermined) from what does not, and shows both, for the reviews reason.
+func (r *Router) changePlans(w http.ResponseWriter, req *http.Request) {
+	plans, err := r.svc.AllChangePlans(req.Context())
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	items, next, err := r.svc.ConformanceQueue(req.Context(), nil, domain.ListOptions{PageSize: bigPage})
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, map[string]any{"plans": nz(plans), "items": nz(items), "nextPageToken": next})
+}
