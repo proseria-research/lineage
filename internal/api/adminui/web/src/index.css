@@ -394,33 +394,28 @@
   }
 }
 
-/* Fingerprint pairs (§12.4): while a pair is hovered, the petals that changed oscillate from
-   the flower's centre and the unchanged ones stay still — anything that moves is a
-   difference. Off for reduced motion. */
-.fp-changed {
-  transform-box: view-box;
-  transform-origin: 50% 50%;
+/* Fingerprint pairs (§12.4): a blink comparator. While a pair is hovered, the B slot flips
+   between A and B in place (BlinkMark), so whatever jumps is a difference. Off for reduced
+   motion, where the pair simply sits side by side. */
+.fp-blink-a {
+  opacity: 0;
 }
 
-.fp-pair:hover .fp-changed {
-  animation: fp-oscillate 1.1s ease-in-out infinite;
+.fp-pair:hover .fp-blink-a {
+  animation: fp-blink 1.2s steps(1, end) infinite;
 }
 
-@keyframes fp-oscillate {
-  0%,
-  100% {
-    transform: rotate(0deg) scale(1);
+@keyframes fp-blink {
+  0% {
+    opacity: 1;
   }
-  25% {
-    transform: rotate(4deg) scale(1.06);
-  }
-  75% {
-    transform: rotate(-4deg) scale(0.96);
+  50% {
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fp-pair:hover .fp-changed {
+  .fp-pair:hover .fp-blink-a {
     animation: none;
   }
 }

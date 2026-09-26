@@ -4,7 +4,7 @@ import { api, type ChangePlan, type Conformance, type ConformanceItem } from "@/
 import { useAsync } from "@/lib/useAsync";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
-import { FingerprintMark, type RingName } from "@/components/VersionMark";
+import { BlinkMark, FingerprintMark, type RingName } from "@/components/VersionMark";
 import { VerdictBadge, VERDICT_LABEL } from "@/components/Review";
 import { relTime } from "@/lib/utils";
 
@@ -77,7 +77,7 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
           <span className="text-xs text-muted-foreground" aria-hidden="true">
             →
           </span>
-          <FingerprintMark placeholder insight={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
+          <BlinkMark from={side("from")} to={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
         </div>
       ) : (
         <div className="flex h-11 w-[7.25rem] shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">

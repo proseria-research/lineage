@@ -5,7 +5,7 @@ import { useAsync } from "@/lib/useAsync";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { FingerprintMark, type RingName } from "@/components/VersionMark";
+import { BlinkMark, FingerprintMark, type RingName } from "@/components/VersionMark";
 import { ReviewDialog } from "@/components/ReviewDialog";
 import { Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
@@ -88,7 +88,7 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
           <span className="text-xs text-muted-foreground" aria-hidden="true">
             →
           </span>
-          <FingerprintMark placeholder insight={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
+          <BlinkMark from={side("from")} to={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
         </div>
       ) : (
         // Absence gets a slot of its own width, so rows stay aligned and "no facts reported"
