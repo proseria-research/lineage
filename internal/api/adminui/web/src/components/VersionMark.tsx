@@ -319,6 +319,14 @@ function petalPoints(c: number, len: number, base: number, width: number, wav: n
   return pts.join(" ");
 }
 
+/** CSS colour of each level, for per-dot gradient fills. */
+const FP_VAR: Record<RingName, string> = {
+  topology: "var(--fp-topology)",
+  shape: "var(--fp-shape)",
+  dtype: "var(--fp-dtype)",
+  weights: "var(--fp-weights)",
+};
+
 /** Petal directions, clockwise from the top left, in RING_ORDER. */
 const PETAL_ANGLE = [-0.75 * Math.PI, -0.25 * Math.PI, 0.25 * Math.PI, 0.75 * Math.PI];
 
@@ -397,6 +405,36 @@ function Fingerprint({
     const interior = size < 64 ? 18 : 140;
     const dot = Math.max(0.5, 0.62 * k);
     const jitter = 1.1 * k;
+    // The gradient. Across the petal, its centre line is the level's own colour and its edges
+    // blend toward the neighbouring petals' colours (at most 45%), so the four flow into one
+    // flower while each keeps its identity. From tip to centre, dots grow finer and fainter.
+    // In a delta pair only the tip-to-centre fade applies: an unchanged petal stays grey, and
+    // a changed one keeps its colour unmixed so it cannot borrow a neighbour's.
+    const own = muted ? "var(--muted-foreground)" : FP_VAR[name];
+    const neighbour = (side: -1 | 1) => {
+      const n = RING_ORDER[(i + side + 4) % 4];
+      return !emphasis && hashes[n] ? FP_VAR[n] : own;
+    };
+    const colourAt = (t: number) => {
+      if (emphasis) return own;
+      const w = Math.abs(t - Math.PI / 2) / (Math.PI / 2); // 0 on the centre line, 1 at an edge
+      const mix = Math.round(45 * w * w);
+      return mix === 0 ? own : `color-mix(in oklch, ${own} ${100 - mix}%, ${neighbour(t < Math.PI / 2 ? -1 : 1)})`;
+    };
+    const dotAt = (key: string, t: number, sc: number, x: number, y: number, scale: number, alpha: number) => {
+      const rho = sc * Math.sin(t); // 0 at the centre, 1 at the tip
+      return (
+        <circle
+          key={key}
+          cx={x}
+          cy={y}
+          r={dot * scale * (0.55 + 0.6 * rho)}
+          style={{ fill: colourAt(t) }}
+          fillOpacity={alpha * (0.3 + 0.7 * rho)}
+        />
+      );
+    };
+
     const dots: React.ReactElement[] = [];
     for (let ci = 0; ci < contours; ci++) {
       const sc = 1 - ci * 0.2;
@@ -404,31 +442,26 @@ function Fingerprint({
         const t = ((q + 0.5 + (unit() - 0.5) * 0.6) / perContour) * Math.PI;
         const [x, y] = at(t, sc);
         dots.push(
-          <circle
-            key={`${name}c${ci}_${q}`}
-            cx={x + (unit() - 0.5) * jitter}
-            cy={y + (unit() - 0.5) * jitter}
-            r={dot * (ci === 0 ? 1.15 : 0.9) * (0.75 + unit() * 0.5)}
-            fillOpacity={(ci === 0 ? 0.95 : 0.7) * (0.7 + unit() * 0.3)}
-          />,
+          dotAt(
+            `${name}c${ci}_${q}`,
+            t,
+            sc,
+            x + (unit() - 0.5) * jitter,
+            y + (unit() - 0.5) * jitter,
+            (ci === 0 ? 1.2 : 0.95) * (0.75 + unit() * 0.5),
+            (ci === 0 ? 1 : 0.8) * (0.75 + unit() * 0.25),
+          ),
         );
       }
     }
     for (let q = 0; q < interior; q++) {
       const t = 0.08 + unit() * (Math.PI - 0.16);
-      const [x, y] = at(t, 0.1 + Math.pow(unit(), 0.7) * 0.85);
-      dots.push(
-        <circle
-          key={`${name}i${q}`}
-          cx={x}
-          cy={y}
-          r={dot * (0.5 + unit() * 0.5)}
-          fillOpacity={0.18 + unit() * 0.32}
-        />,
-      );
+      const sc = 0.1 + Math.pow(unit(), 0.7) * 0.85;
+      const [x, y] = at(t, sc);
+      dots.push(dotAt(`${name}i${q}`, t, sc, x, y, 0.5 + unit() * 0.5, 0.25 + unit() * 0.4));
     }
     out.push(
-      <g key={name} className={tone} fill="currentColor" opacity={muted ? 0.5 : 1}>
+      <g key={name} opacity={muted ? 0.55 : 1}>
         {dots}
       </g>,
     );

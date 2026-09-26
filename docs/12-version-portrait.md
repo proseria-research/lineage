@@ -131,7 +131,11 @@ Each petal's outline is seeded from its hash by the stream (§5): its width, the
 edge, and how many nested contours it has (3–4; 2 under 64px). Each petal is drawn as a **point
 cloud**: dots gather along its contours and scatter more thinly inside, every dot's position,
 size and opacity taken from the same stream, so the same hash lays the same cloud. Under 24px,
-where dots are dust, a petal is a plain filled shape. The same hash always draws the same petal and a different hash a
+where dots are dust, a petal is a plain filled shape. The cloud is graded two ways: from tip to centre the dots grow
+finer and fainter, and across the petal its centre line keeps the level's own colour while its
+edges blend up to 45% toward the neighbouring petals', so the four read as one flower. In a
+delta pair only the tip-to-centre fade applies — a changed petal keeps its colour unmixed and an
+unchanged one stays grey — so no petal can borrow a neighbour's hue. The same hash always draws the same petal and a different hash a
 visibly different one; the shape encodes nothing beyond that. **A hash that is absent is drawn
 as a plain dotted petal in the muted tone** — present-but-different and absent-entirely must
 not look alike. In a pair, a side with no hashes at all draws four dotted petals rather than
