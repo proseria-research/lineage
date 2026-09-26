@@ -23,7 +23,7 @@ export interface Overview {
 
 // Risk classification (§16). The class is always something a person declared; the console
 // shows it and shows when it has gone out of date, and never edits or infers one.
-export type Regime = "eu_ai_act";
+export type Regime = "eu_ai_act" | "mrm";
 
 export type EUSystemRiskClass =
   | "unclassified"
@@ -37,25 +37,67 @@ export type EUGpaiTier = "none" | "gpai" | "gpai_systemic";
 
 export type ClassificationState = "unclassified" | "stale" | "current";
 
+// Model risk management (§20): a second regime on the same table. The tier is declared, the
+// validation is a person's judgement, and the state is computed on read — never a gate.
+export type MRMTier = "untiered" | "tier_1" | "tier_2" | "tier_3" | "out_of_scope";
+
+// `untiered` and `unvalidated` are not kinds of `stale` (§20.7).
+export type MRMState = "untiered" | "unvalidated" | "stale" | "current";
+
 export type StaleReason =
   | "review_due_passed"
   | "version_published_since"
   | "production_changed_since"
-  | "derivation_since";
+  | "derivation_since"
+  | "validation_expired"
+  | "unmonitored_in_production"
+  | "conditions_outstanding";
+
+export type ValidationOutcome = "approved" | "conditional" | "rejected" | "undetermined";
+
+export interface Validation {
+  id: string;
+  versionId: string;
+  outcome: ValidationOutcome;
+  scope?: string;
+  findings?: string;
+  conditions?: string;
+  conditionsClearedAt?: number;
+  validUntil?: number;
+  evidenceArtifactId?: string;
+  validatedBy?: string;
+  validatedAt: number;
+  // The validator is named and is not the version's author (§20.6). A flag, never a refusal.
+  independenceEvidenced: boolean;
+  source: FactSource;
+}
+
+// A version's validation history, newest first, with that version's own §20.7 state.
+export interface VersionValidations {
+  items: Validation[];
+  state: MRMState;
+  staleReasons?: StaleReason[];
+}
 
 export interface Classification {
   modelId: string;
   regime: Regime;
   euGpaiTier?: EUGpaiTier;
   euSystemRiskClass?: EUSystemRiskClass;
+  mrmTier?: MRMTier;
   intendedPurpose?: string;
   basis?: string;
   classifiedAt: number;
   classifiedBy?: string;
   reviewDueAt?: number;
   source: FactSource;
-  state: ClassificationState;
+  // The row's own regime's ladder: ClassificationState on eu_ai_act, MRMState on mrm.
+  state: ClassificationState | MRMState;
   staleReasons?: StaleReason[];
+  // mrm rows only: the version the state is about (production, else newest), and its
+  // latest validation.
+  version?: string;
+  latestValidation?: Validation;
 }
 
 // Legal hold (§19.3). A null hold is "not held" — there is no boolean beside the timestamp,
@@ -116,6 +158,8 @@ export interface ModelRollup {
   // null when nobody has classified this model. Absence is the `unclassified` state (§16.4)
   // and must render as that word, never as `minimal` (§16.9).
   classification: Classification | null;
+  // null when untiered — rendered as `untiered`, never as a low tier (§20.10).
+  mrm: Classification | null;
   // null when not held. A hold blocks destruction only — the model keeps moving through its
   // lifecycle (§19.3.1).
   legalHold: Hold | null;
@@ -379,6 +423,10 @@ export interface VersionDetail {
   // The *model's* classification, shown on the version page because this is where someone
   // asks whether the thing they are about to promote is governed (§16.9).
   classification: Classification | null;
+  // The model's mrm row (state about its subject version), and this version's own
+  // validation history and state.
+  mrm: Classification | null;
+  validations: VersionValidations | null;
   // The owning model's hold, which covers this version transitively (§19.3.1). Separate from
   // version.legalHold so the page can say which subject is actually held — releasing the
   // wrong one is the mistake this prevents.

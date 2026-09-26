@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClassifyDialog } from "@/components/ClassifyDialog";
-import type { Classification, ClassificationState, EUSystemRiskClass, StaleReason } from "@/lib/api";
+import type { Classification, ClassificationState, EUSystemRiskClass, MRMState, StaleReason } from "@/lib/api";
 
 // Risk-classification rendering (§16.9). Three rules run through everything here:
 //
@@ -42,6 +42,11 @@ export const STALE_REASON_TEXT: Record<StaleReason, string> = {
   version_published_since: "a version was published since it was classified",
   production_changed_since: "the production version changed since it was classified",
   derivation_since: "a modification review was opened since it was classified",
+  // The model-risk clauses (§20.7). Their own panel phrases version_published_since against
+  // the validation rather than the classification.
+  validation_expired: "the validation has expired",
+  unmonitored_in_production: "in production with no evaluation since it was promoted",
+  conditions_outstanding: "the validation's conditions have not been cleared",
 };
 
 /** A badge for a bare class value, for headings and legends that have no row behind them. */
@@ -58,7 +63,7 @@ export function RiskClassBadge({ c }: { c: Classification | null }) {
  * The staleness marker. Renders nothing for `current` — a page full of "ok" badges buries
  * the two rows that matter.
  */
-export function StaleBadge({ state }: { state: ClassificationState }) {
+export function StaleBadge({ state }: { state: ClassificationState | MRMState }) {
   if (state !== "stale") return null;
   return <Badge variant="outline">stale</Badge>;
 }

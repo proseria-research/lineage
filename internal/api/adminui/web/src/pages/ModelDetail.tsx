@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { VersionBoard } from "@/components/VersionBoard";
 import { HoldAction, HoldNote } from "@/components/Hold";
+import { MRMPanel } from "@/components/MRM";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { fmtTime } from "@/lib/utils";
 
@@ -63,6 +64,10 @@ export default function ModelDetail() {
           <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
         </div>
       </div>
+
+      {/* The model-risk state is a property of the model — about its production version, or
+          its newest when nothing is in production (§20.7). */}
+      <MRMPanel c={m.mrm} />
 
       <div className="label-caps mb-2">Versions</div>
       {data.versions.length === 0 ? (

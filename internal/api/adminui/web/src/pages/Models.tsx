@@ -4,6 +4,7 @@ import { useAsync } from "@/lib/useAsync";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClassificationCell } from "@/components/Classification";
+import { MRMCell } from "@/components/MRM";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
 
@@ -16,12 +17,14 @@ import { relTime } from "@/lib/utils";
 // page lands on a filtered table. There are no filter controls here; the header says what is
 // being filtered so a filtered view never looks like the whole list.
 
-const FILTER_KEYS = ["euSystemRiskClass", "euGpaiTier", "classificationState"] as const;
+const FILTER_KEYS = ["euSystemRiskClass", "euGpaiTier", "classificationState", "mrmTier", "mrmState"] as const;
 
 const FILTER_LABEL: Record<(typeof FILTER_KEYS)[number], string> = {
   euSystemRiskClass: "risk class",
   euGpaiTier: "GPAI tier",
   classificationState: "status",
+  mrmTier: "model-risk tier",
+  mrmState: "model-risk status",
 };
 
 export default function Models() {
@@ -33,7 +36,7 @@ export default function Models() {
 
   const { data, error, loading } = useAsync(
     () => api.models(q, filters),
-    [q, filters.euSystemRiskClass, filters.euGpaiTier, filters.classificationState],
+    [q, filters.euSystemRiskClass, filters.euGpaiTier, filters.classificationState, filters.mrmTier, filters.mrmState],
   );
 
   const active = Object.entries(filters).map(
@@ -69,6 +72,7 @@ export default function Models() {
                 <TableHead>Name</TableHead>
                 <TableHead>Owner</TableHead>
                 <TableHead>EU risk class</TableHead>
+                <TableHead>Model-risk tier</TableHead>
                 <TableHead className="text-right">Versions</TableHead>
                 <TableHead>Production</TableHead>
                 <TableHead>State</TableHead>
@@ -88,6 +92,10 @@ export default function Models() {
                       where the reason and the fix are. */}
                   <TableCell className="text-sm">
                     <ClassificationCell c={m.classification} />
+                  </TableCell>
+                  {/* The second regime's lens on the same table (§20.10). */}
+                  <TableCell className="text-sm">
+                    <MRMCell model={m.name} c={m.mrm} />
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{m.versionCount}</TableCell>
                   <TableCell className="font-mono">
