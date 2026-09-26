@@ -1,3 +1,4 @@
+import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -48,13 +49,27 @@ const reasonText = (r: StaleReason) =>
   r === "version_published_since" ? "a version was published since it was validated" : (STALE_REASON_TEXT[r] ?? r);
 
 export function TierBadge({ tier }: { tier: MRMTier }) {
-  return <Badge variant={TIER_VARIANT[tier]}>{TIER_LABEL[tier]}</Badge>;
+  return (
+    <Term k={tier}>
+      <Badge variant={TIER_VARIANT[tier]}>{TIER_LABEL[tier]}</Badge>
+    </Term>
+  );
 }
 
 /** The state marker. Nothing for `current` or `untiered` — the tier badge already says the latter. */
 export function MRMStateBadge({ state }: { state: MRMState }) {
-  if (state === "stale") return <Badge variant="warn">Out of date</Badge>;
-  if (state === "unvalidated") return <Badge variant="warn">Not validated</Badge>;
+  if (state === "stale")
+    return (
+      <Term k="out_of_date">
+        <Badge variant="warn">Out of date</Badge>
+      </Term>
+    );
+  if (state === "unvalidated")
+    return (
+      <Term k="not_validated">
+        <Badge variant="warn">Not validated</Badge>
+      </Term>
+    );
   return null;
 }
 
@@ -77,7 +92,11 @@ export function MRMCell({ model, c }: { model: string; c: Classification | null 
       ) : (
         marker
       )}
-      {unmonitored && <Badge variant="danger">Unmonitored</Badge>}
+      {unmonitored && (
+        <Term k="unmonitored">
+          <Badge variant="danger">Unmonitored</Badge>
+        </Term>
+      )}
     </div>
   );
 }
@@ -129,19 +148,21 @@ function ValidationRow({
   const outstanding = v.outcome === "conditional" && !v.conditionsClearedAt;
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-2.5 last:border-b-0">
-      <Badge
-        variant={
-          superseded ? "dashed" : v.outcome === "approved" ? "ok" : v.outcome === "rejected" ? "danger" : "warn"
-        }
-      >
-        {OUTCOME_LABEL[v.outcome] ?? v.outcome}
-      </Badge>
+      <Term k={v.outcome === "undetermined" ? "undetermined_review" : v.outcome}>
+        <Badge
+          variant={
+            superseded ? "dashed" : v.outcome === "approved" ? "ok" : v.outcome === "rejected" ? "danger" : "warn"
+          }
+        >
+          {OUTCOME_LABEL[v.outcome] ?? v.outcome}
+        </Badge>
+      </Term>
       {superseded && <span className="text-xs text-muted-foreground">Earlier validation</span>}
       {!v.independenceEvidenced && (
         // Flagged, not refused (§20.6): a one-person team trips this legitimately.
-        <Badge variant="warn" title="The validator is not named, or is the version's author">
-          Not independent
-        </Badge>
+        <Term k="not_independent">
+          <Badge variant="warn">Not independent</Badge>
+        </Term>
       )}
       {v.validUntil && <span className="text-xs text-muted-foreground">valid until {fmt(v.validUntil)}</span>}
       <span className="ml-auto text-xs text-muted-foreground">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type Classification, type EUGpaiTier, type EUSystemRiskClass } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EXPLAIN } from "@/lib/explain";
 
 // The classify form (§16.8/§16.9). It writes through the BFF to the same core operation the
 // Model API exposes, so validation, the server-set anchor and the `classification.set` audit
@@ -18,18 +19,18 @@ import { Input } from "@/components/ui/input";
 //    server clock, and the API rejects them if sent (§16.6).
 
 const CLASSES: { value: EUSystemRiskClass; label: string; hint: string }[] = [
-  { value: "unclassified", label: "Unclassified", hint: "Nobody has decided yet. A real answer." },
-  { value: "minimal", label: "Minimal risk", hint: "No specific obligations." },
-  { value: "limited", label: "Limited risk", hint: "Transparency obligations only." },
-  { value: "high_annex_iii", label: "High risk · Annex III", hint: "Use case listed in Annex III." },
-  { value: "high_annex_i", label: "High risk · Annex I", hint: "Safety component under Annex I." },
-  { value: "prohibited", label: "Prohibited", hint: "Falls under a prohibited practice." },
+  { value: "unclassified", label: "Not decided yet", hint: "" },
+  { value: "minimal", label: "Minimal risk", hint: "" },
+  { value: "limited", label: "Limited risk", hint: "" },
+  { value: "high_annex_iii", label: "High risk (Annex III)", hint: "" },
+  { value: "high_annex_i", label: "High risk (Annex I)", hint: "" },
+  { value: "prohibited", label: "Prohibited", hint: "" },
 ];
 
 const TIERS: { value: EUGpaiTier; label: string }[] = [
-  { value: "none", label: "Not a general-purpose model" },
-  { value: "gpai", label: "GPAI (Art. 53)" },
-  { value: "gpai_systemic", label: "GPAI with systemic risk (Art. 55)" },
+  { value: "none", label: "No — built for specific tasks" },
+  { value: "gpai", label: "Yes — a general-purpose model (Art. 53)" },
+  { value: "gpai_systemic", label: "Yes, with systemic risk (Art. 55)" },
 ];
 
 const isHighRisk = (c: EUSystemRiskClass) => c === "high_annex_iii" || c === "high_annex_i";
@@ -133,28 +134,49 @@ export function ClassifyDialog({
         </div>
 
         <div className="space-y-4 px-5 py-4">
-          <Field
-            label="System risk class"
-            hint={CLASSES.find((c) => c.value === cls)?.hint}
-          >
-            <select
-              value={cls}
-              onChange={(e) => setCls(e.target.value as EUSystemRiskClass)}
-              className="border bg-transparent px-2 py-1.5 text-sm"
-            >
-              {CLASSES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="label-caps mb-1.5">Risk category</legend>
+            <div className="grid gap-2">
+              {CLASSES.map((c) => {
+                const e = EXPLAIN[c.value];
+                const on = cls === c.value;
+                return (
+                  <label
+                    key={c.value}
+                    className={[
+                      "flex cursor-pointer gap-3 rounded-md border px-3 py-2.5 text-sm",
+                      on ? "border-brand bg-brand-soft" : "hover:bg-muted",
+                    ].join(" ")}
+                  >
+                    <input
+                      type="radio"
+                      name="risk-class"
+                      className="mt-1"
+                      checked={on}
+                      onChange={() => setCls(c.value)}
+                    />
+                    <span>
+                      <span className="font-medium">{c.label}</span>
+                      <span className="block text-muted-foreground">{e?.plain}</span>
+                      {e?.example && <span className="mt-0.5 block text-xs text-muted-foreground">For example: {e.example}</span>}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <span className="text-xs text-muted-foreground">
+              You decide the category; Lineage never infers it. This is guidance, not legal advice.
+            </span>
+          </fieldset>
 
-          <Field label="GPAI tier" hint="A separate question from risk class — the Act treats systems and general-purpose models differently.">
+          <Field
+            label="Is it a general-purpose AI model?"
+            hint={EXPLAIN[tier === "none" ? "gpai_none" : tier]?.plain ?? "A separate question from the risk category."}
+          >
             <select
               value={tier}
               onChange={(e) => setTier(e.target.value as EUGpaiTier)}
-              className="border bg-transparent px-2 py-1.5 text-sm"
+              className="rounded-md border border-input bg-card px-3 py-2 text-sm"
             >
               {TIERS.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -165,7 +187,7 @@ export function ClassifyDialog({
           </Field>
 
           <Field
-            label="Intended purpose"
+            label="What is it used for? (intended purpose)"
             required={cls !== "unclassified"}
             hint={needsPurpose ? undefined : "What this model is used for, in one sentence."}
           >
@@ -174,7 +196,7 @@ export function ClassifyDialog({
               onChange={(e) => setPurpose(e.target.value)}
               rows={2}
               placeholder="Scores card-not-present transactions for manual review."
-              className="border bg-transparent px-2 py-1.5 text-sm"
+              className="rounded-md border border-input bg-card px-3 py-2 text-sm"
             />
             {needsPurpose && (
               <span className="text-xs text-destructive">
@@ -184,7 +206,7 @@ export function ClassifyDialog({
           </Field>
 
           <Field
-            label="Basis"
+            label="Why this category? (basis)"
             required={isHighRisk(cls)}
             hint={needsBasis ? undefined : "Why this class — the reasoning, not the conclusion."}
           >
@@ -193,7 +215,7 @@ export function ClassifyDialog({
               onChange={(e) => setBasis(e.target.value)}
               rows={2}
               placeholder="Annex III §5(b) — creditworthiness adjacent; counsel review 2026-03-11."
-              className="border bg-transparent px-2 py-1.5 text-sm"
+              className="rounded-md border border-input bg-card px-3 py-2 text-sm"
             />
             {needsBasis && (
               <span className="text-xs text-destructive">
@@ -202,7 +224,7 @@ export function ClassifyDialog({
             )}
           </Field>
 
-          <Field label="Review due" hint="Leave empty for no scheduled review — that is a real choice, and it is shown as one.">
+          <Field label="When should someone look at this again?" hint="Leave empty for no scheduled review — that is a real choice, and it is shown as one.">
             <Input type="date" value={review} onChange={(e) => setReview(e.target.value)} className="max-w-[12rem]" />
             {reviewInPast && (
               <span className="text-xs text-destructive">The review date has to be in the future.</span>

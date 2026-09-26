@@ -14,7 +14,7 @@ import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/componen
 import { Tabs, useTab } from "@/components/ui/tabs";
 import { AttentionList } from "@/components/Attention";
 import { attentionItems } from "@/lib/attention";
-import { GLOSSARY } from "@/lib/labels";
+import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { relTime } from "@/lib/utils";
 
 // The compliance workspace (§16.9), organised around what a person has to *do* rather than
@@ -170,14 +170,6 @@ const TABS = [
   { id: "integrity", label: "Audit integrity" },
 ];
 
-const INTRO: Record<string, React.ReactNode> = {
-  todo: "Everything across the governance programmes that needs a person to look at it. Nothing here blocks a release.",
-  eu: GLOSSARY.euRiskClass + " A classification goes out of date when a new version ships, production changes, or its review date passes.",
-  reviews: GLOSSARY.modificationReview,
-  risk: GLOSSARY.modelRisk,
-  plans: GLOSSARY.changePlan,
-  integrity: GLOSSARY.auditIntegrity,
-};
 
 const Count = ({ n, tone = "warn" }: { n: number; tone?: "warn" | "danger" }) =>
   n > 0 ? (
@@ -247,7 +239,7 @@ export default function Compliance() {
       />
 
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
-      <p className="-mt-2 mb-6 max-w-3xl text-sm text-muted-foreground">{INTRO[tab]}</p>
+      <HowItWorks id={tab} guide={GUIDES[tab]} />
 
       {models.length === 0 && tab !== "integrity" ? (
         <Empty>No models yet.</Empty>

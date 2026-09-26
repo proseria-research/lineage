@@ -78,6 +78,11 @@ but the *permission* to do so is enforced by infra, not Lineage (§00 axiom 4).
   all-caps labels. Auto light/dark via `prefers-color-scheme`.
 - **Plain language:** every API code (actions, enums, verdicts, stale reasons) is shown through
   one label table (`web/src/lib/labels.ts`); raw codes never reach the screen.
+- **Governance explained:** every governance label (risk class, tier, validation, verdict, plan
+  check, hold) opens a card on hover or click — what it means, why it matters, an example, what
+  to do, and its source — from one table (`web/src/lib/explain.ts`). Each Governance tab opens
+  with a collapsible "How this works": a summary, three steps, and the meaning of every label on
+  the tab. Forms explain each choice. All marked as guidance, not legal advice.
 - **Embedding:** `make web` (pnpm build) emits `web/dist`, embedded under the `console` build
   tag and served by the BFF — one binary, no runtime Node. `dist` is not committed; a plain
   `go build` compiles a stub console.
