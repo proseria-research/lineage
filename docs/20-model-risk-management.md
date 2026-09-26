@@ -386,8 +386,9 @@ As built (M17): a model-risk tier column on the model table, honouring `mrmTier`
 the URL, whose stale or unvalidated marker links to the version the state is about; a
 model-risk panel on the model page (state of the subject version, latest validation) and on the
 version page (this version's state and full timeline, a self-validation flagged); and a
-model-risk worklist on the compliance page. The console records nothing for this regime yet —
-tiering and validating are `/v1` writes.
+model-risk worklist on the compliance page. Since then the console also writes: set or change
+a tier (model page), record a validation and mark its conditions cleared (version page), each
+through the same core operation as `/v1`.
 
 ## 11. Deferred
 
@@ -398,7 +399,6 @@ tiering and validating are `/v1` writes.
 | Model-family (rather than version) validation | If a firm validates at the model level; the table would move, not change shape |
 | Automatic scope inference for the SR 26-2 genAI carve-out | Never. `15.3` — the registry does not decide what a regulation covers |
 | Committee workflow, sign-off routing | Not a registry concern. Registry facts are an input to whatever tool does it |
-| Console forms to tier, validate and clear conditions | When a user asks; `16`'s classify dialog is the pattern |
 | Moving `16.5` clause 3 onto `stage_changed_at` | Now possible, removing its deliberate false positive; a behaviour change to `16`, so its own decision |
 
 ## 12. See Also

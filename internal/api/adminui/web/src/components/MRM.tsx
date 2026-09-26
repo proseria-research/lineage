@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { STALE_REASON_TEXT } from "@/components/Classification";
-import type { Classification, MRMState, MRMTier, StaleReason, Validation, VersionValidations } from "@/lib/api";
+import { TierDialog, ValidationDialog } from "@/components/GovernanceDialogs";
+import { api, type Artifact, type Classification, type MRMState, type MRMTier, type StaleReason, type Validation, type VersionValidations } from "@/lib/api";
 import { relTime } from "@/lib/utils";
 
 // Model-risk rendering (§20.10). The same rules as the EU lens, plus two of its own:
@@ -107,16 +110,38 @@ function Reasons({ state, reasons }: { state: MRMState; reasons?: StaleReason[] 
 }
 
 /** One validation row. The first is the current answer; the rest are history. */
-function ValidationRow({ v, superseded }: { v: Validation; superseded: boolean }) {
+const OUTCOME_LABEL: Record<string, string> = {
+  approved: "Approved",
+  conditional: "Approved with conditions",
+  rejected: "Rejected",
+  undetermined: "Undetermined",
+};
+
+function ValidationRow({
+  v,
+  superseded,
+  onClear,
+}: {
+  v: Validation;
+  superseded: boolean;
+  onClear?: (v: Validation) => void;
+}) {
+  const outstanding = v.outcome === "conditional" && !v.conditionsClearedAt;
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-2.5 last:border-b-0">
-      <Badge variant={superseded ? "dashed" : v.outcome === "rejected" ? "solid" : "outline"}>{v.outcome}</Badge>
-      {superseded && <span className="label-caps">superseded</span>}
+      <Badge
+        variant={
+          superseded ? "dashed" : v.outcome === "approved" ? "ok" : v.outcome === "rejected" ? "danger" : "warn"
+        }
+      >
+        {OUTCOME_LABEL[v.outcome] ?? v.outcome}
+      </Badge>
+      {superseded && <span className="text-xs text-muted-foreground">Earlier validation</span>}
       {!v.independenceEvidenced && (
         // Flagged, not refused (§20.6): a one-person team trips this legitimately.
-        <span className="label-caps" title="The validator is not named, or is the version's author">
-          independence not evidenced
-        </span>
+        <Badge variant="warn" title="The validator is not named, or is the version's author">
+          Not independent
+        </Badge>
       )}
       {v.validUntil && <span className="text-xs text-muted-foreground">valid until {fmt(v.validUntil)}</span>}
       <span className="ml-auto text-xs text-muted-foreground">
@@ -132,12 +157,19 @@ function ValidationRow({ v, superseded }: { v: Validation; superseded: boolean }
               Conditions: {v.conditions}{" "}
               {v.outcome === "conditional" &&
                 (v.conditionsClearedAt ? (
-                  <span className="label-caps">cleared {fmt(v.conditionsClearedAt)}</span>
+                  <Badge variant="ok">Cleared {fmt(v.conditionsClearedAt)}</Badge>
                 ) : (
-                  <span className="label-caps">outstanding</span>
+                  <Badge variant="warn">Outstanding</Badge>
                 ))}
             </div>
           )}
+        </div>
+      )}
+      {outstanding && !superseded && onClear && (
+        <div className="w-full">
+          <Button size="sm" variant="outline" onClick={() => onClear(v)}>
+            Mark conditions cleared
+          </Button>
         </div>
       )}
     </div>
@@ -153,7 +185,14 @@ export function MRMPanel({
   c,
   validations,
   version,
+  model,
+  artifacts,
+  onChanged,
 }: {
+  /** Given when the panel may write: enables the tier and validation actions. */
+  model?: string;
+  artifacts?: Artifact[];
+  onChanged?: () => void;
   c: Classification | null;
   // Given on the version page: this version's own history and state.
   validations?: VersionValidations | null;
@@ -170,21 +209,44 @@ export function MRMPanel({
   const state = (validations?.state ?? c?.state ?? "untiered") as MRMState;
   const reasons = validations ? validations.staleReasons : c?.staleReasons;
   const history = validations?.items ?? (c?.latestValidation ? [c.latestValidation] : []);
+  const [dialog, setDialog] = useState<"tier" | "validation" | null>(null);
+  const [clearError, setClearError] = useState("");
+  const writable = !!model && !!onChanged;
+  const done = () => {
+    setDialog(null);
+    onChanged?.();
+  };
+  const clear = async (v: Validation) => {
+    if (!model || !version) return;
+    if (!window.confirm("Mark this validation's conditions as met? This is recorded under your name.")) return;
+    setClearError("");
+    try {
+      await api.clearValidationConditions(model, version, v.id);
+      onChanged?.();
+    } catch (e) {
+      setClearError(String((e as Error).message ?? e));
+    }
+  };
 
   return (
-    <div className="mb-6 border border-border rounded-lg">
+    <div className="mb-6 rounded-lg border bg-card">
       <div className="p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           {header}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <TierBadge tier={c?.mrmTier ?? "untiered"} />
             <MRMStateBadge state={state} />
+            {writable && (
+              <Button size="sm" variant="outline" onClick={() => setDialog("tier")}>
+                {c ? "Change tier" : "Set tier"}
+              </Button>
+            )}
           </div>
         </div>
         {!c ? (
           <p className="text-sm text-muted-foreground">
-            Untiered. Nobody has stated a model-risk tier for this model — which is a real answer,
-            not a low one.
+            No tier yet. Nobody has assessed this model's risk tier — that's shown as its own
+            answer, never as a low tier.
           </p>
         ) : (
           <div className="grid gap-4 text-sm sm:grid-cols-2">
@@ -216,17 +278,33 @@ export function MRMPanel({
         {c && <Reasons state={state} reasons={reasons} />}
       </div>
 
-      <div className="border-t px-4 py-2.5">
-        <div className="label-caps">{validations ? "Validations" : "Latest validation"}</div>
+      <div className="flex items-center justify-between gap-3 border-t px-4 py-2.5">
+        <div className="text-sm font-medium">{validations ? "Validations of this version" : "Latest validation"}</div>
+        {writable && validations && version && (
+          <Button size="sm" onClick={() => setDialog("validation")}>
+            Record validation
+          </Button>
+        )}
       </div>
+      {clearError && <div className="border-t px-4 py-2 text-sm text-danger">{clearError}</div>}
       {history.length === 0 ? (
         <div className="border-t px-4 py-3 text-sm text-muted-foreground">No validation recorded.</div>
       ) : (
         <div className="border-t">
           {history.map((v, i) => (
-            <ValidationRow key={v.id} v={v} superseded={i > 0} />
+            <ValidationRow key={v.id} v={v} superseded={i > 0} onClear={writable && validations ? clear : undefined} />
           ))}
         </div>
+      )}
+      {dialog === "tier" && model && <TierDialog model={model} current={c} onClose={() => setDialog(null)} onSaved={done} />}
+      {dialog === "validation" && model && version && (
+        <ValidationDialog
+          model={model}
+          version={version}
+          artifacts={artifacts ?? []}
+          onClose={() => setDialog(null)}
+          onSaved={done}
+        />
       )}
     </div>
   );

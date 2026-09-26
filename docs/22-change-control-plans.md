@@ -284,7 +284,8 @@ The compliance workspace gains a change-control section: `outside_plan` and `und
 rows first, with side-by-side fingerprints (changed rings emphasised), the verdict, the
 reasons and the envelope; `within_plan` and `uncovered` rows collapsed beneath; then the plan
 register, superseded plans kept and marked. Nothing on it acts or gates. It renders nothing
-until a model has a plan.
+until a model has a plan. The model page lists that model's plans and can declare one, or replace the
+plan in force (the form sends `supersedes`), through the same core operation as `/v1`.
 
 ## 8. UNECE R156 Is the Same Shape
 
@@ -306,7 +307,6 @@ not named `pccp_plan` and boxed in.
 | Plan-level approval workflow | Not a registry concern; the plan is recorded, not routed |
 | Blocking publish on `outside_plan` | Never. §5 |
 | Flagging a version under a plan that records **no `derived_from` edge** | When a plan needs it; today it is simply not in the queue (§4) |
-| Declaring a plan from the console | The console shows plans and the queue (compliance workspace); declaring stays on `/v1`, where the RA pipeline writes |
 
 ## 10. See Also
 

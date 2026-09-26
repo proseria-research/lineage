@@ -371,12 +371,12 @@ export default function Compliance() {
             (models.some((m) => m.mrm && m.mrm.mrmTier !== "untiered") ? (
               <ModelRiskWork models={models} />
             ) : (
-              <Empty>No model has a model-risk tier yet. Tiers are set through the Model API.</Empty>
+              <Empty>No model has a model-risk tier yet. Set one from a model's Governance tab.</Empty>
             ))}
 
           {tab === "plans" &&
             (data.plans.plans.length === 0 ? (
-              <Empty>No model has a change plan yet. Plans are declared through the Model API.</Empty>
+              <Empty>No model has a change plan yet. Declare one from a model's Governance tab.</Empty>
             ) : (
               <ChangePlanSection />
             ))}
