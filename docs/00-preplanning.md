@@ -391,6 +391,24 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     metadata edit is not. Behaviour change on upgrade: a model stale *only* because of a
     metadata edit reads current. Rejected: keeping the false alarm — noise trains readers to
     dismiss the badge, and the old signal still missed the change that matters.
+    *Since 19, files cannot be added once a version reaches staging, so clause 3 in practice
+    fires on entry into production.*
+19. ✅ **A version's artifact set locks on its first entry into `staging`** (`02.4.1`).
+    `model_version.locked_at` is set in the same statement as that stage move (or entry into
+    `production`, were draft→production ever allowed) and never cleared — back to `draft`,
+    demoted or archived, it stays locked. On a locked version register, upload
+    (initiate/content/finalize) and artifact delete return `409 failed_precondition`,
+    `details.reason: version_locked`, with a message to publish a new version. Artifact
+    metadata (`mediaType`, `serviceAccount`, `customProperties`), version metadata, stage
+    moves, holds, governance records, lineage and deployments stay open; delete rules are
+    unchanged. Rationale: what was tested is what ships; validations (`20`), modification
+    reviews (`17`) and fingerprints (`11`) describe the version as it was, and stay true only
+    if its files cannot move under them — the contract of immutable releases (image digests,
+    package versions, git tags). Existing data is backfilled from `version.stage_changed`
+    history. Rejected: **lock on production** — staging is where the testing happens, so
+    files swapped after it ship untested; **no lock** — a file added to a live version
+    reaches every consumer resolving `production` with no review, and silently invalidates
+    every record made about the version.
 
 ## 12. Preplanning Done When
 

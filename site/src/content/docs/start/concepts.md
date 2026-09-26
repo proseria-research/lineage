@@ -46,6 +46,10 @@ all `MODEL` artifacts to get a usable model directory.
 Artifact content is **write-once**. `UNIQUE(version_id, name)` enforces it at the schema
 level, so a retry cannot quietly replace weights under a name a consumer already trusts.
 
+The **set** of artifacts locks too: once a version first reaches `staging`, no file can be
+added or removed — even if it later goes back to `draft`. What was tested is what ships.
+The version's `lockedAt` says when it locked.
+
 ## Stage
 
 The lifecycle position of a version. Four values, one transition at a time.

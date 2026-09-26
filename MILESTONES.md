@@ -603,7 +603,8 @@ and the doc now says so.
       validation rule; the intentional false positive in clause 3 (`updated_at` on the
       production version) is asserted as expected behaviour rather than fixed; the `CHECK`
       rejects an `eu_ai_act` row with a null `eu_system_risk_class` on both dialects. Since
-      replaced: clause 3 now follows the system in service, not the row (§00.11.18)
+      replaced: clause 3 now follows the system in service, not the row (§00.11.18), and
+      since files lock at staging it fires on entry into production (§00.11.19)
 
 **Regime isolation is tested in M17, not here.** The bug that the per-regime key prevents can
 only occur when a second regime exists, and the second regime, `mrm`, arrives in M17

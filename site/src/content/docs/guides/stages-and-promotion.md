@@ -58,6 +58,10 @@ curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition \
 `reason` is optional and lands in the audit event. Write one for anything that touches
 production — it is the field people read a year later when they ask why.
 
+The first move into `staging` **locks the version's files**: after it, no artifact can be
+added or removed, whatever stage the version moves to next. Upload everything while it is a
+draft. See [Artifacts and uploads](/guides/artifacts-and-uploads/).
+
 ## The singleton production invariant
 
 **At most one version of a model is in `production`.** Promoting a new one demotes the

@@ -165,6 +165,9 @@ other image — which is why an `oci` artifact needs no signed URL to be usable.
   (§04). Computed at upload finalize, or via `Stat` at register-by-reference.
 - **Immutable once set** (`02.5`): a digest'd artifact's bytes/pointer never change; new
   content ⇒ new version. This makes artifacts safely cacheable and reproducible.
+- **The set locks at staging** (`02.4.1`, `00.11.19`): from a version's first entry into
+  `staging`, no artifact is added, replaced or removed. What was tested is what ships, and
+  resolving a stage returns the same files for the version's whole life.
 
 ## 6. Upload (finalize verifies)
 
@@ -197,6 +200,10 @@ sequenceDiagram
   convenience.
 - **Backends without `signPut`** (`fs`, `oci`) always stream through: `initiateUpload`
   returns a `contentUrl` on the Model API instead of a signed target.
+- **Locked versions:** `initiateUpload` refuses before any bytes move
+  (`409 version_locked`). An upload initiated while the version was a draft is refused at
+  `uploadContent`/`finalizeUpload` once it locks; a multipart upload is aborted and
+  streamed-through bytes deleted, as below.
 - **Rejected bytes are taken back.** When finalize fails verification, bytes that streamed
   *through us* are deleted. A client's direct signed PUT is left alone — it landed in the
   operator's bucket, and GC reference-counts it. On `oci` this is load-bearing rather than

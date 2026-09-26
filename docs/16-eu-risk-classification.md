@@ -127,7 +127,7 @@ In plain terms, a classification goes stale when any of these is true:
 1. its review date has passed,
 2. a new version of the model was published after it was classified,
 3. what is in production changed after it was classified — a version entered production
-   (a promotion or a rollback), or a file was added to the production version — or
+   (a promotion or a rollback) — or
 4. a review item was opened on the model after it was classified (`17.4`).
 
 Each line has a name. `staleReasons[]` returns **all** the reasons that apply, not just the
@@ -162,9 +162,10 @@ computation `17.4` uses. The inventory read does it in one batched query, not on
 **Clause 3 measures the system in service, not the row** (§00.11.18). The Act ties a
 classification to intended purpose (Art. 6, Art. 3(12)) and reopens it on a *change to the AI
 system after it was put into service* (Art. 3(23), Art. 43(4)). So the clause fires when a
-version enters production — `stage_changed_at`, which also catches a rollback — or when a file
-is added to the production version, since artifacts can still be registered on a live version
-and consumers resolving `production` fetch them. An edit to the production version's
+version enters production — `stage_changed_at`, which also catches a rollback. The query also
+checks for a file added to the production version, but files can no longer be added once a
+version reaches staging (`00.11.19`), so in practice clause 3 fires on entry into production;
+the file part is kept as a harmless guard. An edit to the production version's
 description or labels changes neither, so it no longer fires. Both parts are indexed column
 comparisons; nothing scans the audit log. Whether a change was *substantial* stays the
 reviewer's call.

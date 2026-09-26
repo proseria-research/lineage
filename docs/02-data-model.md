@@ -88,6 +88,7 @@ Logical types (§7 maps them to each engine): `id`=ULID TEXT · `str`=TEXT · `i
 | `stage` | enum | `draft`\|`staging`\|`production`\|`archived` (default `draft`) — §4 |
 | `custom_properties` | json? | |
 | `created_at`,`updated_at` | ts | |
+| `locked_at` | ts? | first entry into `staging`/`production`; set once, never cleared — §4.1 |
 
 ### 3.3 `artifact` (single-table inheritance)
 One table, discriminated by `kind`; type-specific columns are nullable. Extensible
@@ -199,12 +200,28 @@ stateDiagram-v2
 - The exact allowed set and which stages are singleton are **config-driven**, but the
   default graph above is what `03`/`04` assume.
 
+### 4.1 Artifact lock
+
+A version's **artifact set freezes the first time it enters `staging`** (or `production`,
+were the graph to allow draft→production) — `00.11.19`.
+
+- `SetStage` sets `locked_at = COALESCE(locked_at, now)` in the same statement as the move.
+- Never cleared: back to `draft`, demoted, or `archived`, it stays locked. draft→archived
+  never locks (never tested).
+- Locked ⇒ register, upload (initiate/content/finalize) and artifact delete are refused
+  (`409`, `details.reason: version_locked`, `03.9`). Artifact metadata (`mediaType`,
+  `serviceAccount`, `customProperties`), version metadata, stage moves, holds, governance
+  records, lineage and deployments stay open. Version delete rules are unchanged.
+- Backfill: earliest `version.stage_changed` event into `staging`/`production`, else
+  `stage_changed_at` for a version sitting in either now.
+
 ## 5. Constraints & Invariants
 
 1. **Uniqueness is exact-match** (no engine-specific collation): `model.name`;
    (`model_id`,`name`) on versions; (`version_id`,`name`) on artifacts.
 2. **Published artifacts are immutable.** Once an artifact has a `digest`, its
    `uri`/`digest`/`size_bytes` cannot change. New content ⇒ new version. (App-enforced.)
+   From `locked_at` on, the **set** is immutable too: no artifact added or removed (§4.1).
 3. **Singleton stage** invariant (§4) enforced transactionally on promote — Postgres via
    `SELECT … FOR UPDATE` on the model row; SQLite via its single-writer serialization.
 4. **Audit-in-transaction.** Every create/update/delete/transition appends its

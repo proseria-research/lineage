@@ -144,6 +144,23 @@ This is deliberate. Consumers cache by digest and pin by name; silently swapping
 a name someone already trusts is the failure this design refuses to allow. Publish a new
 version instead.
 
+## Add every file before staging
+
+A version's artifact set **locks the first time it enters `staging`**, and stays locked if it
+is later moved back to `draft`, demoted or archived. On a locked version, registering,
+uploading (`initiateUpload` refuses before any bytes move) and deleting an artifact return:
+
+```json
+{
+  "status": 409,
+  "code": "failed_precondition",
+  "detail": "cannot register artifact 'tokenizer': fraud-detector@1.4.0 is locked — its files froze when it first reached staging; publish a new version instead",
+  "details": { "reason": "version_locked", "lockedAt": 1790000000000 }
+}
+```
+
+Metadata `PATCH` still works. The version's `lockedAt` field says when it locked.
+
 ## Update and delete metadata
 
 ```bash
@@ -156,7 +173,7 @@ curl -XPATCH .../artifacts/model.onnx \
 curl -XDELETE .../artifacts/model.onnx -H 'X-Lineage-Actor: you@example.com'
 ```
 
-`DELETE` removes the metadata row. Whether the bytes go depends on
+`DELETE` removes the metadata row, and is refused once the version is locked. Whether the bytes go depends on
 [garbage collection](/operate/garbage-collection/) — the default is to retain them.
 
 ## Next
