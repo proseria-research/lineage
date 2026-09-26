@@ -128,12 +128,14 @@ Drawn from `insight.hashes`. Four petals, one per level, clockwise from the top 
 | 4 | `weights` | bottom left |
 
 Each petal's outline is seeded from its hash by the stream (§5): its width, the ripple along its
-edge, and how many nested contours it has (3–4; 2 under 64px). Each petal is drawn as a **point
-cloud**: dots gather along its contours and scatter more thinly inside, every dot's position,
-size and opacity taken from the same stream, so the same hash lays the same cloud. Under 24px,
-where dots are dust, a petal is a plain filled shape. The cloud is graded two ways: from tip to centre the dots grow
-finer and fainter, and across the petal its centre line keeps the level's own colour while its
-edges blend up to 45% toward the neighbouring petals', so the four read as one flower. In a
+edge, and how many nested contours it has (3–4). Each petal is drawn as a **point cloud**: dots
+gather along its contours and scatter more thinly inside, every dot's position, size and opacity
+taken from the same stream, so the same hash lays the same cloud. Under 64px — the thumbnails in
+the review and plan queues — a cloud is dust and a comparison cannot be read off it, so each
+petal is a solid filled shape instead. The cloud is graded two ways: from tip to centre the dots shrink
+sharply (large at the outline, fine specks at the centre) and fade gently, and across the petal
+its centre line keeps the level's own colour while its edges blend up to 25% toward the
+neighbouring petals', so the four read as one flower. In a
 delta pair only the tip-to-centre fade applies — a changed petal keeps its colour unmixed and an
 unchanged one stays grey — so no petal can borrow a neighbour's hue. The same hash always draws the same petal and a different hash a
 visibly different one; the shape encodes nothing beyond that. **A hash that is absent is drawn
