@@ -124,9 +124,10 @@ export default function Compare() {
                     size={160}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
                   />
-                  <span className="relative inline-block">
-                    <span className="max-w-32 truncate font-mono text-xs">{to}</span>
-                    <span className="fp-blink-a absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap bg-card px-1 font-mono text-xs">{from}</span>
+                  {/* Both labels share one grid cell; exactly one is visible at a time. */}
+                  <span className="inline-grid justify-items-center font-mono text-xs">
+                    <span className="fp-blink-b col-start-1 row-start-1 whitespace-nowrap">{to}</span>
+                    <span className="fp-blink-a col-start-1 row-start-1 whitespace-nowrap">{from}</span>
                   </span>
                 </div>
               </div>
