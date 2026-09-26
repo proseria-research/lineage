@@ -1,3 +1,4 @@
+import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type ChangePlan, type Conformance, type ConformanceItem } from "@/lib/api";
@@ -31,6 +32,14 @@ const CONFORMANCE_VARIANT: Record<Conformance, "ok" | "warn" | "danger" | "neutr
   no_plan: "dashed",
 };
 
+const CONFORMANCE_TERM: Record<Conformance, string> = {
+  outside_plan: "outside_plan",
+  undetermined: "cant_tell",
+  within_plan: "within_plan",
+  uncovered: "before_plan",
+  no_plan: "no_plan",
+};
+
 export const CONFORMANCE_LABEL: Record<Conformance, string> = {
   outside_plan: "Outside plan",
   undetermined: "Can't tell",
@@ -51,9 +60,9 @@ const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 export function ConformanceBadge({ c }: { c: Conformance }) {
   return (
-    <Tooltip content={CONFORMANCE_TEXT[c]}>
+    <Term k={CONFORMANCE_TERM[c]}>
       <Badge variant={CONFORMANCE_VARIANT[c]}>{CONFORMANCE_LABEL[c]}</Badge>
-    </Tooltip>
+    </Term>
   );
 }
 

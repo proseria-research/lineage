@@ -1,3 +1,4 @@
+import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +58,11 @@ export const STALE_REASON_TEXT: Record<StaleReason, string> = {
 
 /** A badge for a bare class value, for headings and legends that have no row behind them. */
 export function ClassBadge({ cls }: { cls: EUSystemRiskClass }) {
-  return <Badge variant={CLASS_VARIANT[cls]}>{CLASS_LABEL[cls]}</Badge>;
+  return (
+    <Term k={cls}>
+      <Badge variant={CLASS_VARIANT[cls]}>{CLASS_LABEL[cls]}</Badge>
+    </Term>
+  );
 }
 
 /** The declared class, or an explicit `unclassified` when there is no row. */
@@ -71,7 +76,11 @@ export function RiskClassBadge({ c }: { c: Classification | null }) {
  */
 export function StaleBadge({ state }: { state: ClassificationState | MRMState }) {
   if (state !== "stale") return null;
-  return <Badge variant="warn">Out of date</Badge>;
+  return (
+    <Term k="out_of_date">
+      <Badge variant="warn">Out of date</Badge>
+    </Term>
+  );
 }
 
 /**
@@ -172,7 +181,11 @@ export function CompliancePanel({
 
       <div className="grid gap-4 text-sm sm:grid-cols-2">
         <Field label="System risk class">{CLASS_LABEL[c.euSystemRiskClass ?? "unclassified"]}</Field>
-        <Field label="General-purpose AI">{GPAI_LABEL[c.euGpaiTier ?? "none"]}</Field>
+        <Field label="General-purpose AI">
+          <Term k={`gpai${c.euGpaiTier && c.euGpaiTier !== "none" ? (c.euGpaiTier === "gpai" ? "" : "_systemic") : "_none"}`} className="underline decoration-dotted underline-offset-4">
+            {GPAI_LABEL[c.euGpaiTier ?? "none"]}
+          </Term>
+        </Field>
         <Field label="Intended purpose">
           {c.intendedPurpose || <span className="text-muted-foreground">not stated</span>}
         </Field>

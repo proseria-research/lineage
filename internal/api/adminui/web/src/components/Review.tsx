@@ -1,3 +1,4 @@
+import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type ModificationReview, type ReviewItem, type ReviewStatus, type Verdict } from "@/lib/api";
@@ -54,9 +55,9 @@ export function VerdictBadge({ v }: { v: Verdict }) {
   // `unknown` is dashed, not absent and not solid: it is a real position in the queue, and it
   // is emphatically not a verdict of "nothing changed".
   return (
-    <Tooltip content={VERDICT_TEXT[v]}>
+    <Term k={v}>
       <Badge variant={v === "unknown" ? "dashed" : "brand"}>{VERDICT_LABEL[v]}</Badge>
-    </Tooltip>
+    </Term>
   );
 }
 
@@ -115,9 +116,11 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
             </Tooltip>
           )}
           {it.status === "closed" && (
-            <Badge variant={it.review?.outcome === "substantial" ? "warn" : "ok"}>
-              {it.review ? OUTCOME_LABEL[it.review.outcome] : "Reviewed"}
-            </Badge>
+            <Term k={it.review?.outcome === "undetermined" ? "undetermined_review" : it.review?.outcome}>
+              <Badge variant={it.review?.outcome === "substantial" ? "warn" : "ok"}>
+                {it.review ? OUTCOME_LABEL[it.review.outcome] : "Reviewed"}
+              </Badge>
+            </Term>
           )}
         </div>
 
@@ -272,7 +275,9 @@ export function VersionReviews({ reviews }: { reviews: ModificationReview[] }) {
       </div>
       {reviews.map((r, i) => (
         <div key={r.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-2.5 last:border-b-0">
-          <Badge variant={i === 0 ? "outline" : "dashed"}>{r.outcome}</Badge>
+          <Term k={r.outcome === "undetermined" ? "undetermined_review" : r.outcome}>
+            <Badge variant={i === 0 ? (r.outcome === "substantial" ? "warn" : "ok") : "dashed"}>{OUTCOME_LABEL[r.outcome] ?? r.outcome}</Badge>
+          </Term>
           <span className="text-xs text-muted-foreground">
             against verdict <span className="font-mono">{r.verdictAtReview}</span>
           </span>

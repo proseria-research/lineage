@@ -1,3 +1,4 @@
+import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,9 +22,11 @@ import { relTime } from "@/lib/utils";
 
 export function HoldBadge({ inherited }: { inherited?: boolean }) {
   return (
+    <Term k="legal_hold">
     <Badge variant={inherited ? "outline" : "danger"}>
       {inherited ? "Held via model" : "Legal hold"}
     </Badge>
+    </Term>
   );
 }
 
