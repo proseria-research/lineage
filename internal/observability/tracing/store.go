@@ -105,6 +105,12 @@ func (s *tracedStore) GetVersionByID(ctx context.Context, id string) (*domain.Mo
 	return do1(ctx, s.t, "store.GetVersionByID", func(c context.Context) (*domain.ModelVersion, error) { return s.next.GetVersionByID(c, id) })
 }
 
+func (s *tracedStore) LockVersionForArtifacts(ctx context.Context, id string) (*domain.ModelVersion, error) {
+	return do1(ctx, s.t, "store.LockVersionForArtifacts", func(c context.Context) (*domain.ModelVersion, error) {
+		return s.next.LockVersionForArtifacts(c, id)
+	})
+}
+
 func (s *tracedStore) ListVersions(ctx context.Context, model string, o domain.ListOptions) ([]*domain.ModelVersion, string, error) {
 	return do2(ctx, s.t, "store.ListVersions", func(c context.Context) ([]*domain.ModelVersion, string, error) {
 		return s.next.ListVersions(c, model, o)

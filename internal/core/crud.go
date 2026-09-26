@@ -247,6 +247,9 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor, model, version, nam
 		return domain.VersionLocked(v, "delete artifact '"+name+"'")
 	}
 	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := guardUnlocked(ctx, tx, v.ID, "delete artifact '"+name+"'"); err != nil {
+			return err
+		}
 		if err := tx.DeleteArtifact(ctx, a.ID); err != nil {
 			return err
 		}

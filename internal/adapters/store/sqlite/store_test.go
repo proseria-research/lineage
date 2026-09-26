@@ -21,6 +21,7 @@ func TestSQLiteStore(t *testing.T) {
 	storetest.RunReviews(t, store)
 	storetest.RunMRM(t, store)
 	storetest.RunArtifactLock(t, store)
+	storetest.RunArtifactLockSerializes(t, store)
 	storetest.RunChangePlans(t, store)
 	storetest.RunAttestation(t, store)
 	storetest.RunUnitOfWork(t, store)

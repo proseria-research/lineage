@@ -416,7 +416,10 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     reviews (`17`) and fingerprints (`11`) describe the version as it was, and stay true only
     if its files cannot move under them — the contract of immutable releases (image digests,
     package versions, git tags). Existing data is backfilled from `version.stage_changed`
-    history. Rejected: **lock on production** — staging is where the testing happens, so
+    history. The check runs twice: early, so no bytes move for a doomed write, and again inside
+    the write's own unit of work holding the version row (`LockVersionForArtifacts`; `FOR
+    SHARE` on Postgres, which conflicts with a promotion's `UPDATE`), so a write and a
+    concurrent promotion into staging serialize and the write cannot land after the lock. Rejected: **lock on production** — staging is where the testing happens, so
     files swapped after it ship untested; **no lock** — a file added to a live version
     reaches every consumer resolving `production` with no review, and silently invalidates
     every record made about the version.

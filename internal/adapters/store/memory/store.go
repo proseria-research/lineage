@@ -238,6 +238,12 @@ func (s *Store) GetVersion(_ context.Context, model, version string) (*domain.Mo
 	return nil, domain.NotFound("version '" + version + "' not found")
 }
 
+// LockVersionForArtifacts is a plain read: InTx already holds the store's write lock for the
+// whole unit, so nothing can promote the version underneath it.
+func (s *Store) LockVersionForArtifacts(ctx context.Context, id string) (*domain.ModelVersion, error) {
+	return s.GetVersionByID(ctx, id)
+}
+
 func (s *Store) GetVersionByID(_ context.Context, id string) (*domain.ModelVersion, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

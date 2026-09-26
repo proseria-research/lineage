@@ -95,6 +95,11 @@ type VersionStore interface {
 	GetVersion(ctx context.Context, model, version string) (*ModelVersion, error)
 	// GetVersionByID fetches a version by its id, for labeling lineage-graph nodes (§07.3).
 	GetVersionByID(ctx context.Context, id string) (*ModelVersion, error)
+	// LockVersionForArtifacts reads a version inside the caller's unit of work, holding a
+	// shared lock on its row until commit where the engine needs one, so an artifact write and
+	// a concurrent promotion into staging serialize and the write sees the true lock state
+	// (§00.11.19). Call it on the tx InTx hands out.
+	LockVersionForArtifacts(ctx context.Context, id string) (*ModelVersion, error)
 	ListVersions(ctx context.Context, model string, o ListOptions) ([]*ModelVersion, string, error)
 	UpdateVersion(ctx context.Context, v *ModelVersion) error
 	DeleteVersion(ctx context.Context, id string) error

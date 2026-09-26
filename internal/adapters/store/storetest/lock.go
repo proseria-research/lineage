@@ -88,3 +88,66 @@ func RunArtifactLock(t *testing.T, store domain.MetadataStore) {
 		}
 	})
 }
+
+// A promotion into staging must wait for an artifact write already holding the version
+// (LockVersionForArtifacts inside InTx), so the write cannot land on a version that locked
+// underneath it (§00.11.19). Postgres serializes on FOR SHARE vs the promotion's UPDATE;
+// SQLite on its single writer; memory on InTx's write lock. Checked by timing: the promotion
+// must not finish while the unit is open, and must finish once it commits.
+func RunArtifactLockSerializes(t *testing.T, store domain.MetadataStore) {
+	t.Helper()
+	ctx := context.Background()
+	now := domain.NowMillis()
+	m := &domain.Model{ID: domain.NewID(), Name: "lock-race-model", State: domain.StateActive, CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateModel(ctx, m); err != nil {
+		t.Fatalf("CreateModel: %v", err)
+	}
+	v := &domain.ModelVersion{ID: domain.NewID(), ModelID: m.ID, Name: "1.0.0", Stage: domain.StageDraft, CreatedAt: now, UpdatedAt: now}
+	mustCreateVersion(t, store, v)
+
+	holding := make(chan struct{})
+	release := make(chan struct{})
+	unit := make(chan error, 1)
+	go func() {
+		unit <- store.InTx(ctx, func(tx domain.MetadataStore) error {
+			got, err := tx.LockVersionForArtifacts(ctx, v.ID)
+			if err != nil {
+				return err
+			}
+			if got.Locked() {
+				t.Errorf("version locked before the promotion ran")
+			}
+			close(holding)
+			<-release
+			return nil
+		})
+	}()
+	<-holding
+
+	promoted := make(chan error, 1)
+	go func() { promoted <- store.SetStage(ctx, v.ID, domain.StageStaging, false) }()
+
+	select {
+	case err := <-promoted:
+		close(release)
+		<-unit
+		t.Fatalf("promotion finished while an artifact write held the version (err=%v)", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+	close(release)
+	if err := <-unit; err != nil {
+		t.Fatalf("artifact unit: %v", err)
+	}
+	select {
+	case err := <-promoted:
+		if err != nil {
+			t.Fatalf("promotion after the unit committed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("promotion never completed after the artifact unit committed")
+	}
+	after, err := store.GetVersionByID(ctx, v.ID)
+	if err != nil || !after.Locked() {
+		t.Fatalf("version not locked after the promotion: %v", err)
+	}
+}

@@ -307,12 +307,22 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	// The bytes are already in the backend — they cannot join a database transaction. What
 	// is atomic is the row and its event; if that unit fails, no new row references the object
 	// and the reference-counted sweeper treats it as an upload never finalized (§05.8).
+	lockedLate := false
 	if err = s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := guardUnlocked(ctx, tx, pu.versionID, "upload artifact '"+pu.in.Name+"'"); err != nil {
+			lockedLate = true
+			return err
+		}
 		if err := tx.CreateArtifact(ctx, a); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, actor, "artifact.upload", "artifact", a.ID, "uploaded "+model+"@"+version+"/"+a.Name, nil)
 	}); err != nil {
+		if lockedLate {
+			// Promoted between the early check and here: take back stream-through bytes as the
+			// early refusal does; anything else is unreferenced and left to the sweeper (§05.8).
+			s.discardRejected(ctx, pu, b)
+		}
 		return nil, err
 	}
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
@@ -335,6 +345,9 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 		return nil, err
 	}
 	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := guardUnlocked(ctx, tx, v.ID, "register artifact '"+a.Name+"'"); err != nil {
+			return err
+		}
 		if err := tx.CreateArtifact(ctx, a); err != nil {
 			return err
 		}
@@ -344,6 +357,20 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 	}
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	return a, nil
+}
+
+// guardUnlocked re-checks the lock inside the write's own unit of work, holding the version
+// row (§00.11.19). The earlier check fails fast before any bytes move; this one closes the
+// window where a promotion into staging commits between that check and the write.
+func guardUnlocked(ctx context.Context, tx domain.MetadataStore, versionID, what string) error {
+	v, err := tx.LockVersionForArtifacts(ctx, versionID)
+	if err != nil {
+		return err
+	}
+	if v.Locked() {
+		return domain.VersionLocked(v, what)
+	}
+	return nil
 }
 
 // lockedVersion returns the version when its artifact set is locked (§00.11.19), nil when
