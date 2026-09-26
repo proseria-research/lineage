@@ -80,7 +80,7 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0">
-      {/* The marks, side by side. Changed rings keep their colour and matched rings recede,
+      {/* The marks, side by side. Changed petals keep their colour and matched petals recede,
           so the delta reads before any text does (§12.6.2). */}
       {anyHash ? (
         <div className="flex shrink-0 items-center gap-2">

@@ -36,7 +36,7 @@ flowchart LR
     v --> h{"insight.hashes"}
     l -->|present| p["<b>Portrait</b> — §3<br/>layered network, structure<br/><i>wide · slate · below</i>"]
     l -->|absent| pe["empty: no structure<br/>to draw"]
-    h -->|present| r["<b>Fingerprint</b> — §4<br/>concentric rings, identity<br/><i>square · ink · top row</i>"]
+    h -->|present| r["<b>Fingerprint</b> — §4<br/>four petals, identity<br/><i>square · ink · top row</i>"]
     h -->|absent| re["empty: no hashes<br/>reported"]
 ```
 
@@ -51,7 +51,7 @@ a different picture.
 Three rules follow, and all are load-bearing:
 
 1. **Never fill a gap.** A block with `paramCount: null` draws dashed nodes, not guessed
-   ones. A hash nobody reported is a dotted ring and a hollow marker, never a pattern.
+   ones. A hash nobody reported is a dotted petal and a hollow marker, never a pattern.
    Absent is a visible state, exactly as in the Composition panel where absent reads
    `not reported` and never `0`.
 2. **Never substitute.** Neither mark may stand in for the other, at any size or placement.
@@ -110,7 +110,7 @@ allowed only because a layered stack is universally read as a schematic.
 topology, the same shapes, and the same repeat structure as its source — `11.4.1` classes
 it `recast`, not `rearchitected`. A portrait that shaded int8 differently would suggest the
 structure moved when it did not. Precision is a hash-level fact and reads in §4, where the
-dtype ring changes and the two outer rings do not.
+precision petal changes and the architecture and shape petals do not.
 
 **Parameter counts are not encoded at all.** The earlier draft of this mark was a stack of
 bars whose heights were log parameter share; it was cut with the network. Node counts are
@@ -118,74 +118,75 @@ widths, not magnitudes, and the exact counts are in the layer table directly bel
 
 ## 4. Fingerprint — identity
 
-Drawn from `insight.hashes`. Four concentric rings, outermost first:
+Drawn from `insight.hashes`. Four petals, one per level, clockwise from the top left:
 
-| Ring | Hash | Radius (per 96px of box) |
+| Petal | Hash | Direction |
 |---|---|---|
-| 1 | `topology` | 44 |
-| 2 | `shape` | 34 |
-| 3 | `dtype` | 24 |
-| 4 | `weights` | 14 |
+| 1 | `topology` (architecture) | top left |
+| 2 | `shape` (layer shapes) | top right |
+| 3 | `dtype` (precision) | bottom right |
+| 4 | `weights` | bottom left |
 
-Each ring is a **guilloche band**: three interlaced strands of the same wave, each shifted by
-a third of a lobe, weaving around the ring's radius within its own lane. The seeded stream
-(§5) for that ring's hash picks the lobe count (6–14), a slow swell of the amplitude (2–5
-bulges) and its depth, and the band's rotation. The same hash always draws the same band and a
-different hash a visibly different one; the shape encodes nothing beyond that. Under 24px a
-ring is a single strand. **A hash that is absent is drawn as a dotted full circle in the muted
-tone** — present-but-different and absent-entirely must not look alike. In a pair, a side with
-no hashes at all draws four dotted rings rather than nothing.
+Each petal's outline is seeded from its hash by the stream (§5): its width, the ripple along its
+edge, and how many nested contours it has (3–4; 2 under 64px). Each petal is drawn as a **point
+cloud**: dots gather along its contours and scatter more thinly inside, every dot's position,
+size and opacity taken from the same stream, so the same hash lays the same cloud. Under 24px,
+where dots are dust, a petal is a plain filled shape. The same hash always draws the same petal and a different hash a
+visibly different one; the shape encodes nothing beyond that. **A hash that is absent is drawn
+as a plain dotted petal in the muted tone** — present-but-different and absent-entirely must
+not look alike. In a pair, a side with no hashes at all draws four dotted petals rather than
+nothing.
 
-The first cut drew each ring as 24 on/off arc segments (bit `k` of the stream); at every size
-it read as a scattered barcode rather than an emblem, so it was replaced.
+Earlier cuts drew concentric rings — first 24 on/off arc segments per ring, then guilloche
+bands. Both read as nested circles rather than one emblem, so they were replaced by petals, and
+the petals by point clouds for a lighter, less diagrammatic texture.
 
-### 4.1 Ring colour
+### 4.1 Petal colour
 
-Four nested rings of identical stroke are hard to name without counting inward, so each level
-carries its own hue:
+Each level carries its own hue, so a petal can be named at a glance:
 
-| Ring | Token | Light | Dark |
+| Level | Token | Light | Dark |
 |---|---|---|---|
 | `topology` | `--fp-topology` | `oklch(0.52 0.07 255)` | `oklch(0.72 0.075 255)` |
 | `shape` | `--fp-shape` | `oklch(0.54 0.07 165)` | `oklch(0.74 0.075 165)` |
 | `dtype` | `--fp-dtype` | `oklch(0.56 0.075 75)` | `oklch(0.78 0.08 75)` |
 | `weights` | `--fp-weights` | `oklch(0.53 0.08 25)` | `oklch(0.72 0.085 25)` |
 
-Chroma stays low and lightness is matched across the four, so no ring dominates and the disc
-still reads as one object rather than four competing arcs.
+Chroma stays low and lightness is matched across the four, so no petal dominates and the
+flower reads as one object.
 
 Three rules hold the colour honest:
 
 1. **Colour means reported.** An absent level stays muted grey and dotted; it never borrows a
    hue. Absence must not be able to pass as a category.
-2. **Colour is never the only signal.** Each ring is at a fixed radius, and the roll-call
-   under the disc repeats every level as a coloured marker *and* its name in text. The mark
+2. **Colour is never the only signal.** Each petal has a fixed direction, and the roll-call
+   under the flower repeats every level as a coloured marker *and* its name in text. The mark
    is fully readable in greyscale, in print, and with colour vision loss — the hues are an
    accelerator, not the channel.
 3. **Nothing else may use these tokens.** They name the four fingerprint levels and only
    those.
 
-In a side-by-side delta (§4 table), rings that did not change drop to muted so the ones that
+In a side-by-side delta (§4 table), petals that did not change drop to muted so the ones that
 did carry their colour alone.
 
 This makes the `11.4.1` verdict readable directly off two marks placed side by side:
 
 | What differs | Verdict | Reads as |
 |---|---|---|
-| Nothing, all four present | `identical` | Both marks superimpose |
-| Ring 4 only | `reweighted` | Outer three lock, core scrambles |
-| Rings 3–4 | `recast` | Outer two lock — same net, new precision |
-| Rings 2–4 | `rescaled` | Only topology survives |
-| Ring 1 | `rearchitected` | Nothing lines up |
-| Ring 4 dotted on either side | `unknown` | The core is visibly missing, not zero |
+| Nothing, all four present | `identical` | Both flowers match, all grey |
+| Weights only | `reweighted` | Bottom-left petal changes |
+| Precision and weights | `recast` | Top two match; the bottom two change |
+| Shapes, precision, weights | `rescaled` | Only the architecture petal matches |
+| Architecture | `rearchitected` | Nothing matches |
+| Weights dotted on either side | `unknown` | A petal is visibly missing, not zero |
 
 The last row is the one that earns the design. `demand-forecast` `0.4.0` → `0.4.1` is a
-weekly retrain whose producer never hashed weights: three identical rings and a dotted
-core, which is precisely `11.4.3`'s "narrows to two candidates and names what is missing".
+weekly retrain whose producer never hashed weights: three identical petals and a dotted
+one, which is precisely `11.4.3`'s "narrows to two candidates and names what is missing".
 
 Under the disc the section repeats the four levels as a roll-call — a marker in the level's
 own colour for a reported hash, a hollow dashed grey one for an absent hash — so the disc can
-be read without counting rings, and so both the colour and the absence have a second, textual
+be read without matching colours, and so both the colour and the absence have a second, textual
 form. The hash strings themselves are not repeated here; they are in the Composition panel
 below.
 
@@ -206,7 +207,7 @@ xorshift32:  x ^= x << 13;  x ^= x >>> 17;  x ^= x << 5
 ```
 
 Seed each mark with `fnv1a32` of its source string, then take successive `xorshift32`
-words; bit `k` of a segment decision comes off the low bits. Seeds are the hash strings
+words; every choice a mark makes — a petal's width, ripple and contour count, each dot's position, size and opacity — is drawn from that stream. Seeds are the hash strings
 verbatim (`hashes.topology`, …) — never the version name or a registry-assigned id, which
 would make two byte-identical republishes draw differently.
 
@@ -232,13 +233,13 @@ flowchart TB
 
 | Section | Component | Where | Form |
 |---|---|---|---|
-| Fingerprint | `VersionFingerprint.tsx` | Top row, left, beside Lifecycle in a `19rem / 1fr` grid | Square card; 168px disc, ring roll-call beneath |
+| Fingerprint | `VersionFingerprint.tsx` | Top row, left, beside Lifecycle in a `19rem / 1fr` grid | Square card; 168px flower, level roll-call beneath |
 | Portrait | `VersionPortrait.tsx` | Immediately below the top row | Full-width card; `880 × 260` viewBox scaled to the container, legend beneath in two columns |
 
 **Why the fingerprint sits with the lifecycle.** Identity and stage are the two facts a reader
 wants in the first second — *which* model this is, and *where* it is. They are both small,
 both glanceable, and they answer the header's implicit question together. The fingerprint card
-stays compact for this reason: the disc, four present/absent ring markers, and one line of
+stays compact for this reason: the flower, four present/absent level markers, and one line of
 reading. The full hashes are in the Composition panel below and are not repeated here.
 
 **Why the portrait is full width and below.** It is a left-to-right stack, and squeezed into a
@@ -261,7 +262,7 @@ same mark in three places is an identity.
 | Fingerprint section (`VersionDetail`) | 168px square | Full |
 | Portrait section (`VersionDetail`) | `880 × 260`, responsive | Full |
 | Compare, one per side (`Compare`) | 64px | Full |
-| Version rows (`ModelDetail`) | 20px | Portrait: columns as ticks, no nodes, no edges, no colour. Fingerprint: 8 segments per ring |
+| Version rows (`ModelDetail`) | 20px | Portrait: columns as ticks, no nodes, no edges, no colour. Fingerprint: four filled petals, no dots |
 
 Below 24px the detail channels collide into grey, so the reduction is mandatory, not an
 optimisation. `PortraitMark` takes `width`/`height` plus `responsive`; `FingerprintMark`
@@ -277,7 +278,7 @@ takes `size`. Both default `reduced` on below 24px.
 - 1px `currentColor` strokes only — both marks inherit the theme and flip light/dark like
   everything else. Every colour is a token with light and dark values (§3, §4.1), never a
   fixed value, and never the sole carrier of meaning: the portrait states each channel as
-  text in the legend beneath, and each fingerprint ring is identified by a fixed radius and a
+  text in the legend beneath, and each fingerprint petal is identified by a fixed direction and a
   named marker as well as a hue. Both marks are fully readable in greyscale.
 - The header info icon carries its text in `title` and `aria-label`, so the same sentence
   reaches a pointer, a screen reader, and a keyboard user.
@@ -319,8 +320,8 @@ prompt to go run a producer.
 |---|---|
 | **Strata** — the original portrait: stacked bars, width = widest dim, height = log parameter share, `repeatCount` as internal hairlines | Drawn and then cut for the network. It encoded more (parameter share) but read as a bar chart of an unlabelled quantity, and its best channel — repeats as six hairlines inside one bar — is strictly weaker than six actual columns |
 | **Digest extrusion** — isometric wireframe columns seeded by the artifact digest, for versions with neither layers nor hashes | Drawn and then cut. It is deterministic and honest, but its entire content is *these bytes and not other bytes*, which the Artifacts table already gives in text. A mark that cannot be interpreted trains the reader to treat the sections as decoration, which costs the two marks that do carry meaning |
-| **One card, one family** — a single Portrait section that drew the network when layers existed and the rings otherwise | Cut for the split in §2. It forced a line of prose explaining which family had been chosen, and still put an identity mark in a slot readers had learned to read structurally |
+| **One card, one family** — a single Portrait section that drew the network when layers existed and the fingerprint otherwise | Cut for the split in §2. It forced a line of prose explaining which family had been chosen, and still put an identity mark in a slot readers had learned to read structurally |
 | Generic identicon (Blockies / jdenticon) over the version ID | Seeded by a registry-assigned ID, so it encodes nothing about the model and changes on reseed of the demo DB |
-| Precision plate — cells shaded by dtype | Real, but it duplicates the dtype ring and tempts a portrait/plate hybrid that implies structure changed under quantization (§3) |
+| Precision plate — cells shaded by dtype | Real, but it duplicates the precision petal and tempts a portrait/plate hybrid that implies structure changed under quantization (§3) |
 | Subdividing the existing rotating cube per digest | Cheapest, but overloads the brand mark: the cube means *Lineage*, and making it per-version costs that |
 | Force-directed layout of the layer graph | The layered left-to-right layout in §3 is fixed and deterministic; a force simulation is neither, and would draw the same model differently on every render |
