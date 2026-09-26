@@ -39,7 +39,7 @@
     },
     {
       "name": "compliance",
-      "description": "Risk classification under a named regulatory regime. The class is always something a person declared; the registry never infers one, and never changes or blocks anything when a classification goes out of date."
+      "description": "Risk classification under a named regulatory regime — the EU AI Act (`eu_ai_act`) and financial model-risk management (`mrm`), one row per regime per model — plus the MRM validation record. Every class, tier and validation is something a person declared; the registry never infers one, and never changes or blocks anything when one goes out of date."
     },
     {
       "name": "retention",
@@ -106,12 +106,28 @@
             "description": "Computed on every read, so this is not a stored filter. `unclassified` returns models with no row for the regime; it is not a kind of `stale`."
           },
           {
+            "name": "mrmTier",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/MRMTier"
+            },
+            "description": "Stored column, pushed into SQL. Selects only models with an `mrm` row at this tier — never models nobody has tiered."
+          },
+          {
+            "name": "mrmState",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/MRMState"
+            },
+            "description": "Computed on every read (§20.7). `untiered` returns models with no `mrm` row or an explicit `untiered`. Combined with an EU filter, returns the models that pass both."
+          },
+          {
             "name": "regime",
             "in": "query",
             "schema": {
               "$ref": "#/components/schemas/Regime"
             },
-            "description": "Which regime the classification parameters apply to. Defaults to eu_ai_act."
+            "description": "Turns on that regime's lens without filtering on it: `eu_ai_act` embeds `classification`, `mrm` embeds `mrm`."
           },
           {
             "name": "include",
@@ -119,10 +135,11 @@
             "schema": {
               "type": "string",
               "enum": [
-                "classification"
+                "classification",
+                "mrm"
               ]
             },
-            "description": "Set to `classification` to embed each model's classification without filtering on it. Omitted entirely, this endpoint runs the same query it always has — the classification join and its version aggregate are not paid for unless asked for."
+            "description": "`classification` embeds each model's EU row, `mrm` its MRM row, without filtering on either; `classification,mrm` embeds both. Omitted entirely, this endpoint runs the same query it always has — the joins and their version aggregates are not paid for unless asked for."
           }
         ],
         "responses": {
@@ -1701,7 +1718,7 @@
           "compliance"
         ],
         "summary": "Replace one regime's classification",
-        "description": "PUT, not PATCH: the row is replaced whole, so an old basis can never sit underneath a brand-new class. Audited as `classification.set` with the regime recorded.",
+        "description": "PUT, not PATCH: the row is replaced whole, so an old basis can never sit underneath a brand-new class. The body carries this regime's enum (euSystemRiskClass/euGpaiTier on `eu_ai_act`, mrmTier on `mrm`) plus the shared fields. Audited as `classification.set` with the regime recorded.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2163,6 +2180,123 @@
         }
       }
     },
+    "/v1/models/{model}/versions/{version}/validations": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        },
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "post": {
+        "operationId": "recordValidation",
+        "tags": [
+          "compliance"
+        ],
+        "summary": "Record a validation of a version",
+        "description": "Appends. Audited as `validation.record`. A self-validation (validator = version author) is recorded with independenceEvidenced false, never refused.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Validation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listValidations",
+        "tags": [
+          "compliance"
+        ],
+        "summary": "A version's validation history and state",
+        "description": "Newest first; superseded validations are returned too — what was believed before is the question an examiner asks.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationList"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/versions/{version}/validations/{id}:clearConditions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        },
+        {
+          "$ref": "#/components/parameters/version"
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "The validation id."
+        }
+      ],
+      "post": {
+        "operationId": "clearValidationConditions",
+        "tags": [
+          "compliance"
+        ],
+        "summary": "Record that a conditional validation's conditions are met",
+        "description": "Sets conditionsClearedAt, once. 409 `reason: not_conditional` on any other outcome, 409 `reason: already_cleared` on a second call. Audited as `validation.conditions_cleared`. No request body.",
+        "responses": {
+          "200": {
+            "description": "Cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Validation"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/v1/reviews": {
       "get": {
         "operationId": "listReviewQueue",
@@ -2436,6 +2570,11 @@
           "updatedAt": {
             "type": "integer",
             "format": "int64"
+          },
+          "stageChangedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the version entered its current stage. Moved only by a stage transition (including a demotion), never by an edit — the anchor of the MRM monitoring check."
           },
           "legalHold": {
             "$ref": "#/components/schemas/Hold"
@@ -3916,9 +4055,10 @@
       "Regime": {
         "type": "string",
         "enum": [
-          "eu_ai_act"
+          "eu_ai_act",
+          "mrm"
         ],
-        "description": "One body of rules. The EU AI Act is the only regime this build defines; each gets its own row per model, with its own date, author, reason and review cycle."
+        "description": "One body of rules: the EU AI Act (`eu_ai_act`) or financial model-risk management (`mrm`: SR 26-2, PRA SS1/23, OSFI E-23). Each gets its own row per model, with its own date, author, reason and review cycle, so writing one can never move another's anchor."
       },
       "EUSystemRiskClass": {
         "type": "string",
@@ -3945,10 +4085,12 @@
         "type": "string",
         "enum": [
           "unclassified",
+          "untiered",
+          "unvalidated",
           "stale",
           "current"
         ],
-        "description": "Computed per regime on every read, never stored. `unclassified` is not a kind of `stale`: a filter for one must not return the other."
+        "description": "Computed per regime on every read, never stored. The `eu_ai_act` ladder is `unclassified`, `stale`, `current`; the `mrm` ladder is `untiered`, `unvalidated`, `stale`, `current` (MRMState). Neither regime's first rung is a kind of `stale`."
       },
       "StaleReason": {
         "type": "string",
@@ -3956,9 +4098,12 @@
           "review_due_passed",
           "version_published_since",
           "production_changed_since",
-          "derivation_since"
+          "derivation_since",
+          "validation_expired",
+          "unmonitored_in_production",
+          "conditions_outstanding"
         ],
-        "description": "Why a classification went out of date. `production_changed_since` reads updated_at, so editing the production version's description trips it — a deliberate false positive, since for a legal field erring toward 'take another look' is the right direction."
+        "description": "Why a classification went out of date. `production_changed_since` reads updated_at, so editing the production version's description trips it — a deliberate false positive, since for a legal field erring toward 'take another look' is the right direction. For `mrm` rows: `validation_expired`, `version_published_since` (a version published after the validation), `unmonitored_in_production` (in production with no evaluation run since it got there), `conditions_outstanding`."
       },
       "ClassificationInput": {
         "type": "object",
@@ -3970,13 +4115,21 @@
           "euGpaiTier": {
             "$ref": "#/components/schemas/EUGpaiTier"
           },
+          "mrmTier": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MRMTier"
+              }
+            ],
+            "description": "The `mrm` path's enum. Defaults to `untiered`. Sending an EU field on the `mrm` path, or this on the `eu_ai_act` path, is rejected with 400."
+          },
           "intendedPurpose": {
             "type": "string",
-            "description": "Required unless euSystemRiskClass is `unclassified` — nobody can review a class with no stated purpose."
+            "description": "Required on `eu_ai_act` unless euSystemRiskClass is `unclassified` — nobody can review a class with no stated purpose. Optional on `mrm`."
           },
           "basis": {
             "type": "string",
-            "description": "Why this class: the reasoning, not the conclusion. Required for high_annex_iii and high_annex_i."
+            "description": "Why this class or tier: the reasoning, not the conclusion. Required for high_annex_iii and high_annex_i, and for tier_1 and out_of_scope (422, `details.field: basis`)."
           },
           "reviewDueAt": {
             "type": "integer",
@@ -4009,6 +4162,9 @@
           "euSystemRiskClass": {
             "$ref": "#/components/schemas/EUSystemRiskClass"
           },
+          "mrmTier": {
+            "$ref": "#/components/schemas/MRMTier"
+          },
           "intendedPurpose": {
             "type": "string"
           },
@@ -4038,7 +4194,8 @@
             "description": "Always `declared`. There is no computed path for a legal class."
           },
           "state": {
-            "$ref": "#/components/schemas/ClassificationState"
+            "$ref": "#/components/schemas/ClassificationState",
+            "description": "The row's own regime's ladder: ClassificationState on `eu_ai_act`, MRMState on `mrm`."
           },
           "staleReasons": {
             "type": "array",
@@ -4046,6 +4203,18 @@
               "$ref": "#/components/schemas/StaleReason"
             },
             "description": "Every reason that fired, not the first — someone deciding whether to redo an assessment wants the whole picture."
+          },
+          "version": {
+            "type": "string",
+            "description": "`mrm` rows only: the version the state is about — the production version if the model has one, else its newest. Absent when the model has no versions."
+          },
+          "latestValidation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Validation"
+              }
+            ],
+            "description": "`mrm` rows only: that version's latest validation, absent when it has none."
           }
         }
       },
@@ -4067,10 +4236,18 @@
             "$ref": "#/components/schemas/Model"
           }
         ],
-        "description": "A model list entry carrying its classification for one regime. `classification` is absent when the model has no row for that regime — absence is the `unclassified` state, and inventing an empty row would put an assessment in the response that nobody wrote.",
+        "description": "A model list entry carrying its classification for each regime asked about. `classification` (the EU row) and `mrm` are each absent when the model has no row for that regime — absence is the `unclassified` / `untiered` state, and inventing an empty row would put an assessment in the response that nobody wrote.",
         "properties": {
           "classification": {
             "$ref": "#/components/schemas/Classification"
+          },
+          "mrm": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Classification"
+              }
+            ],
+            "description": "The model's `mrm` row with its §20.7 state, when that lens was asked for. Absent means `untiered`."
           }
         }
       },
@@ -4459,6 +4636,161 @@
           },
           "nextPageToken": {
             "type": "string"
+          }
+        }
+      },
+      "MRMTier": {
+        "type": "string",
+        "enum": [
+          "untiered",
+          "tier_1",
+          "tier_2",
+          "tier_3",
+          "out_of_scope"
+        ],
+        "description": "Firm-assigned model-risk tier, `tier_1` highest. `untiered` is the default and is never rendered as low risk. `out_of_scope` is a declared exclusion from the firm's framework (e.g. the SR 26-2 genAI carve-out) and requires a basis."
+      },
+      "MRMState": {
+        "type": "string",
+        "enum": [
+          "untiered",
+          "unvalidated",
+          "stale",
+          "current"
+        ],
+        "description": "The §20.7 ladder, computed on every read for a version's latest validation. `unvalidated` covers no validation and a latest outcome of `rejected` or `undetermined`. Neither `untiered` nor `unvalidated` is a kind of `stale`."
+      },
+      "ValidationOutcome": {
+        "type": "string",
+        "enum": [
+          "approved",
+          "conditional",
+          "rejected",
+          "undetermined"
+        ],
+        "description": "`conditional` is fit subject to `conditions`, which are then required. `undetermined` is reviewed but cannot conclude yet."
+      },
+      "ValidationInput": {
+        "type": "object",
+        "required": [
+          "outcome"
+        ],
+        "description": "There is deliberately no validatedBy or validatedAt field. Both are server-set — the actor header and the server clock — and a request that supplies either is rejected with 400: the value of both is that the registry witnessed them.",
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/ValidationOutcome"
+          },
+          "scope": {
+            "type": "string",
+            "description": "What was validated, e.g. 'credit decisioning use only'."
+          },
+          "findings": {
+            "type": "string",
+            "description": "What the validator concluded."
+          },
+          "conditions": {
+            "type": "string",
+            "description": "Required non-empty when outcome is `conditional` (422, `details.field: conditions`)."
+          },
+          "validUntil": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Epoch millis, must be in the future (400). Null means no expiry, which is surfaced rather than hidden."
+          },
+          "evidenceArtifactId": {
+            "type": "string",
+            "description": "The report itself: an artifact of kind DOC or METRICS on this version (400 otherwise)."
+          }
+        }
+      },
+      "Validation": {
+        "type": "object",
+        "required": [
+          "id",
+          "versionId",
+          "outcome",
+          "validatedAt",
+          "independenceEvidenced",
+          "source"
+        ],
+        "description": "One independent judgement on one version. Append-only: a re-validation is a new row, and the current answer is the latest.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ValidationOutcome"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "string"
+          },
+          "conditions": {
+            "type": "string"
+          },
+          "conditionsClearedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Set once by :clearConditions. While a conditional validation's conditions are uncleared, the state is `stale` with `conditions_outstanding`."
+          },
+          "validUntil": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "evidenceArtifactId": {
+            "type": "string"
+          },
+          "validatedBy": {
+            "type": "string",
+            "description": "Server-set from the actor header."
+          },
+          "validatedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Server-set."
+          },
+          "independenceEvidenced": {
+            "type": "boolean",
+            "description": "validatedBy is set and differs from the version's author. A flag, never a refusal: a one-person team or a shared service account trips it legitimately, and a human decides whether it is a finding."
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FactSource"
+              }
+            ],
+            "description": "Always `declared`."
+          }
+        }
+      },
+      "ValidationList": {
+        "type": "object",
+        "required": [
+          "items",
+          "state"
+        ],
+        "description": "A version's validations, newest first, with the §20.7 state of this version against the model's `mrm` row. Not paginated.",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Validation"
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/MRMState"
+          },
+          "staleReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaleReason"
+            }
           }
         }
       }

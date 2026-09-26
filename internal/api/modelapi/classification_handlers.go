@@ -74,30 +74,45 @@ func regimeNames() []string {
 	return out
 }
 
-// ---- Inventory (§16.8.2) ----
+// ---- Inventory (§16.8.2, §20.9.2) ----
 
-// inventoryReq carries the three classification query parameters plus the regime they apply
-// to. `state` is separate from the store filter because it is computed, not stored.
+// inventoryReq carries each regime lens's query parameters. The computed states are separate
+// from the store filters because they are not columns.
 type inventoryReq struct {
+	eu     bool
 	filter domain.ClassificationFilter
 	state  domain.ClassificationState
+
+	mrm      bool
+	mrmTier  domain.MRMTier
+	mrmState domain.ClassificationState
 }
 
-// inventoryQuery reports whether this request asked for classification data at all. Any of
-// the three filters counts, as does an explicit ?include=classification — a caller wanting
-// the column without narrowing on it.
+// inventoryQuery reports whether this request asked for classification data at all, and for
+// which regimes. A lens is on when any of its filters is set, when ?include= names it
+// (`classification` for the EU lens, `mrm` for the MRM one), or when ?regime= does. Both lenses
+// at once return the models that pass both.
 func inventoryQuery(req *http.Request) (inventoryReq, bool) {
 	q := req.URL.Query()
+	inc := includeSet(req)
+	regime := domain.Regime(q.Get("regime"))
 	inv := inventoryReq{
 		filter: domain.ClassificationFilter{
-			Regime:            domain.Regime(orDefault(q.Get("regime"), string(domain.RegimeEUAIAct))),
+			Regime:            domain.RegimeEUAIAct,
 			EUSystemRiskClass: domain.EUSystemRiskClass(q.Get("euSystemRiskClass")),
 			EUGpaiTier:        domain.EUGpaiTier(q.Get("euGpaiTier")),
 		},
-		state: domain.ClassificationState(q.Get("classificationState")),
+		state:    domain.ClassificationState(q.Get("classificationState")),
+		mrmTier:  domain.MRMTier(q.Get("mrmTier")),
+		mrmState: domain.ClassificationState(q.Get("mrmState")),
 	}
-	asked := inv.filter.Active() || inv.state != "" || includeSet(req)["classification"] || q.Get("regime") != ""
-	return inv, asked
+	inv.eu = inv.filter.Active() || inv.state != "" || inc["classification"] || regime == domain.RegimeEUAIAct
+	inv.mrm = inv.mrmTier != "" || inv.mrmState != "" || inc["mrm"] || regime == domain.RegimeMRM
+	if regime != "" && !domain.ValidRegime(regime) {
+		// Routed to the EU lens so the regime check below names the parameter.
+		inv.eu, inv.filter.Regime = true, regime
+	}
+	return inv, inv.eu || inv.mrm
 }
 
 func (r *Router) listInventory(w http.ResponseWriter, req *http.Request, inv inventoryReq) {
@@ -119,8 +134,23 @@ func (r *Router) listInventory(w http.ResponseWriter, req *http.Request, inv inv
 		api.WriteError(w, badEnum("classificationState", classificationStates()))
 		return
 	}
+	if v := inv.mrmTier; v != "" && !domain.ValidMRMTier(v) {
+		api.WriteError(w, badEnum("mrmTier", domain.MRMTiers()))
+		return
+	}
+	if v := inv.mrmState; v != "" && !domain.ValidMRMState(v) {
+		api.WriteError(w, badEnum("mrmState", domain.MRMStates()))
+		return
+	}
 
-	items, next, err := r.svc.ListInventory(req.Context(), listOpts(req), inv.filter, inv.state)
+	var q core.InventoryQuery
+	if inv.eu {
+		q.EU = &core.EUInventory{Filter: inv.filter, State: inv.state}
+	}
+	if inv.mrm {
+		q.MRM = &core.MRMInventory{Tier: inv.mrmTier, State: inv.mrmState}
+	}
+	items, next, err := r.svc.Inventory(req.Context(), listOpts(req), q)
 	if err != nil {
 		api.WriteError(w, err)
 		return

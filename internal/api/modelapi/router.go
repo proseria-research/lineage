@@ -98,6 +98,12 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/reviews", r.listVersionReviews)
 	mux.HandleFunc("GET /v1/reviews", r.reviewQueue)
 
+	// Model-risk validation (§20.9). Append-only; the one later write is clearing a
+	// conditional's conditions, a custom verb on the row.
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/validations", r.recordValidation)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/validations", r.listValidations)
+	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/validations/{idAction}", r.validationAction)
+
 	// Global audit feed, cross-model diff, OpenAPI contract
 	// Retention (§19.4). On /v1, not only /healthz: the floor is a fact a filing has to cite,
 	// and every fact must be reachable through the public API — a client reading over HTTP
@@ -132,9 +138,10 @@ func (r *Router) createModel(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) listModels(w http.ResponseWriter, req *http.Request) {
-	// The inventory path (§16.8.2) costs a join plus an aggregate over model_version, so it
-	// runs only when the caller asked for classification data — by filtering on it, or with
-	// ?include=classification. Without either, this is the same query it has always been.
+	// The inventory path (§16.8.2, §20.9.2) costs a join plus aggregates over model_version,
+	// so it runs only when the caller asked for classification data — by filtering on it, or
+	// with ?include=classification / ?include=mrm. Without either, this is the same query it
+	// has always been.
 	if inv, ok := inventoryQuery(req); ok {
 		r.listInventory(w, req, inv)
 		return
