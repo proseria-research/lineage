@@ -20,6 +20,9 @@ type ListOptions struct {
 	Filters     map[string]string // e.g. {"state":"ACTIVE"}, {"stage":"production"}
 	Labels      map[string]string // label.<key>=<value>
 	CustomProps map[string]string // cp.<key>=<value> — Postgres-only (JSONB containment, §02.7)
+	// AsOf bounds the audit feed to rows with at <= AsOf (epoch-millis); 0 = unbounded
+	// (§03.3). Only ListAudit honours it: audit rows are the one history that is append-only.
+	AsOf int64
 }
 
 // Selector resolves a version within a model (§04.2). Exactly one field is set;

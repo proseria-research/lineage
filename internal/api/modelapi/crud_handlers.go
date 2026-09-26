@@ -55,7 +55,12 @@ func (r *Router) modelAction(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) modelAudit(w http.ResponseWriter, req *http.Request) {
-	items, next, err := r.svc.ListModelAudit(req.Context(), req.PathValue("model"), listOpts(req))
+	o, err := auditOpts(req)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	items, next, err := r.svc.ListModelAudit(req.Context(), req.PathValue("model"), o)
 	writePage(w, items, next, err)
 }
 
@@ -213,9 +218,32 @@ func (r *Router) deleteDeployment(w http.ResponseWriter, req *http.Request) {
 // ---- Audit feed ----
 
 func (r *Router) auditFeed(w http.ResponseWriter, req *http.Request) {
+	o, err := auditOpts(req)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
 	q := req.URL.Query()
-	items, next, err := r.svc.ListAudit(req.Context(), q.Get("subjectType"), q.Get("subjectId"), listOpts(req))
+	items, next, err := r.svc.ListAudit(req.Context(), q.Get("subjectType"), q.Get("subjectId"), o)
 	writePage(w, items, next, err)
+}
+
+// auditOpts adds `asOf` (§03.3) to the list options: the history as it stood at an instant,
+// so a report pinned to a date reads the same rows however much has happened since. A value
+// nobody can interpret is refused, not read as "unbounded" — that would silently widen the
+// report it was meant to pin.
+func auditOpts(req *http.Request) (domain.ListOptions, error) {
+	o := listOpts(req)
+	if v := req.URL.Query().Get("asOf"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n <= 0 {
+			e := domain.Invalid("asOf must be a positive epoch-millis integer")
+			e.Details = map[string]any{"field": "asOf"}
+			return o, e
+		}
+		o.AsOf = n
+	}
+	return o, nil
 }
 
 // ---- shared write helpers ----
