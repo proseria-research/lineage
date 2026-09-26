@@ -32,6 +32,7 @@ type fakeRegistry struct {
 	blobs     map[string][]byte            // repo|digest → bytes
 	manifests map[string][]byte            // repo|reference → manifest json
 	uploads   map[string][]byte            // upload id → buffered bytes
+	uploadSeq int                          // monotonic, so a closed session's id is never reissued
 	tokens    int                          // token exchanges served
 	requests  []string                     // method + path, for assertions
 	seen      map[string]map[string]string // repo|digest → nothing; reserved
@@ -141,7 +142,8 @@ func (f *fakeRegistry) serveUpload(w http.ResponseWriter, r *http.Request, repo,
 	switch r.Method {
 	case "POST":
 		f.mu.Lock()
-		id := "u" + strconv.Itoa(len(f.uploads)+1)
+		f.uploadSeq++
+		id := "u" + strconv.Itoa(f.uploadSeq)
 		f.uploads[id] = nil
 		f.mu.Unlock()
 		w.Header().Set("Location", "/v2/"+repo+"/blobs/uploads/"+id)
