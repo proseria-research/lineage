@@ -118,6 +118,15 @@ func (s *Store) ListModels(_ context.Context, o domain.ListOptions) ([]*domain.M
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	out := s.matchModels(o)
+	items, next := domain.Page(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID }, o.PageToken, o.PageSize)
+	return deepCopyAll(items), next, nil
+}
+
+// matchModels is ListModels' filtering without its paging, oldest first. The inventory
+// queries page only after applying a computed state, so they need every match, not the first
+// page of them. The caller holds the lock.
+func (s *Store) matchModels(o domain.ListOptions) []*domain.Model {
 	var out []*domain.Model
 	for _, m := range s.models {
 		if o.Q != "" && !strings.Contains(m.Name, o.Q) {
@@ -132,8 +141,17 @@ func (s *Store) ListModels(_ context.Context, o domain.ListOptions) ([]*domain.M
 		out = append(out, m)
 	}
 	sortByCreated(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID })
-	items, next := domain.Page(out, func(m *domain.Model) (int64, string) { return m.CreatedAt, m.ID }, o.PageToken, o.PageSize)
-	return deepCopyAll(items), next, nil
+	return out
+}
+
+// allModels is every model matching o, unpaged, as copies. Used by the inventory reads.
+func (s *Store) allModels(o domain.ListOptions) ([]*domain.Model, error) {
+	if len(o.CustomProps) > 0 {
+		return nil, domain.Invalid("custom-property (cp.*) filtering requires the postgres engine (§02.7)")
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return deepCopyAll(s.matchModels(o)), nil
 }
 
 func (s *Store) UpdateModel(_ context.Context, m *domain.Model) error {

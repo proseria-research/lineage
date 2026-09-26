@@ -74,9 +74,9 @@ func (s *Store) DriftFactsFor(_ context.Context, modelID string) (domain.DriftFa
 // ListInventory mirrors the sqlstore join in memory (§16.8.2). Unclassified models are kept
 // unless a stored-enum filter is set, since a null column never equals a value.
 func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domain.ClassificationFilter) ([]*domain.ModelInventoryRow, error) {
-	models, _, err := s.ListModels(ctx, domain.ListOptions{
-		// Reuse the model-level filtering, but not the paging: the caller pages after it has
-		// applied the computed-state filter.
+	// Every match, not ListModels' first page: the caller pages after applying the computed
+	// state, so a cap here would silently drop models.
+	models, err := s.allModels(domain.ListOptions{
 		Filters: o.Filters, Q: o.Q, Labels: o.Labels, CustomProps: o.CustomProps,
 	})
 	if err != nil {

@@ -47,7 +47,9 @@ func (s *Store) ClearValidationConditions(_ context.Context, versionID, id strin
 // ListMRMInventory mirrors the sqlstore statement (§20.9.2), including its subject rule:
 // the production version if there is one, else the newest.
 func (s *Store) ListMRMInventory(ctx context.Context, o domain.ListOptions, f domain.MRMFilter) ([]*domain.MRMInventoryRow, error) {
-	models, _, err := s.ListModels(ctx, domain.ListOptions{
+	// Every match, not ListModels' first page: the caller pages after applying the computed
+	// state, so a cap here would silently drop models.
+	models, err := s.allModels(domain.ListOptions{
 		Filters: o.Filters, Q: o.Q, Labels: o.Labels, CustomProps: o.CustomProps,
 	})
 	if err != nil {
