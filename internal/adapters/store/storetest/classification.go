@@ -2,6 +2,7 @@ package storetest
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 
@@ -197,6 +198,30 @@ func RunInventory(t *testing.T, store domain.MetadataStore) {
 		}
 		return m
 	}
+	// More models than one default page (50): both inventories page only after applying the
+	// computed state, so they must see every match, never ListModels' first page.
+	for i := 0; i < 60; i++ {
+		mk(fmt.Sprintf("invbulk-%02d", i))
+	}
+	for name, count := range map[string]func() (int, error){
+		"ListInventory": func() (int, error) {
+			rows, err := store.ListInventory(ctx, domain.ListOptions{Q: "invbulk-"}, domain.ClassificationFilter{Regime: domain.RegimeEUAIAct})
+			return len(rows), err
+		},
+		"ListMRMInventory": func() (int, error) {
+			rows, err := store.ListMRMInventory(ctx, domain.ListOptions{Q: "invbulk-"}, domain.MRMFilter{})
+			return len(rows), err
+		},
+	} {
+		n, err := count()
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if n != 60 {
+			t.Fatalf("%s over 60 models = %d rows, want 60", name, n)
+		}
+	}
+
 	high := mk("inv-high")
 	minimal := mk("inv-minimal")
 	mk("inv-unclassified") // deliberately never classified
