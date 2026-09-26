@@ -10,7 +10,18 @@
 - **OpenAPI is the contract** (§00.11.6). The binary serves the spec at
   `/v1/openapi.json`; SDK (Python first) and CLI are generated from it.
 - **No auth** (§00 axiom 4). Requests arrive already authenticated. A mutating request
-  should carry an infra-provided `X-Lineage-Actor` header, recorded on the audit event.
+  should carry the infra-provided actor header (below), recorded on the audit event.
+- **Actor header — an integration contract** with the front door (ingress, gateway, mesh):
+
+  | Term | Contract |
+  |---|---|
+  | Name | `LINEAGE_ACTOR_HEADER` (Helm `actorHeader`), default `X-Lineage-Actor`. Both surfaces read the same one. Any other header, including the default name once overridden, is ignored |
+  | Value | **Trusted** and recorded **verbatim** as `actor` on the audit event and on server-set attribution fields (`classifiedBy`, `validatedBy`, …). Never parsed or normalised |
+  | Authorization | **None.** A request without it succeeds; Model API writes are then unattributed (`actor` absent), console writes read `console` |
+  | Stability | Changing the name, or what the front door puts in the value, is a **breaking change** for every client and proxy, and for any report that reads `actor` |
+
+  Lineage trusts the header, so the front door must strip it from untrusted traffic before
+  setting it. Asserted in CI by `internal/contracttest` (M19).
 - **Name-addressed.** Models and versions are addressed by their unique **names**
   (`02.5`), not opaque ids: `/v1/models/{model}/versions/{version}`. IDs are returned in
   every body and accepted in list filters. Names must match
@@ -36,7 +47,7 @@
 | **Artifact** | `GET /models/{m}/versions/{v}/artifacts` · `POST …/artifacts` (register-by-reference) · `POST …/artifacts:initiateUpload` · `POST …/artifacts:finalizeUpload` · `GET/PATCH/DELETE …/artifacts/{a}` |
 | **LineageEdge** | `POST /models/{m}/versions/{v}/lineage` · `GET …/lineage` · `DELETE …/lineage/{edgeId}` (queries → `07`) |
 | **Deployment** | `POST/GET /models/{m}/versions/{v}/deployments` · `PATCH/DELETE …/deployments/{id}` |
-| **Audit** (read-only) | `GET /models/{m}/audit` · `GET /audit?subjectType=&subjectId=` (feed → `09`) |
+| **Audit** (read-only) | `GET /models/{m}/audit` · `GET /audit?subjectType=&subjectId=` · both take `asOf` (§3) (feed → `09`) |
 
 ## 3. List Conventions (pagination · filter · sort)
 
@@ -50,6 +61,7 @@ Applies to every `GET` collection.
 | `q` | case-insensitive substring match on `name` |
 | `state` / `stage` | exact-match filters (where applicable) |
 | `label.<key>` | filter by label value, e.g. `label.tier=gold` (repeatable, AND) |
+| `asOf` | audit feeds only: epoch-millis; only events with `at <= asOf`. Pins a report to a date — the same rows however much is written later. Not a positive integer ⇒ `400 invalid_argument` |
 
 **Cursor pagination** (portable, stable across inserts). Response envelope:
 
@@ -218,7 +230,17 @@ POST /v1/models/{m}/versions/{v}:transition
 `details` carries machine-readable context (e.g. `allowedTargets` for a bad transition,
 `conflictingVersion` for a singleton demotion conflict).
 
-## 10. See Also
+## 10. Read Completeness
+
+Every recorded fact is readable through `/v1` alone; no report needs the ops port, the
+console BFF, or the database. `internal/contracttest` enforces this in CI (M19): a client
+importing only the standard library assembles a reference report — version record,
+`asOf`-bounded install audit, evaluations, lineage, audit history, EU classification and
+modification review, MRM tier and validations, change-plan conformance, retention and hold —
+on SQLite and Postgres, and two collections must be byte-identical. A heading `/v1` cannot
+fill is a `/v1` gap to close, not a test to relax.
+
+## 11. See Also
 
 | For | Doc |
 |---|---|
