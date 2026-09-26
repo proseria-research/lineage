@@ -48,6 +48,10 @@
     {
       "name": "reviews",
       "description": "The Art. 25 modification-review queue (§17). It surfaces derivations whose technical delta may have transferred provider liability, and records what a human concluded. It flags; it never decides whether a change is substantial in law, and it never blocks an action."
+    },
+    {
+      "name": "change-plans",
+      "description": "Change control plans (§22) — the FDA PCCP shape. A plan declares, in the §11.4 verdict vocabulary, which changes are pre-authorised; conformance says whether each derivation falls inside the plan in force when it shipped. Conformance is derived on read, never stored. It reports; it never decides whether a new submission is required, and it never blocks a publish."
     }
   ],
   "paths": {
@@ -2334,6 +2338,156 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReviewPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/change-plans": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        }
+      ],
+      "post": {
+        "operationId": "declareChangePlan",
+        "tags": [
+          "change-plans"
+        ],
+        "summary": "Declare a change control plan",
+        "description": "Appends. Audited as `change_plan.declare`, and `change_plan.supersede` when `supersedes` names the open plan this one replaces — that plan's effectiveTo is set to this plan's effectiveFrom in the same write. Without `supersedes`, a plan overlapping any existing window is 409 `plan_overlap`: two live plans would make conformance ambiguous.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePlanInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Declared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listChangePlans",
+        "tags": [
+          "change-plans"
+        ],
+        "summary": "A model's change control plans",
+        "description": "Newest effectiveFrom first; superseded plans are returned too — which plan was in force when a version shipped is the whole question.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePlanList"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/models/{model}/versions/{version}/conformance": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/model"
+        },
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "get": {
+        "operationId": "getVersionConformance",
+        "tags": [
+          "change-plans"
+        ],
+        "summary": "A version's conformance to its change control plan",
+        "description": "One item per `derived_from` edge on the version, judged against the plan in force at its publish time. `no_plan` when the model has none. A version with no `derived_from` edge is 409 `no_predecessor`: there is nothing to compare.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConformanceList"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/v1/change-plans/conformance": {
+      "get": {
+        "operationId": "listConformanceQueue",
+        "tags": [
+          "change-plans"
+        ],
+        "summary": "The change-control conformance queue",
+        "description": "Every `derived_from` edge on a model with at least one plan, judged against the plan in force when its version was published. `status` takes one or more values, comma-separated or repeated; `outside_plan,undetermined` is what wants a human. Omitting it returns every row. `undetermined` (the verdict is `unknown`) is queued, not passed; `uncovered` (no plan in force at publish) is not a violation.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Conformance"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          },
+          {
+            "$ref": "#/components/parameters/pageToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of conformance items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConformancePage"
                 }
               }
             }
@@ -4791,6 +4945,295 @@
             "items": {
               "$ref": "#/components/schemas/StaleReason"
             }
+          }
+        }
+      },
+      "PlannableVerdict": {
+        "type": "string",
+        "enum": [
+          "identical",
+          "reweighted",
+          "recast",
+          "rescaled",
+          "rearchitected"
+        ],
+        "description": "A §11.4 verdict a plan may pre-authorise. `unknown` is excluded: it is the absence of a verdict, not a kind of change."
+      },
+      "ChangePlan": {
+        "type": "object",
+        "required": [
+          "id",
+          "modelId",
+          "summary",
+          "allowedVerdicts",
+          "effectiveFrom",
+          "declaredAt"
+        ],
+        "description": "A declared envelope of pre-authorised changes to one model. Append-only; the one later write is effectiveTo, set when superseded.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "modelId": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string",
+            "description": "The submission or clearance identifier, e.g. a 510(k) number."
+          },
+          "summary": {
+            "type": "string",
+            "description": "What the plan permits, in the operator's words."
+          },
+          "allowedVerdicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannableVerdict"
+            }
+          },
+          "allowedMethods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Pre-authorised `derived_from` methods. Absent = unconstrained."
+          },
+          "protocolArtifactId": {
+            "type": "string",
+            "description": "The PCCP document: a DOC artifact on one of the model's versions. No foreign key — deleting the document leaves the plan saying what it rested on."
+          },
+          "effectiveFrom": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "effectiveTo": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Absent while open. The window is [effectiveFrom, effectiveTo)."
+          },
+          "declaredBy": {
+            "type": "string",
+            "description": "Server-set from the actor header."
+          },
+          "declaredAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Server-set."
+          }
+        }
+      },
+      "ChangePlanInput": {
+        "type": "object",
+        "required": [
+          "summary",
+          "allowedVerdicts"
+        ],
+        "additionalProperties": false,
+        "description": "effectiveTo, declaredBy and declaredAt are not accepted: supplying one is 400.",
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "allowedVerdicts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PlannableVerdict"
+            }
+          },
+          "allowedMethods": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Omit or null for unconstrained. An empty list is refused."
+          },
+          "protocolArtifactId": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Defaults to now. A past value is legitimate."
+          },
+          "supersedes": {
+            "type": "string",
+            "description": "The open plan this one replaces. Its effectiveFrom must be earlier than this one's."
+          }
+        }
+      },
+      "ChangePlanList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangePlan"
+            }
+          }
+        }
+      },
+      "Conformance": {
+        "type": "string",
+        "enum": [
+          "no_plan",
+          "uncovered",
+          "undetermined",
+          "outside_plan",
+          "within_plan"
+        ],
+        "description": "§22.4, derived on read. `undetermined`: the verdict is `unknown`, queued not passed. `uncovered`: no plan was in force at publish, which is not a violation."
+      },
+      "PlanRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        }
+      },
+      "ConformanceItem": {
+        "type": "object",
+        "required": [
+          "model",
+          "version",
+          "versionId",
+          "edgeId",
+          "conformance",
+          "verdict",
+          "hashes",
+          "basis",
+          "publishedAt"
+        ],
+        "description": "One derivation judged against the plan in force when its version was published.",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "edgeId": {
+            "type": "string",
+            "description": "The derived_from edge judged. A version with two predecessors is two items."
+          },
+          "derivedFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSide"
+              }
+            ],
+            "description": "The other end, when the edge points at a version in this registry."
+          },
+          "derivedFromRef": {
+            "type": "string",
+            "description": "The external reference the edge points at instead; no hashes reach it, so it reads `undetermined`."
+          },
+          "plan": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlanRef"
+              }
+            ],
+            "description": "The plan judged against. Absent for no_plan and uncovered."
+          },
+          "conformance": {
+            "$ref": "#/components/schemas/Conformance"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "verdict_not_allowed",
+                "method_not_allowed"
+              ]
+            },
+            "description": "Why an outside_plan item is outside. Both when both hold."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Verdict"
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedVerdicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannableVerdict"
+            }
+          },
+          "allowedMethods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "declaredMethod": {
+            "type": "string",
+            "description": "The edge's properties.method."
+          },
+          "hashes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HashCmp"
+            },
+            "description": "Per level, both sides: which hashes drove the verdict."
+          },
+          "basis": {
+            "$ref": "#/components/schemas/ReviewBasis"
+          },
+          "publishedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version's createdAt — the instant the plan in force is chosen at."
+          }
+        }
+      },
+      "ConformanceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConformanceItem"
+            }
+          }
+        }
+      },
+      "ConformancePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConformanceItem"
+            }
+          },
+          "nextPageToken": {
+            "type": "string"
           }
         }
       }
