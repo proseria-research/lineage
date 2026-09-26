@@ -41,25 +41,102 @@ const steps = [
 	{
 		title: 'Publish',
 		body: 'Register a version and its files. Lineage notes where they live, their digest and size, and what produced them.',
-		code: `lineage-cli version publish \\
-  -m fraud-detector -n 1.4.0 \\
-  -a model.onnx`,
 	},
 	{
 		title: 'Promote',
 		body: 'Move it from draft to staging to production. The old version is archived in the same step, and files lock at staging, so what you tested is what ships.',
-		code: `lineage-cli version promote \\
-  -m fraud-detector -n 1.4.0 \\
-  --to production`,
 	},
 	{
 		title: 'Serve',
 		body: 'Your serving code asks for production and gets download links, digests and the format. Promote again and it picks up the new version on its own.',
-		code: `lineage-cli pull fraud-detector \\
-  --stage production \\
-  --dest ./model`,
 	},
 ];
+
+/*
+ * The whole flow as one script, in each way a team talks to Lineage. Every line belongs to a
+ * step (0 is setup), so choosing a step lights its lines in whichever language is showing.
+ * Highlighting is two rules: comments muted, string literals tinted.
+ */
+type Line = [number, string];
+const scripts: { id: string; label: string; file: string; lines: Line[] }[] = [
+	{
+		id: 'python',
+		label: 'Python',
+		file: 'release.py',
+		lines: [
+			[0, 'from lineage import Client'],
+			[0, ''],
+			[0, 'client = Client("http://lineage:8081")'],
+			[0, ''],
+			[1, '# 1. Publish a version with its model file'],
+			[1, 'client.publish('],
+			[1, '    model="fraud-detector",'],
+			[1, '    version="1.4.0",'],
+			[1, '    artifacts=[client.model_file("model.onnx")],'],
+			[1, ')'],
+			[0, ''],
+			[2, '# 2. Promote it, one stage at a time'],
+			[2, 'client.transition("fraud-detector", "1.4.0", to="staging")'],
+			[2, 'client.transition("fraud-detector", "1.4.0", to="production",'],
+			[2, '                  reason="passed shadow eval")'],
+			[0, ''],
+			[3, '# 3. Serve whatever is in production'],
+			[3, 'client.download("fraud-detector", stage="production",'],
+			[3, '                dest="./model")'],
+		],
+	},
+	{
+		id: 'cli',
+		label: 'CLI',
+		file: 'release.sh',
+		lines: [
+			[0, 'export LINEAGE_SERVER="http://lineage:8081"'],
+			[0, ''],
+			[1, '# 1. Publish a version with its model file'],
+			[1, 'lineage-cli version publish \\'],
+			[1, '  -m fraud-detector -n 1.4.0 -a model.onnx'],
+			[0, ''],
+			[2, '# 2. Promote it, one stage at a time'],
+			[2, 'lineage-cli version promote -m fraud-detector -n 1.4.0 --to staging'],
+			[2, 'lineage-cli version promote -m fraud-detector -n 1.4.0 --to production'],
+			[0, ''],
+			[3, '# 3. Serve whatever is in production'],
+			[3, 'lineage-cli pull fraud-detector --stage production --dest ./model'],
+		],
+	},
+	{
+		id: 'http',
+		label: 'HTTP',
+		file: 'release.sh',
+		lines: [
+			[0, 'API="http://lineage:8081/v1/models"'],
+			[0, ''],
+			[1, '# 1. Publish a version, pointing at its model file'],
+			[1, 'curl -X POST "$API" -d \'{"name": "fraud-detector"}\''],
+			[1, 'curl -X POST "$API/fraud-detector/versions" -d \'{'],
+			[1, '  "name": "1.4.0",'],
+			[1, '  "artifacts": [{"name": "model.onnx",'],
+			[1, '    "uri": "s3://models/fraud-detector/1.4.0/model.onnx"}]'],
+			[1, "}'"],
+			[0, ''],
+			[2, '# 2. Promote it, one stage at a time'],
+			[2, 'V="$API/fraud-detector/versions/1.4.0:transition"'],
+			[2, 'curl -X POST "$V" -d \'{"to": "staging"}\''],
+			[2, 'curl -X POST "$V" -d \'{"to": "production",'],
+			[2, '  "reason": "passed shadow eval"}\''],
+			[0, ''],
+			[3, '# 3. Ask for production: files, digests and download links'],
+			[3, 'curl "$API/fraud-detector/resolve?stage=production"'],
+		],
+	},
+];
+
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const highlight = (line: string) =>
+	line.trimStart().startsWith('#')
+		? `<span class="tok-c">${esc(line)}</span>`
+		: esc(line).replace(/"[^"]*"/g, (m) => `<span class="tok-s">${m}</span>`) || ' ';
+const textOf = (lines: Line[]) => lines.map(([, l]) => l).join('\n');
 
 const attention = [
 	{
@@ -202,18 +279,64 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 					them as it happens.
 				</p>
 			</header>
-			<ol class="steps">
-				{
-					steps.map((s, i) => (
-						<li class="step">
-							<p class="step__num" aria-hidden="true">{i + 1}</p>
-							<h3 class="step__title">{s.title}</h3>
-							<p class="step__body">{s.body}</p>
-							<pre class="code"><code>{s.code}</code></pre>
-						</li>
-					))
-				}
-			</ol>
+			<div class="flow" data-flow>
+				<ol class="flow__steps">
+					{
+						steps.map((st, i) => (
+							<li>
+								<button class="flow__step" type="button" data-step={i + 1} aria-pressed="false">
+									<span class="flow__num" aria-hidden="true">{i + 1}</span>
+									<span class="flow__text">
+										<span class="flow__title">{st.title}</span>
+										<span class="flow__body">{st.body}</span>
+									</span>
+								</button>
+							</li>
+						))
+					}
+				</ol>
+				<figure class="script" data-script>
+					<figcaption class="script__bar">
+						<div class="script__tabs" role="tablist" aria-label="Language">
+							{
+								scripts.map((sc, k) => (
+									<button
+										class="script__tab"
+										type="button"
+										role="tab"
+										id={`tab-${sc.id}`}
+										aria-controls={`panel-${sc.id}`}
+										aria-selected={k === 0 ? "true" : "false"}
+										tabindex={k === 0 ? 0 : -1}
+										data-lang={sc.id}
+									>
+										{sc.label}
+									</button>
+								))
+							}
+						</div>
+						<button class="script__copy" type="button" data-copy={textOf(scripts[0].lines)} data-copy-script aria-label="Copy the script">
+							<Copy size={14} stroke-width={2} />
+							<span data-copy-label>Copy</span>
+						</button>
+					</figcaption>
+					{
+						scripts.map((sc, k) => (
+							<pre
+								class="script__code"
+								role="tabpanel"
+								id={`panel-${sc.id}`}
+								aria-labelledby={`tab-${sc.id}`}
+								data-panel={sc.id}
+								data-text={textOf(sc.lines)}
+								hidden={k !== 0}
+							><code>{sc.lines.map(([step, line]) => (
+								<span class="script__line" data-line-step={step} set:html={highlight(line)} />
+							))}</code></pre>
+						))
+					}
+				</figure>
+			</div>
 			<p class="band__foot">
 				Serving on KServe? Set <code>storageUri: lineage://fraud-detector/production</code> and the
 				storage initializer resolves it at pull time. <a href="/delivery/kserve/">KServe guide</a>
@@ -436,6 +559,56 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 </Marketing>
 
 <script>
+	// Choosing a step lights its lines in the script. Hover previews; click or keyboard pins.
+	const flow = document.querySelector<HTMLElement>('[data-flow]');
+	if (flow) {
+		let pinned = '';
+		const buttons = [...flow.querySelectorAll<HTMLButtonElement>('[data-step]')];
+		const show = (step: string) => {
+			if (step) flow.dataset.active = step;
+			else delete flow.dataset.active;
+			for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.step === pinned));
+			for (const line of flow.querySelectorAll<HTMLElement>('[data-line-step]')) {
+				line.classList.toggle('is-lit', !!step && line.dataset.lineStep === step);
+			}
+		};
+		for (const b of buttons) {
+			b.addEventListener('mouseenter', () => show(b.dataset.step!));
+			b.addEventListener('mouseleave', () => show(pinned));
+			b.addEventListener('click', () => {
+				pinned = pinned === b.dataset.step ? '' : b.dataset.step!;
+				show(pinned);
+			});
+		}
+	}
+
+	// Language tabs: arrow keys move between them, as tabs should.
+	const script = document.querySelector<HTMLElement>('[data-script]');
+	if (script) {
+		const tabs = [...script.querySelectorAll<HTMLButtonElement>('[data-lang]')];
+		const copy = script.querySelector<HTMLButtonElement>('[data-copy-script]');
+		const select = (tab: HTMLButtonElement) => {
+			for (const t of tabs) {
+				const on = t === tab;
+				t.setAttribute('aria-selected', String(on));
+				t.tabIndex = on ? 0 : -1;
+				const panel = script.querySelector<HTMLElement>(`[data-panel="${t.dataset.lang}"]`)!;
+				panel.hidden = !on;
+				if (on && copy) copy.dataset.copy = panel.dataset.text ?? '';
+			}
+		};
+		tabs.forEach((t, k) => {
+			t.addEventListener('click', () => select(t));
+			t.addEventListener('keydown', (e) => {
+				const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+				if (!d) return;
+				const next = tabs[(k + d + tabs.length) % tabs.length];
+				select(next);
+				next.focus();
+			});
+		});
+	}
+
 	for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
 		const label = button.querySelector<HTMLElement>('[data-copy-label]');
 		let restore: number | undefined;
