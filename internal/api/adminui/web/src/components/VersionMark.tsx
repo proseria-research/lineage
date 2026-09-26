@@ -188,8 +188,9 @@ function Portrait({
             x2={cx(i + 1)}
             y2={y2}
             stroke="currentColor"
+            className="text-portrait"
             strokeWidth={1}
-            strokeOpacity={hasSelection ? (touchesSelection ? 0.58 : 0.05) : dashed ? 0.09 : 0.18}
+            strokeOpacity={hasSelection ? (touchesSelection ? 0.6 : 0.05) : dashed ? 0.14 : 0.3}
           />,
         );
       });
@@ -237,11 +238,13 @@ function Portrait({
             cy={y}
             r={selected ? r + 1 : r}
             stroke="currentColor"
-            strokeWidth={selected ? 2 : 1}
+            strokeWidth={selected ? 2 : 1.5}
             strokeOpacity={dimmed ? 0.28 : 1}
-            // A missing fact is a visible state, never a guessed size (§12.2).
+            // A missing fact is a visible state, never a guessed size (§12.2): hollow and
+            // dashed. A reported column is filled in its block's colour.
             strokeDasharray={c.dashed ? "1.5 1.5" : undefined}
-            className="fill-card"
+            fill={c.dashed ? "var(--card)" : "currentColor"}
+            fillOpacity={c.dashed ? 1 : dimmed ? 0.12 : 0.35}
           />
         ))}
         {selected && (
@@ -250,10 +253,11 @@ function Portrait({
             y={padY + (H - extent) / 2 - r - 5}
             width={(r + 5) * 2}
             height={extent + (r + 5) * 2}
-            fill="none"
+            rx={r + 5}
+            fill="currentColor"
+            fillOpacity={0.08}
             stroke="currentColor"
-            strokeWidth={1}
-            strokeDasharray="3 3"
+            strokeWidth={1.25}
             pointerEvents="none"
           />
         )}
@@ -276,6 +280,21 @@ const RING_R = [44, 34, 24, 14]; // radii in a 96px box
  * never the only signal: the radius is fixed and the roll-call under the disc repeats each
  * level as text, so the mark still reads with colour vision loss or in print (§12.7).
  */
+/** Plain names for the four levels, outermost first. */
+export const RING_LABEL: Record<RingName, string> = {
+  topology: "Architecture",
+  shape: "Layer shapes",
+  dtype: "Precision",
+  weights: "Weights",
+};
+
+export const RING_HELP: Record<RingName, string> = {
+  topology: "Which layers exist and how they connect.",
+  shape: "The size of every tensor.",
+  dtype: "The numeric type of every tensor (fp32, bf16, int8…).",
+  weights: "The exact weight values.",
+};
+
 export const RING_TONE: Record<RingName, { text: string; bg: string; border: string }> = {
   topology: { text: "text-fp-topology", bg: "bg-fp-topology", border: "border-fp-topology" },
   shape: { text: "text-fp-shape", bg: "bg-fp-shape", border: "border-fp-shape" },
@@ -305,11 +324,16 @@ function Fingerprint({
   const k = size / 96;
   const cx = size / 2;
   const cy = size / 2;
+  // Stroke scales with the mark so a large disc reads as four solid rings and a thumbnail
+  // stays legible; round caps need a wider gap so neighbouring segments stay distinct.
+  const sw = Math.max(2, 3.4 * k);
   const out: React.ReactElement[] = [];
 
   RING_ORDER.forEach((name, i) => {
     const r = RING_R[i] * k;
     const h = hashes[name];
+    // Inner rings are small; cap their stroke so segments stay segments.
+    const rw = Math.min(sw, r * 0.2);
 
     // Absent is a dotted circle in the muted tone: present-but-different and
     // absent-entirely must not look alike (§12.4).
@@ -322,18 +346,34 @@ function Fingerprint({
           r={r}
           className="text-muted-foreground"
           stroke="currentColor"
-          strokeWidth={1}
+          strokeOpacity={0.55}
+          strokeWidth={Math.max(1, sw / 3)}
           fill="none"
-          strokeDasharray="1 3"
+          strokeDasharray={`${Math.max(1, sw / 3)} ${sw * 1.2}`}
         />,
       );
       return;
     }
 
+    // The ring's track, so the gaps in its pattern read as part of one ring.
+    out.push(
+      <circle
+        key={`${name}-track`}
+        cx={cx}
+        cy={cy}
+        r={r}
+        className={emphasis && !emphasis[name] ? "text-muted-foreground" : RING_TONE[name].text}
+        stroke="currentColor"
+        strokeOpacity={0.14}
+        strokeWidth={rw}
+        fill="none"
+      />,
+    );
+
     const next = stream(h);
     const rot = (7.5 * i * Math.PI) / 180; // so rings never align into spokes
     const step = (2 * Math.PI) / segments;
-    const gap = (2 * Math.PI) / 180;
+    const gap = Math.min(step * 0.5, (2 * Math.PI) / 180 + rw / r);
     let word = next();
     let bit = 0;
 
@@ -353,7 +393,9 @@ function Fingerprint({
           // carry their colour alone (§12.4).
           className={emphasis && !emphasis[name] ? "text-muted-foreground" : RING_TONE[name].text}
           stroke="currentColor"
-          strokeWidth={1}
+          strokeOpacity={emphasis && !emphasis[name] ? 0.6 : 1}
+          strokeWidth={rw}
+          strokeLinecap="round"
           fill="none"
         />,
       );

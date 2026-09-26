@@ -84,11 +84,11 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
           so the delta reads before any text does (§12.6.2). */}
       {anyHash ? (
         <div className="flex shrink-0 items-center gap-2">
-          <FingerprintMark insight={side("from")} size={44} emphasis={anyChanged ? changed : undefined} />
+          <FingerprintMark insight={side("from")} size={52} emphasis={anyChanged ? changed : undefined} />
           <span className="text-xs text-muted-foreground" aria-hidden="true">
             →
           </span>
-          <FingerprintMark insight={side("to")} size={44} emphasis={anyChanged ? changed : undefined} />
+          <FingerprintMark insight={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
         </div>
       ) : (
         // Absence gets a slot of its own width, so rows stay aligned and "no facts reported"
