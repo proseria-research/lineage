@@ -12,7 +12,6 @@ import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/componen
 import { Button } from "@/components/ui/button";
 import { ChangePlanDialog } from "@/components/GovernanceDialogs";
 import { UsePanel } from "@/components/UsePanel";
-import { Code2 } from "lucide-react";
 import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { VERDICT_LABEL } from "@/components/Review";
 import { fmtTime, relTime } from "@/lib/utils";
@@ -48,15 +47,7 @@ export default function ModelDetail() {
           </span>
         }
         sub={m.owner ? `Owned by ${m.owner}` : "No owner recorded"}
-        right={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => setTab("use")}>
-              <Code2 className="h-4 w-4" />
-              Use this model
-            </Button>
-            <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
-          </div>
-        }
+        right={<HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />}
       />
 
       {m.legalHold ? (

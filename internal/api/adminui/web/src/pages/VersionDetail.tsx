@@ -21,8 +21,6 @@ import { VersionFingerprint } from "@/components/VersionFingerprint";
 import { HoldAction, HoldNote } from "@/components/Hold";
 import { EventRow } from "@/components/ActivityFeed";
 import { UsePanel } from "@/components/UsePanel";
-import { Button } from "@/components/ui/button";
-import { Code2 } from "lucide-react";
 import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/components/State";
 import { humanize } from "@/lib/labels";
@@ -94,10 +92,6 @@ export default function VersionDetail() {
         }
         right={
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => setTab("use")}>
-              <Code2 className="h-4 w-4" />
-              Use this version
-            </Button>
             <StageActions model={model} version={v.name} targets={data.allowedTargets} onDone={reload} />
             <HoldAction
               subject={{ model: data.model, version: v.name }}
