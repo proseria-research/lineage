@@ -100,7 +100,7 @@ export default function VersionDetail() {
         </div>
       ) : null}
 
-      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Summary label="Artifacts">
           {data.artifacts.length} {data.artifacts.length === 1 ? "file" : "files"}
           <Sub>{totalBytes ? fmtBytes(totalBytes) + " in total" : "no size reported"}</Sub>

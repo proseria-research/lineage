@@ -20,7 +20,7 @@ export function AttentionList({ items, emptyText }: { items: AttentionItem[]; em
           <li key={it.key}>
             <Link
               to={it.to}
-              className="group flex items-start gap-3.5 px-5 py-4 transition-colors hover:bg-muted"
+              className="group flex items-start gap-3.5 px-4 py-4 transition-colors hover:bg-muted sm:px-5"
             >
               <span
                 className={cn(
@@ -41,7 +41,7 @@ export function AttentionList({ items, emptyText }: { items: AttentionItem[]; em
                 </div>
                 {it.detail && <p className="mt-1 text-sm text-muted-foreground">{it.detail}</p>}
               </div>
-              <span className="mt-1 flex shrink-0 items-center gap-1 text-sm font-medium text-brand opacity-80 group-hover:opacity-100">
+              <span className="mt-1 hidden shrink-0 items-center gap-1 text-sm font-medium text-brand opacity-80 group-hover:opacity-100 sm:flex">
                 {it.action}
                 <ChevronRight className="h-4 w-4" />
               </span>

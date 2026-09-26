@@ -46,7 +46,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/90 px-6 backdrop-blur">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur sm:px-6">
           <form
             className="relative w-full max-w-md"
             onSubmit={(e) => {
@@ -64,7 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             />
           </form>
         </header>
-        <main className="mx-auto w-full max-w-[84rem] min-w-0 flex-1 px-6 py-8">{children}</main>
+        <main className="mx-auto w-full max-w-[84rem] min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </div>
   );

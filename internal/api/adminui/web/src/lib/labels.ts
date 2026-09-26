@@ -90,3 +90,37 @@ export const GLOSSARY = {
   auditIntegrity:
     "The audit log is sealed in batches with a hash chain, so any edit or deletion after the fact can be detected.",
 } as const;
+
+// Words the audit summaries use as codes. The summaries themselves are part of the sealed
+// audit record and are never rewritten; they are only tidied for display.
+const SUMMARY_WORDS: Record<string, string> = {
+  eu_ai_act: "the EU AI Act",
+  mrm: "model risk",
+  tier_1: "tier 1",
+  tier_2: "tier 2",
+  tier_3: "tier 3",
+  out_of_scope: "out of scope",
+  untiered: "no tier",
+  high_annex_iii: "high risk (Annex III)",
+  high_annex_i: "high risk (Annex I)",
+  not_substantial: "not substantial",
+  derived_from: "derived from",
+  trained_on: "trained on",
+  produced_by: "produced by",
+  deployed_as: "deployed as",
+};
+
+// Leading verbs that only repeat the action label shown beside the summary.
+const REDUNDANT_LEAD = /^(updated insight for|replaced insight for|placed legal hold on|released legal hold on|created model|updated model|deleted model|published|updated|deleted|uploaded|registered)\s+/i;
+
+/**
+ * An audit summary made readable: `fraud-detector@1.1.0` becomes `fraud-detector 1.1.0`,
+ * codes become words, and a leading verb that repeats the action label is dropped.
+ */
+export function tidySummary(summary: string): string {
+  let s = summary.replace(REDUNDANT_LEAD, "");
+  s = s.replace(/([\w.-]+)@([\w.+-]+)/g, "$1 $2");
+  s = s.replace(/\b[a-z]+(?:_[a-z0-9]+)+\b|\b(?:mrm|eu_ai_act)\b/g, (w) => SUMMARY_WORDS[w] ?? w.replace(/_/g, " "));
+  s = s.replace(/→ (draft|staging|production|archived)\b/, (_, st: Stage) => `→ ${STAGE_LABEL[st]}`);
+  return s;
+}
