@@ -105,7 +105,7 @@ export default function Compare() {
         <CardContent className="p-0">
           <div className="border-b px-4 py-4">
             {hasFingerprint ? (
-              <div className="flex items-center justify-center gap-8 sm:gap-14">
+              <div className="fp-pair flex items-center justify-center gap-8 sm:gap-14">
                 <div className="flex flex-col items-center gap-2">
                   <FingerprintMark placeholder
                     insight={fingerprint("from")}
@@ -133,7 +133,7 @@ export default function Compare() {
             )}
             {hasFingerprint && (
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                {hasChangedLevel ? "Coloured petals changed; grey petals are the same." : "The reported petals match."} Dotted petals were not reported.
+                {hasChangedLevel ? "Coloured petals changed; grey petals are the same." : "The reported petals match."} Dotted petals were not reported. Hover the pair: the petals that move are what changed.
               </p>
             )}
           </div>
