@@ -697,12 +697,15 @@ output.is-changed {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 1.25rem;
-	counter-reset: step;
 }
 
+/* Subgrid rows line up the number, title, text and code across all three cards, so the
+   code blocks start at the same height whatever the length of the text above them. */
 .step {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-row: span 4;
+	grid-template-rows: subgrid;
+	row-gap: 0;
 	padding: 1.5rem;
 	border: 1px solid var(--border);
 	border-radius: var(--radius-lg);
@@ -730,12 +733,13 @@ output.is-changed {
 .step__body {
 	margin-top: 0.4rem;
 	margin-bottom: 1.25rem;
+	max-width: 32rem;
 	color: var(--muted-fg);
 	font-size: 0.9375rem;
 }
 
 .code {
-	margin-top: auto;
+	align-self: start;
 	padding: 0.9rem 1rem;
 	overflow-x: auto;
 	border: 1px solid var(--border);

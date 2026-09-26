@@ -41,36 +41,23 @@ const steps = [
 	{
 		title: 'Publish',
 		body: 'Register a version and its files. Lineage notes where they live, their digest and size, and what produced them.',
-		code: `from lineage import Client
-
-client = Client(LINEAGE_URL)
-client.publish(
-    model="fraud-detector",
-    version="1.4.0",
-    artifacts=[
-        client.model_file(
-            "model.onnx"
-        ),
-    ],
-)`,
+		code: `lineage-cli version publish \\
+  -m fraud-detector -n 1.4.0 \\
+  -a model.onnx`,
 	},
 	{
 		title: 'Promote',
 		body: 'Move it from draft to staging to production. The old version is archived in the same step, and files lock at staging, so what you tested is what ships.',
-		code: `client.transition(
-    "fraud-detector", "1.4.0",
-    to="production",
-    reason="passed shadow eval",
-)`,
+		code: `lineage-cli version promote \\
+  -m fraud-detector -n 1.4.0 \\
+  --to production`,
 	},
 	{
 		title: 'Serve',
 		body: 'Your serving code asks for production and gets download links, digests and the format. Promote again and it picks up the new version on its own.',
-		code: `client.download(
-    "fraud-detector",
-    stage="production",
-    dest="./model",
-)`,
+		code: `lineage-cli pull fraud-detector \\
+  --stage production \\
+  --dest ./model`,
 	},
 ];
 
@@ -228,8 +215,8 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 				}
 			</ol>
 			<p class="band__foot">
-				KServe: <code>storageUri: lineage://fraud-detector/production</code>.
-				<a href="/delivery/kserve/">KServe guide</a>
+				Serving on KServe? Set <code>storageUri: lineage://fraud-detector/production</code> and the
+				storage initializer resolves it at pull time. <a href="/delivery/kserve/">KServe guide</a>
 			</p>
 		</div>
 	</section>
