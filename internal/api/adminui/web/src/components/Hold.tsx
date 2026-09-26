@@ -21,8 +21,8 @@ import { relTime } from "@/lib/utils";
 
 export function HoldBadge({ inherited }: { inherited?: boolean }) {
   return (
-    <Badge variant={inherited ? "outline" : "solid"}>
-      {inherited ? "held via model" : "legal hold"}
+    <Badge variant={inherited ? "outline" : "danger"}>
+      {inherited ? "Held via model" : "Legal hold"}
     </Badge>
   );
 }
@@ -138,9 +138,9 @@ export function EvidencePanel() {
     <Card className="p-4 space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-medium">Evidence integrity</h2>
+          <h2 className="font-medium">Audit log integrity</h2>
           <p className="text-sm text-muted-foreground">
-            Properties of this install, not of any one model.
+            Settings for this whole install, not any one model.
           </p>
         </div>
         {attestation.enabled ? (
@@ -152,15 +152,15 @@ export function EvidencePanel() {
 
       <dl className="grid gap-3 sm:grid-cols-2 text-sm">
         <div>
-          <dt className="label-caps text-muted-foreground">Retention floor</dt>
+          <dt className="label-caps text-muted-foreground">Records are kept for at least</dt>
           {/* 0 is a real choice, not an unset value — so it says so in words (§19.4). */}
-          <dd>{floor > 0 ? `${floor} days` : "none configured"}</dd>
+          <dd>{floor > 0 ? `${floor} days` : "no minimum set"}</dd>
         </div>
         <div>
-          <dt className="label-caps text-muted-foreground">Audit attestation</dt>
+          <dt className="label-caps text-muted-foreground">Tamper-evident sealing</dt>
           <dd>
             {attestation.enabled
-              ? `sealing every ${attestation.sealIntervalSeconds}s`
+              ? `On, sealed every ${attestation.sealIntervalSeconds} seconds`
               : "disabled"}
           </dd>
         </div>
@@ -173,19 +173,19 @@ export function EvidencePanel() {
                 nothing was checked. Badging that "verified" would be the widest claim on the
                 page resting on the least evidence, so an empty scan says so instead. It is
                 the normal state for the first sealing interval after a fresh start. */}
-            <Badge variant={!result.ok ? "solid" : result.epochsChecked === 0 ? "dashed" : "outline"}>
-              {!result.ok ? "broken" : result.epochsChecked === 0 ? "nothing sealed yet" : "verified"}
+            <Badge variant={!result.ok ? "danger" : result.epochsChecked === 0 ? "dashed" : "ok"}>
+              {!result.ok ? "Tampering detected" : result.epochsChecked === 0 ? "Nothing sealed yet" : "Intact"}
             </Badge>
             <span className="text-sm text-muted-foreground">
               {result.epochsChecked === 0
-                ? `no window has closed yet — the first seals after ${attestation.sealIntervalSeconds}s`
-                : `${result.epochsChecked} epoch${result.epochsChecked === 1 ? "" : "s"} · ${result.leavesChecked} event${result.leavesChecked === 1 ? "" : "s"} recomputed`}
+                ? `No batch has been sealed yet — the first seals after ${attestation.sealIntervalSeconds} seconds.`
+                : `Re-checked ${result.leavesChecked} event${result.leavesChecked === 1 ? "" : "s"} in ${result.epochsChecked} sealed batch${result.epochsChecked === 1 ? "" : "es"}; nothing was altered.`}
             </span>
           </div>
 
           {result.firstBreak ? (
             <p className="text-sm">
-              Epoch {result.firstBreak.epoch}: {BREAK_TEXT[result.firstBreak.kind]}.{" "}
+              Batch {result.firstBreak.epoch}: {BREAK_TEXT[result.firstBreak.kind]}.{" "}
               {result.firstBreak.sealedAt ? `Sealed ${relTime(result.firstBreak.sealedAt)}.` : ""}
             </p>
           ) : null}
@@ -193,10 +193,10 @@ export function EvidencePanel() {
           {/* Never report a clean verify without its limits. Rows in the open window carry
               no root yet, and rows written before attestation was enabled never will. */}
           <p className="text-xs text-muted-foreground">
-            Covers sealed windows only. Changes made since{" "}
-            {relTime(result.openEpochSince)} are not yet sealed.
+            Only sealed batches can be checked. Changes made in the last{" "}
+            {relTime(result.openEpochSince).replace(" ago", "")} are not sealed yet.
             {result.attestationStartedAt > 0
-              ? ` Attestation covers records from ${relTime(result.attestationStartedAt)} onward.`
+              ? ` Sealing covers everything recorded since ${relTime(result.attestationStartedAt)}.`
               : " Nothing has been sealed on this install yet."}
           </p>
         </div>

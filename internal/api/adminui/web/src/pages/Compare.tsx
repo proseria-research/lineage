@@ -8,6 +8,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { FingerprintMark, type RingName } from "@/components/VersionMark";
 import { TensorInfo } from "@/components/TensorInfo";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
+import { VERDICT_LABEL } from "@/components/Review";
 import { fmtCount, fmtDeltaBytes, fmtBytesOrUnreported } from "@/lib/utils";
 
 // Version comparison (§11.8): did the model change shape, or just get reweighted? The
@@ -20,7 +21,7 @@ const verdictBlurb: Record<Verdict, string> = {
   recast: "Same shape, different precision — a quantization or cast.",
   rescaled: "Same family, different width or depth.",
   rearchitected: "Different topology — new blocks or a new backbone.",
-  unknown: "The submitted facts do not determine a verdict.",
+  unknown: "Not enough was reported to say what kind of change this is.",
 };
 
 const HASH_LEVELS = ["topology", "shape", "dtype", "weights"] as const;
@@ -49,40 +50,41 @@ export default function Compare() {
   return (
     <div>
       <PageHeader
+        crumbs={[
+          { label: "Models", to: "/models" },
+          { label: model, to: `/models/${encodeURIComponent(model)}` },
+          { label: "Compare" },
+        ]}
         title={
-          <span className="flex items-baseline gap-2">
-            <Link to={`/models/${model}`} className="text-muted-foreground hover:underline">
-              {model}
-            </Link>
-            <span className="text-muted-foreground">/</span>
+          <span className="flex flex-wrap items-baseline gap-2">
+            What changed from
             <Link to={`/models/${model}/versions/${from}`} className="font-mono hover:underline">
               {from}
             </Link>
-            <span className="text-muted-foreground">→</span>
+            to
             <Link to={`/models/${model}/versions/${to}`} className="font-mono hover:underline">
               {to}
             </Link>
           </span>
         }
+        sub="Worked out from the fingerprints and facts each version's tools reported. Lineage never opens the model files."
       />
 
       {/* Verdict */}
       <Card className="mb-6">
-        <CardContent className="py-4">
-          <div className="flex flex-wrap items-baseline gap-3">
-            <Badge variant={data.verdict === "unknown" ? "dashed" : "solid"} className="text-sm">
-              {data.verdict}
+        <CardContent className="py-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant={data.verdict === "unknown" ? "warn" : "brand"} className="px-2.5 py-1 text-sm">
+              {VERDICT_LABEL[data.verdict]}
             </Badge>
-            <span className="text-sm">{verdictBlurb[data.verdict]}</span>
+            <span className="text-[0.9375rem]">{verdictBlurb[data.verdict]}</span>
           </div>
           {data.verdict === "unknown" && (
             <p className="mt-2 text-sm text-muted-foreground">
-              {data.missing?.length ? (
-                <>
-                  Missing: <span className="font-mono">{data.missing.join(", ")}</span>.{" "}
-                </>
+              {data.missing?.length ? <>No {data.missing.join(", ")} hash was reported for one side, so the comparison stops there. </> : null}
+              {data.candidates?.length ? (
+                <>It is one of: {data.candidates.map((c) => VERDICT_LABEL[c].toLowerCase()).join(" or ")}.</>
               ) : null}
-              {data.candidates?.length ? <>Narrowed to {data.candidates.join(" or ")}.</> : null}
             </p>
           )}
         </CardContent>
@@ -91,7 +93,7 @@ export default function Compare() {
       {/* A visual reading of the hash ladder: changed rings stay coloured; matched rings recede. */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Fingerprint diff</CardTitle>
+          <CardTitle>Fingerprints side by side</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="border-b px-4 py-4">

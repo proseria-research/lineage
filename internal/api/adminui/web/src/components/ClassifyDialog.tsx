@@ -122,7 +122,7 @@ export function ClassifyDialog({
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-6 backdrop-blur-sm"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div ref={ref} className="w-full max-w-xl border bg-card shadow-lg">
+      <div ref={ref} className="w-full max-w-xl border bg-card shadow-lg rounded-lg">
         <div className="border-b px-5 py-3">
           <div className="text-sm font-semibold">
             {current ? "Re-classify" : "Classify"} <span className="font-mono">{model}</span>
@@ -217,7 +217,7 @@ export function ClassifyDialog({
             </p>
           )}
 
-          {error && <div className="border border-destructive/50 bg-muted px-3 py-2 text-sm">{error}</div>}
+          {error && <div className="border border-destructive/50 bg-muted px-3 py-2 text-sm rounded-md">{error}</div>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t px-5 py-3">

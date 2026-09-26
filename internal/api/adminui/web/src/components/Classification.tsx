@@ -17,24 +17,30 @@ import type { Classification, ClassificationState, EUSystemRiskClass, MRMState, 
 //  3. Nothing here offers to fix anything. There is no "mark as current" — staleness clears
 //     only by writing a real new classification (§16.9).
 
-const CLASS_LABEL: Record<EUSystemRiskClass, string> = {
-  unclassified: "unclassified",
-  minimal: "minimal",
-  limited: "limited",
-  high_annex_iii: "high · Annex III",
-  high_annex_i: "high · Annex I",
-  prohibited: "prohibited",
+export const CLASS_LABEL: Record<EUSystemRiskClass, string> = {
+  unclassified: "Not classified",
+  minimal: "Minimal risk",
+  limited: "Limited risk",
+  high_annex_iii: "High risk (Annex III)",
+  high_annex_i: "High risk (Annex I)",
+  prohibited: "Prohibited",
 };
 
-// High risk and prohibited are the classes a reader must not skim past, so they take the
-// filled badge. Weight, not colour — the console is monochrome by design (§06).
-const CLASS_VARIANT: Record<EUSystemRiskClass, "solid" | "outline" | "muted" | "dashed"> = {
+// High risk is amber and prohibited red — the classes a reader must not skim past. An
+// unclassified model is dashed: an absence of an answer, visibly.
+const CLASS_VARIANT: Record<EUSystemRiskClass, "ok" | "warn" | "danger" | "neutral" | "dashed"> = {
   unclassified: "dashed",
-  minimal: "muted",
-  limited: "muted",
-  high_annex_iii: "solid",
-  high_annex_i: "solid",
-  prohibited: "solid",
+  minimal: "neutral",
+  limited: "neutral",
+  high_annex_iii: "warn",
+  high_annex_i: "warn",
+  prohibited: "danger",
+};
+
+export const GPAI_LABEL: Record<string, string> = {
+  none: "No",
+  gpai: "Yes",
+  gpai_systemic: "Yes, with systemic risk",
 };
 
 export const STALE_REASON_TEXT: Record<StaleReason, string> = {
@@ -65,7 +71,7 @@ export function RiskClassBadge({ c }: { c: Classification | null }) {
  */
 export function StaleBadge({ state }: { state: ClassificationState | MRMState }) {
   if (state !== "stale") return null;
-  return <Badge variant="outline">stale</Badge>;
+  return <Badge variant="warn">Out of date</Badge>;
 }
 
 /**
@@ -81,7 +87,7 @@ export function ClassificationCell({ c }: { c: Classification | null }) {
     <div className="flex items-center gap-1.5">
       <RiskClassBadge c={c} />
       {c?.state === "stale" && (
-        <Link to="/compliance" title="Why this is stale" className="hover:opacity-70">
+        <Link to="/compliance?tab=eu" title="Why this is out of date" className="hover:opacity-70">
           <StaleBadge state={c.state} />
         </Link>
       )}
@@ -92,7 +98,7 @@ export function ClassificationCell({ c }: { c: Classification | null }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[0.6875rem] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
       <div>{children}</div>
     </div>
   );
@@ -137,9 +143,9 @@ export function CompliancePanel({
 
   if (!c) {
     return (
-      <div className="border border-border p-4">
+      <div className="border border-border p-4 rounded-lg">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-sm font-medium">Compliance · EU AI Act</div>
+          <div className="text-[0.9375rem] font-semibold">EU AI Act risk classification</div>
           {action}
         </div>
         <p className="text-sm text-muted-foreground">
@@ -152,11 +158,11 @@ export function CompliancePanel({
   }
 
   return (
-    <div className="border border-border p-4">
+    <div className="border border-border p-4 rounded-lg">
       {/* The section header is the regime: one section per regime once there is more than
           one (§16.9), and the reader should never have to guess whose rulebook this is. */}
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm font-medium">Compliance · EU AI Act</div>
+        <div className="text-[0.9375rem] font-semibold">EU AI Act risk classification</div>
         <div className="flex items-center gap-2">
           <RiskClassBadge c={c} />
           <StaleBadge state={c.state} />
@@ -166,7 +172,7 @@ export function CompliancePanel({
 
       <div className="grid gap-4 text-sm sm:grid-cols-2">
         <Field label="System risk class">{CLASS_LABEL[c.euSystemRiskClass ?? "unclassified"]}</Field>
-        <Field label="GPAI tier">{c.euGpaiTier ?? "—"}</Field>
+        <Field label="General-purpose AI">{GPAI_LABEL[c.euGpaiTier ?? "none"]}</Field>
         <Field label="Intended purpose">
           {c.intendedPurpose || <span className="text-muted-foreground">not stated</span>}
         </Field>
@@ -174,12 +180,12 @@ export function CompliancePanel({
           {c.basis || <span className="text-muted-foreground">not stated</span>}
         </Field>
         <Field label="Classified">
-          <span className="font-mono text-xs">{fmt(c.classifiedAt)}</span>
+          <span>{fmt(c.classifiedAt)}</span>
           {c.classifiedBy && <span className="text-muted-foreground"> by {c.classifiedBy}</span>}
         </Field>
         <Field label="Review due">
           {c.reviewDueAt ? (
-            <span className="font-mono text-xs">{fmt(c.reviewDueAt)}</span>
+            <span>{fmt(c.reviewDueAt)}</span>
           ) : (
             // Surfaced, not hidden: "no review scheduled" is something a reader should see.
             <span className="text-muted-foreground">no review scheduled</span>
@@ -189,8 +195,8 @@ export function CompliancePanel({
 
       {c.state === "stale" && (
         <div className="mt-4 border-t border-border pt-3 text-sm">
-          <div className="mb-1 text-[0.6875rem] uppercase tracking-wider text-muted-foreground">
-            Why this is stale
+          <div className="mb-1 text-xs text-muted-foreground">
+            Why it may be out of date
           </div>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
             {(c.staleReasons ?? []).map((r) => (

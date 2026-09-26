@@ -27,7 +27,7 @@ export function Dimensions({ value, className }: { value?: string; className?: s
         return (
           <Fragment key={`${dimension}-${index}`}>
             {index > 0 && <span className="mb-0.5 text-muted-foreground">×</span>}
-            <span className="group/dimension relative inline-flex cursor-help items-baseline gap-1 border bg-muted px-1.5 py-1 leading-none" aria-label={help}>
+            <span className="group/dimension relative inline-flex cursor-help items-baseline gap-1 border bg-muted px-1.5 py-1 leading-none rounded-md" aria-label={help}>
               <span className="font-mono text-[10px] text-muted-foreground">
                 <i>d</i><sub>{isOutput ? "out" : index + 1}</sub>
               </span>

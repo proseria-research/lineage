@@ -180,7 +180,7 @@ function MindmapNode({ item, graph }: { item: PositionedNode; graph: LineageGrap
     <g className={`lineage-map__node-group${isRoot ? " lineage-map__subject" : ""}`}>
       <rect className="lineage-map__node" x={item.x} y={item.y} width={width} height={height} />
       <text className="lineage-map__kind" x={item.x + 14} y={item.y + 21}>
-        {isRoot ? "selected version" : kindFor(item.node, relation)}
+        {isRoot ? "this version" : kindFor(item.node, relation)}
       </text>
       <text className={isRoot ? "lineage-map__subject-name" : "lineage-map__name"} x={item.x + 14} y={item.y + 43}>
         {truncate(label, isRoot ? 24 : 27)}
@@ -231,9 +231,8 @@ export function LineageGraphView({ graph, empty }: { graph?: LineageGraph; empty
   return (
     <div>
       <div className="lineage-map__legend" aria-hidden="true">
-        <span>← Provenance</span>
-        <span>Selected version</span>
-        <span>Impact →</span>
+        <span>← Built from</span>
+        <span>Used by →</span>
       </div>
       <figure className="lineage-map">
         <svg
@@ -262,7 +261,7 @@ export function LineageGraphView({ graph, empty }: { graph?: LineageGraph; empty
                 <path className="lineage-map__hit" d={d} />
                 <path className="lineage-map__branch" d={d} markerStart="url(#lineage-map-arrow)" />
                 <text className="lineage-map__relation" x={labelX} y={labelY} textAnchor="middle">
-                  {edge.relation}
+                  {edge.relation.replace(/_/g, " ")}
                 </text>
               </g>
             );
@@ -281,7 +280,7 @@ export function LineageGraphView({ graph, empty }: { graph?: LineageGraph; empty
           {drawnEdges.map(({ edge, side, from, to }) => (
             <li key={`list:${side}:${edge.id}`}>
               <span>{from.node.label}</span>
-              <span className="label-caps">{edge.relation}</span>
+              <span className="label-caps">{edge.relation.replace(/_/g, " ")}</span>
               <span>{to.node.label}</span>
             </li>
           ))}

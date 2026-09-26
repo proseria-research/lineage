@@ -103,7 +103,7 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
         </div>
       </CardHeader>
       <CardContent>
-        <div className="border px-4 py-5">
+        <div className="border px-4 py-5 rounded-lg">
           <PortraitMark
             insight={insight}
             width={880}
@@ -124,7 +124,7 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
         </div>
 
         {selected && (
-          <div className="mt-3 border px-3 py-2.5" aria-live="polite">
+          <div className="mt-3 border px-3 py-2.5 rounded-md" aria-live="polite">
             <div className="flex items-start justify-between gap-4">
               <span className={["label-caps", portraitTone(selectedBlock!)].join(" ")}>Block {selected.ordinal}</span>
               <Tooltip content={selected.path} className="max-w-[55%]" align="end">
