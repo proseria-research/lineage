@@ -27,6 +27,16 @@ type seedModel struct {
 	// classification. Validations are recorded after every version exists, for the §16.5
 	// reason: §20.7 clause 2 asks whether a version was published *since* the validation.
 	MRM *seedMRM
+	// Plans are change control plans (§22), declared in order after every version exists;
+	// each after the first supersedes the one before it, so the register shows history.
+	Plans []seedPlan
+}
+
+// seedPlan is a declared envelope with a *relative* start, for the ReviewInDays reason:
+// every seeded version is published now, so a start in the past covers them all.
+type seedPlan struct {
+	core.ChangePlanInput
+	SinceDays int
 }
 
 // seedMRM is a declared tier plus the validations recorded against it.
@@ -450,6 +460,24 @@ var dataset = []seedModel{
 				IntendedPurpose:   "Tags inbound support tickets by sentiment for queue routing.",
 			},
 		},
+		// A plan allowing retraining only, superseding a stricter one. The fine-tune reads
+		// within_plan; the quantized build is `recast` via a declared `quantize`, outside on
+		// both counts — the change-control queue's headline row (§22.4).
+		Plans: []seedPlan{{
+			SinceDays: 180,
+			ChangePlanInput: core.ChangePlanInput{
+				Ref: "PCCP-SC-1", Summary: "Republication only; no change to weights.",
+				AllowedVerdicts: []domain.Verdict{domain.VerdictIdentical},
+			},
+		}, {
+			SinceDays: 60,
+			ChangePlanInput: core.ChangePlanInput{
+				Ref:             "PCCP-SC-2",
+				Summary:         "Periodic retraining on new ticket samples. Architecture and precision frozen.",
+				AllowedVerdicts: []domain.Verdict{domain.VerdictIdentical, domain.VerdictReweighted},
+				AllowedMethods:  []string{"retrain", "fine_tune"},
+			},
+		}},
 		Versions: []version{
 			{
 				Name: "2.1.0", Author: "lee@acme.example",
@@ -610,6 +638,16 @@ var dataset = []seedModel{
 				Basis:   "Feeds purchase orders; errors carry inventory cost.",
 			},
 		},
+		// The weekly retrain has no weights hash, so identical and reweighted — both
+		// allowed — cannot be told apart: `undetermined`, queued rather than passed (§22.4.1).
+		Plans: []seedPlan{{
+			SinceDays: 30,
+			ChangePlanInput: core.ChangePlanInput{
+				Ref: "PCCP-DF-1", Summary: "Weekly retrain on the latest orders; structure frozen.",
+				AllowedVerdicts: []domain.Verdict{domain.VerdictIdentical, domain.VerdictReweighted},
+				AllowedMethods:  []string{"retrain"},
+			},
+		}},
 		Versions: []version{
 			{
 				Name: "0.4.0", Author: "raj@acme.example",
