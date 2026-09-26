@@ -56,11 +56,10 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16,M17,M18 done;
-    class M19 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16,M17,M18,M19 done;
 ```
 
-**Next up:** M19 whenever there is capacity.
+**Next up:** nothing tracked — every milestone has shipped.
 
 ## Status Summary
 
@@ -85,10 +84,9 @@ flowchart LR
 | M16 | EU modification review (Art. 25) | `17` | ✅ |
 | M17 | Model risk management: tier, validation, monitoring | `20` | ✅ |
 | M18 | Change control plans (FDA PCCP shape) | `22` | ✅ |
-| M19 | API contract guarantees | `03` | ⬜ |
+| M19 | API contract guarantees | `03` | ✅ |
 
-**Open work:** M19 turns two existing API contracts into CI checks. Both non-EU regimes
-specced, docs `20` and `22`, have shipped (M17, M18). There are no blocked decisions:
+**Open work:** none. M19 closed the last milestone. There are no blocked decisions:
 §00.11.11–16 are all resolved.
 
 ---
@@ -812,7 +810,7 @@ follows the commit like every other write rather than sharing its transaction.
 
 ---
 
-## M19 — API Contract Guarantees ⬜
+## M19 — API Contract Guarantees ✅
 
 **Goal:** turn two integration contracts that Lineage already meets into CI checks, so no
 refactor can quietly break them: a `/v1` API complete enough that an external client can read
@@ -821,17 +819,33 @@ every recorded fact, and a configurable actor header.
 report needs from `/v1` alone; a custom `LINEAGE_ACTOR_HEADER` is honoured end-to-end into the
 audit trail.
 **Depends on:** M5 (the `/v1` contract).
+**Done:** `91db12b`…`b30631b`. `internal/contracttest` runs under plain `go test ./...`: the
+reference report on SQLite and embedded Postgres, the actor-header contract, and the Postgres
+core smoke. CI's `images` workflow runs that on every push to `main` and every PR touching
+Go code, `tests/**`, `go.mod` or the `Makefile` — the paths that can change the result.
 
-- [ ] **Read-from-outside test.** A test binary talking to a live server over HTTP only
+**The work forced four corrections; the two that change the contract are recorded in `03`.** **`/v1` could not bound a read by
+time:** both audit feeds now take `asOf` (epoch-millis, inclusive, pushed into the store;
+garbage is `400`, never unbounded) — §03.3. **The console ignored `LINEAGE_ACTOR_HEADER`**:
+the BFF read `X-Lineage-Actor` directly; it now reads the configured name, and startup refuses
+an invalid one — §03.1. The "live server" is an **in-process `httptest` server** wrapping the
+real router and store; the client half imports only the standard library, checked with
+`go/build`. The binary-level run stays in `tests/e2e`. **The core has no injectable clock**,
+so determinism is checked by two collections with the wall clock moved between them.
+**Deferred:** resolve signs every artifact with the *default* backend (`signRefs`), not the
+artifact's own, so an install with two backends mints wrong URLs for the non-default one. The
+smoke makes S3 the default and asserts only its artifact's URL.
+
+- [x] **Read-from-outside test.** A test binary talking to a live server over HTTP only
       collects a reference report kept in the test suite. It covers a version-scoped read, an
       install-scoped `asOf` read, evaluations, lineage, audit history, and the classification
       fields. If it ever needs an in-process call, that is a `/v1` gap to close, not a test to
       loosen
-- [ ] **Actor-header test.** A non-default `LINEAGE_ACTOR_HEADER` is honoured; its value is
+- [x] **Actor-header test.** A non-default `LINEAGE_ACTOR_HEADER` is honoured; its value is
       recorded **verbatim** in `audit_event`; Lineage makes no authorization decision from it
       (§00.2.4), so a front door that rewrites the header is enough
-- [ ] Document the header in §03 as an **integration contract**: its name is configurable, its
+- [x] Document the header in §03 as an **integration contract**: its name is configurable, its
       value is trusted, and changing either is a breaking change
-- [ ] **Core smoke test:** the default build starts on Postgres, resolves, fetches, signs URLs
+- [x] **Core smoke test:** the default build starts on Postgres, resolves, fetches, signs URLs
       and seals an audit epoch
-- [ ] These tests run in CI on every PR, not only at release time
+- [x] These tests run in CI on every PR, not only at release time
