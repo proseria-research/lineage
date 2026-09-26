@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { api, type ModelRollup } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
@@ -36,6 +36,7 @@ const VIEWS = [
 
 export default function Models() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const [view, setView] = useTab(VIEWS, "view");
   const q = params.get("q") ?? "";
   const filters = Object.fromEntries(
@@ -133,7 +134,16 @@ export default function Models() {
               {shown.map((m) => {
                 const n = flagged.get(m.name) ?? 0;
                 return (
-                  <TableRow key={m.id}>
+                  <TableRow
+                    key={m.id}
+                    className="cursor-pointer"
+                    // The whole row opens the model. Clicks on anything interactive inside it —
+                    // a link, a badge's explanation — keep their own behaviour.
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("a, button, [role=button]")) return;
+                      navigate(`/models/${encodeURIComponent(m.name)}`);
+                    }}
+                  >
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
@@ -155,10 +165,14 @@ export default function Models() {
                     </TableCell>
                     <TableCell>
                       {m.production ? (
-                        <span className="inline-flex items-center gap-2">
+                        <Link
+                          to={`/models/${encodeURIComponent(m.name)}/versions/${encodeURIComponent(m.production)}`}
+                          className="inline-flex items-center gap-2 rounded-md px-1.5 py-1 -mx-1.5 hover:bg-ok-soft"
+                          title={`Open ${m.production}`}
+                        >
                           <span className="h-2 w-2 rounded-full bg-ok" />
                           <span className="font-mono text-[0.8125rem]">{m.production}</span>
-                        </span>
+                        </Link>
                       ) : (
                         <span className="whitespace-nowrap text-muted-foreground">Not released</span>
                       )}
