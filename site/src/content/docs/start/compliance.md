@@ -59,9 +59,9 @@ Your ingress, gateway or service mesh does, and passes an identity through the
 trusted, your perimeter must overwrite it on every inbound request — see the [security
 model](/operate/security-model/).
 
-## On the roadmap
+## Compliance capabilities
 
-The remaining capabilities are fully specified, and the specifications are published in the
+Every capability below is fully specified, and the specifications are published in the
 repository alongside the code.
 
 | Capability | What it provides | Status |
@@ -70,12 +70,12 @@ repository alongside the code.
 | **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | **Available** |
 | **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared, and recording what a reviewer concluded | **Available** |
 | **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | **Available** |
-| **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | In design |
+| **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | **Available** |
 
 If you are evaluating Lineage against a compliance deadline, please plan on the basis of this
 table. The registry, its audit record, risk classification, retention and legal hold, modification
-review and model risk records are production-ready; the rest is specified and not yet built. Every
-regulatory fact an install holds is reachable through the public `/v1` API.
+review, model risk records and change control plans are production-ready. Every regulatory fact
+an install holds is reachable through the public `/v1` API.
 
 ## Two principles behind the design
 
