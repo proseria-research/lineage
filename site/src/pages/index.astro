@@ -128,17 +128,17 @@ const records = [
 	{
 		Icon: FileLock,
 		title: 'Complete audit trail',
-		body: 'Written in the same transaction as the change, with who made it. If the record can\'t be written, the change doesn\'t happen.',
+		body: 'Every change is written to the log in the same transaction as the change itself, with who made it. A change that cannot be recorded does not happen.',
 	},
 	{
 		Icon: Lock,
 		title: 'Tamper protection',
-		body: 'The log is sealed with a hash chain. If anyone edits or deletes an entry, the check fails and points to it.',
+		body: 'Log entries are sealed in batches into a hash chain. If anyone edits or deletes a past entry, verification fails and shows exactly where.',
 	},
 	{
 		Icon: Scale,
 		title: 'Legal hold',
-		body: 'Keep a model or version from being deleted while a legal matter is open. Everything else carries on.',
+		body: 'Place a model or version on hold while a legal matter is open, and it cannot be deleted. Promotion, edits and archiving keep working.',
 	},
 ];
 
