@@ -49,9 +49,9 @@ const columns = [
 				<Mark size={20} />
 				<span>Lineage</span>
 			</a>
-			<p>The system of record for the models you ship, and the evidence behind them.</p>
+			<p>A self-hosted model registry for ML and AI models.</p>
 			<p class="footer__license">
-				Apache 2.0 · <a href="https://github.com/proseria-research/lineage">proseria-research/lineage</a>
+				Apache 2.0. <a href="https://github.com/proseria-research/lineage">proseria-research/lineage</a>
 			</p>
 		</div>
 
@@ -59,7 +59,7 @@ const columns = [
 			{
 				columns.map((column) => (
 					<nav aria-label={column.title}>
-						<h2 class="eyebrow">{column.title}</h2>
+						<h2 class="footer__heading">{column.title}</h2>
 						<ul>
 							{column.links.map((link) => (
 								<li>

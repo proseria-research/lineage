@@ -28,18 +28,18 @@ export default defineConfig({
 		starlight({
 			title: 'Lineage',
 			description:
-				'The self-hostable system of record for ML/AI models — registry, governance, lineage, and delivery in a single Go binary.',
+				'A model registry you run yourself: what is live, what changed, where it came from and who approved it. One Go binary.',
 			logo: {
 				light: './src/assets/mark-light.svg',
 				dark: './src/assets/mark-dark.svg',
 			},
 			favicon: '/favicon.svg',
 			customCss: [
-				'@fontsource-variable/bricolage-grotesque/index.css',
-				'@fontsource-variable/public-sans/wght.css',
+				'@fontsource/ibm-plex-sans/400.css',
+				'@fontsource/ibm-plex-sans/500.css',
+				'@fontsource/ibm-plex-sans/600.css',
 				'@fontsource/ibm-plex-mono/400.css',
 				'@fontsource/ibm-plex-mono/500.css',
-				'@fontsource/ibm-plex-mono/600.css',
 				'./src/styles/tokens.css',
 				'./src/styles/docs.css',
 			],

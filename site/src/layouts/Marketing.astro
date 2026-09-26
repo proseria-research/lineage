@@ -1,9 +1,9 @@
 ---
-import '@fontsource-variable/bricolage-grotesque/index.css';
-import '@fontsource-variable/public-sans/wght.css';
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/500.css';
+import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
-import '@fontsource/ibm-plex-mono/600.css';
 import '../styles/tokens.css';
 import '../styles/landing.css';
 
@@ -31,7 +31,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
 		<meta property="og:description" content={description} />
 		<meta property="og:url" content={canonical} />
 		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="theme-color" content="#1f7a3d" />
+		<meta name="theme-color" content="#2b4c7e" />
 		{/* Applies the theme before first paint, using the same storage key as
 		    Starlight so the choice carries between the site and the guides. */}
 		<script is:inline>
