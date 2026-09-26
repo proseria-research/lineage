@@ -104,6 +104,13 @@ func (r *Router) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/validations", r.listValidations)
 	mux.HandleFunc("POST /v1/models/{model}/versions/{version}/validations/{idAction}", r.validationAction)
 
+	// Change control plans (§22.7). Plans are per model; conformance is derived on read, per
+	// version or as the global queue, which like /v1/reviews is an inbox question.
+	mux.HandleFunc("POST /v1/models/{model}/change-plans", r.declareChangePlan)
+	mux.HandleFunc("GET /v1/models/{model}/change-plans", r.listChangePlans)
+	mux.HandleFunc("GET /v1/models/{model}/versions/{version}/conformance", r.versionConformance)
+	mux.HandleFunc("GET /v1/change-plans/conformance", r.conformanceQueue)
+
 	// Global audit feed, cross-model diff, OpenAPI contract
 	// Retention (§19.4). On /v1, not only /healthz: the floor is a fact a filing has to cite,
 	// and every fact must be reachable through the public API — a client reading over HTTP
