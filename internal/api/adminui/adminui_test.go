@@ -40,7 +40,7 @@ func setup(t *testing.T) *httptest.Server {
 	if _, err := svc.Transition(ctx, "seed", "fraud-detector", "1.4.0", domain.StageProduction, ""); err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(adminui.New(svc).Handler())
+	srv := httptest.NewServer(adminui.New(svc, "X-Lineage-Actor").Handler())
 	t.Cleanup(srv.Close)
 	return srv
 }

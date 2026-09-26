@@ -9,9 +9,14 @@ import (
 	"github.com/proseria-research/lineage/internal/core"
 )
 
-type Router struct{ svc *core.Service }
+type Router struct {
+	svc         *core.Service
+	actorHeader string // LINEAGE_ACTOR_HEADER, shared with the Model API (§03.1)
+}
 
-func New(svc *core.Service) *Router { return &Router{svc: svc} }
+func New(svc *core.Service, actorHeader string) *Router {
+	return &Router{svc: svc, actorHeader: actorHeader}
+}
 
 func (r *Router) Handler() http.Handler {
 	mux := http.NewServeMux()

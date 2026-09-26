@@ -72,7 +72,7 @@ func insightSetup(t *testing.T) *httptest.Server {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(adminui.New(svc).Handler())
+	srv := httptest.NewServer(adminui.New(svc, "X-Lineage-Actor").Handler())
 	t.Cleanup(srv.Close)
 	return srv
 }

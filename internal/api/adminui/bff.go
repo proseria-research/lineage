@@ -123,7 +123,7 @@ func allowedTargets(s domain.Stage) []domain.Stage {
 // actor is the infra-provided identity for audit attribution (§00 axiom 4); dev has no infra,
 // so it defaults to "console".
 func (r *Router) actor(req *http.Request) string {
-	if a := req.Header.Get("X-Lineage-Actor"); a != "" {
+	if a := req.Header.Get(r.actorHeader); a != "" {
 		return a
 	}
 	return "console"

@@ -70,6 +70,9 @@ storage:
     interval: 1h
     prefix: ""
 
+# Trusted identity header, set by your ingress/gateway and recorded verbatim on every audit
+# event (§03.1). Lineage makes no authorization decision from it. Its name is an integration
+# contract with the front door: changing it is a breaking change for every client and proxy.
 actorHeader: X-Lineage-Actor
 
 # Evidence survival (§19). Both mechanisms are refusals or attestations — nothing here

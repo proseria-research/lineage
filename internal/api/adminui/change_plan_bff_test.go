@@ -49,7 +49,7 @@ func TestChangePlansBFF(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(adminui.New(svc).Handler())
+	srv := httptest.NewServer(adminui.New(svc, "X-Lineage-Actor").Handler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/change-plans")
 	if err != nil {
