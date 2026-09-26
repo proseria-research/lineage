@@ -132,7 +132,7 @@ advantages as well as important limits.
 | Harbor | **128 GB per-layer cap**; a quantized Llama-3-70B is ~140 GB, frontier multimodal >1 TB ([CNCF](https://www.cncf.io/blog/2026/03/27/the-weight-of-ai-models-why-infrastructure-always-arrives-slowly/)) |
 | JFrog | Format-agnostic model loading **requires a single file, not a directory** — every HF-format model is a directory ([docs](https://jfrog.com/help/r/jfrog-artifactory-documentation/machine-learning-limitations-in-artifactory)) |
 | JFrog | HF proxying inherits the configured Hub identity's rate limits; surface-level Xet ≈ **2× storage footprint** ⚠ ([HF](https://huggingface.co/blog/jeffboudier/jfrog-artifactory-june-2026)) |
-| KitOps | Requires OCI registry; CLI-only (visualisation needs commercial Jozu Hub); Kitfile learning curve |
+| KitOps | Requires OCI registry; CLI-only (visualisation needs the paid Jozu Hub); Kitfile learning curve |
 | KitOps | Independent criticism is nearly absent — a low-adoption signal, not a quality signal |
 
 **The opportunity for Lineage:** Harbor notes that images cannot *"capture crucial
@@ -206,7 +206,7 @@ high-risk deadlines.
 | Obligation | Binds | Registry-shaped? |
 |---|---|---|
 | **GPAI** — Art. 53, Annex XI/XII | **in force** since 2 Aug 2025 | **Yes.** Annex XII is substantially a model card |
-| High-risk — Art. 6–15, Annex III | **2 Dec 2027** | Partly — 2 of 10 Annex IV headings (`18.4`) |
+| High-risk — Art. 6–15, Annex III | **2 Dec 2027** | Partly — 2 of 10 Annex IV headings |
 | High-risk — Annex I, product-embedded | **2 Aug 2028** | Same |
 
 The high-risk dates changed. The **Digital Omnibus on AI** (in force July 2026) deferred them
@@ -249,7 +249,6 @@ substitute for runtime inference logs.
 | Gap | Detail |
 |---|---|
 | **GenAI-era objects** | Registries assume one model = one artifact. LoRA adapters need base-model pinning; *"when a hosted provider updates their base model, your adapter may degrade silently"* ([huuphan](https://www.huuphan.com/2026/04/lora-assumption-mistakes.html)). Nobody tracks that dependency. Our provenance edges (`07`) are the right primitive — verify `02` can express base↔adapter. |
-| **Compliance-grade evidence export** | Everyone stores audit logs; nobody emits the artifact an auditor asks for. The GPAI obligation this serves has been in force since Aug 2025 and high-risk lands Dec 2027 (§7) — so this is a shipped-today gap, not a deadline bet. Design in `18`; the differentiator is that the bundle **reports its own gaps** (`18.5`) rather than implying completeness. |
 | **Provider-liability blind spot** | Fine-tuning a third-party model can transfer the full provider burden under Art. 25, and no registry surfaces it. We already compute the technical delta (`11.4`); `17` routes it to a human. Nobody else holds the primitive. |
 
 ---

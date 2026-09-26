@@ -135,8 +135,8 @@ func TestDeleteRefusedByFloorOverHTTP(t *testing.T) {
 }
 
 // TestRetentionEndpoint: the floor is on /v1, not only /healthz. A filing cites this number,
-// and `24 §4.3` requires every fact to be reachable through the public API — an evidence
-// exporter reading over HTTP has no access to the ops port.
+// and every fact must be reachable through the public API — a client reading over HTTP has
+// no access to the ops port.
 func TestRetentionEndpoint(t *testing.T) {
 	srv := floorServer(t, 3650)
 	code, body := do(t, srv, "GET", "/v1/retention", "", nil)

@@ -100,8 +100,8 @@ func (r *Router) Handler() http.Handler {
 
 	// Global audit feed, cross-model diff, OpenAPI contract
 	// Retention (§19.4). On /v1, not only /healthz: the floor is a fact a filing has to cite,
-	// and `24 §4.3` requires every fact to be reachable through the public API — an evidence
-	// exporter reading over HTTP has no access to the ops port.
+	// and every fact must be reachable through the public API — a client reading over HTTP
+	// has no access to the ops port.
 	mux.HandleFunc("GET /v1/retention", r.retention)
 
 	mux.HandleFunc("GET /v1/audit", r.auditFeed)
