@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/proseria-research/lineage/internal/domain"
@@ -144,7 +145,13 @@ func Load() (Config, error) {
 			SealIntervalSeconds: envIntStrict("LINEAGE_SEAL_INTERVAL_SECONDS", domain.DefaultAttestation.SealIntervalSeconds, &errs),
 			SealGraceSeconds:    envIntStrict("LINEAGE_SEAL_GRACE_SECONDS", domain.DefaultAttestation.SealGraceSeconds, &errs),
 		},
+		// The trusted identity header (§03.1). Its name is part of the integration contract
+		// with whatever front door sets it; the value is recorded verbatim, never authorized.
 		ActorHeader: env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
+	}
+	if !validHeaderName(c.ActorHeader) {
+		// A name no client can send would attribute every write to nobody, silently.
+		errs = append(errs, fmt.Errorf("LINEAGE_ACTOR_HEADER: %q is not a valid HTTP header name", c.ActorHeader))
 	}
 	if err := c.Retention.Validate(); err != nil {
 		errs = append(errs, err)
@@ -200,6 +207,22 @@ func env(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// validHeaderName reports whether s is an RFC 9110 field-name token.
+func validHeaderName(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case strings.ContainsRune("!#$%&'*+-.^_`|~", c):
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func envDuration(k string, def time.Duration) time.Duration {

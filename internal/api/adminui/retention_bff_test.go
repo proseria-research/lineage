@@ -37,7 +37,7 @@ func holdSetup(t *testing.T) (*httptest.Server, *core.Service) {
 			t.Fatal(err)
 		}
 	}
-	srv := httptest.NewServer(adminui.New(svc).Handler())
+	srv := httptest.NewServer(adminui.New(svc, "X-Lineage-Actor").Handler())
 	t.Cleanup(srv.Close)
 	return srv, svc
 }

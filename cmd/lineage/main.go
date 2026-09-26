@@ -149,7 +149,7 @@ func main() {
 	ready := observability.Ready(observability.StoreReady(store), observability.StorageReady(backend))
 	servers := []*http.Server{
 		{Addr: cfg.ModelAPIAddr, Handler: api.Telemetry("model-api", m, tracer, cfg.ActorHeader, modelapi.New(svc, cfg.ActorHeader).Handler())},
-		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc).Handler())},
+		{Addr: cfg.AdminAddr, Handler: api.Telemetry("admin-ui", m, tracer, cfg.ActorHeader, adminui.New(svc, cfg.ActorHeader).Handler())},
 		{Addr: cfg.MetricsAddr, Handler: observability.Handler(m.Registry(), ready, map[string]any{"retention": svc.Retention(), "auditAttestation": svc.Attestation()})},
 	}
 	names := []string{"model-api " + cfg.ModelAPIAddr, "admin-ui " + cfg.AdminAddr, "ops " + cfg.MetricsAddr}

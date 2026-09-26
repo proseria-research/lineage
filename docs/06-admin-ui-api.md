@@ -15,7 +15,8 @@
 - **BFF, not a contract.** These endpoints are UI-versioned and may change with the
   console; external integrations must use `/v1` (`03`/`04`), never this.
 - **Auth** is infra's job (§00 axiom 4) — lock this surface to SSO/VPN. The
-  authenticated user arrives via `X-Lineage-Actor`, recorded on any action's audit event.
+  authenticated user arrives in the configured actor header (§03.1, default
+  `X-Lineage-Actor`), recorded on any action's audit event; absent, the actor is `console`.
 
 ```mermaid
 flowchart LR
