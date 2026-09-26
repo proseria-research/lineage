@@ -15,7 +15,7 @@ change committed, the event exists. If the event does not exist, the change did 
   "id": "01JQ8Z...",
   "at": 1785312000,
   "actor": "release-bot@example.com",
-  "action": "version.transition",
+  "action": "version.stage_changed",
   "subjectType": "model_version",
   "subjectId": "01JQ7Y...",
   "summary": "fraud-detector 1.4.0: staging → production",
@@ -54,7 +54,7 @@ Both are cursor-paginated. Follow `nextPageToken` until it is empty.
 
 ```bash
 curl -s "localhost:8081/v1/models/fraud-detector/audit?pageSize=200" \
-  | jq -r '.items[] | select(.action=="version.transition")
+  | jq -r '.items[] | select(.action=="version.stage_changed")
            | [.at, .actor, .summary, .data.reason] | @tsv'
 ```
 
@@ -92,7 +92,7 @@ deployment change. The action names follow `subject.verb`:
 | --- | --- |
 | `model.create`, `model.update`, `model.archive`, `model.delete` | Model lifecycle |
 | `version.publish`, `version.update`, `version.delete` | Version lifecycle |
-| `version.transition` | A stage change, including the demoted incumbent |
+| `version.stage_changed` | A stage change, including the demoted incumbent |
 | `artifact.create`, `artifact.update`, `artifact.delete` | Artifact metadata |
 | `lineage.add`, `lineage.delete` | Provenance edges |
 | `deployment.create`, `deployment.update`, `deployment.delete` | Deployment records |
