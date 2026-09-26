@@ -148,6 +148,26 @@ export const GUIDES: Record<string, Guide> = {
     labels: ["within_plan", "outside_plan", "cant_tell", "before_plan"],
     source: "FDA predetermined change control plans",
   },
+  model: {
+    summary:
+      "Governance facts that belong to the model as a whole: how material it is (its model-risk tier) and which kinds of change it may make without a fresh review (its change control plan). Checks that belong to a single version — validations, modification reviews, plan checks — are on each version's Governance tab.",
+    steps: [
+      "Set the model's risk tier and write down why.",
+      "Declare a change control plan if a regulator has agreed one.",
+      "Lineage checks every version against both and flags what needs a person on Home and the Governance page.",
+    ],
+    labels: ["tier_1", "untiered", "change_plan"],
+  },
+  version: {
+    summary:
+      "Everything governance knows about this one version: the EU risk category of its model and whether that is still current, any review of how it was changed from another model, its independent validations, and whether it stays within its model's change control plan. Lineage records and flags; nothing here blocks a release.",
+    steps: [
+      "Check the EU classification still fits this version, and reassess if it's out of date.",
+      "Record an independent validation, and clear its conditions once they're met.",
+      "Look at any modification review or plan check this version triggered.",
+    ],
+    labels: ["out_of_date", "not_validated", "conditional", "not_independent", "modification_review", "outside_plan"],
+  },
   integrity: {
     summary:
       "Every change anyone makes is written to the audit log in the same step as the change itself. The log is sealed in batches with a chain of hashes, so if anyone later edited or deleted an entry, the check below would fail and show where.",
