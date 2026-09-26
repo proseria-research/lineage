@@ -56,9 +56,10 @@ lifecycle stage each is in, who owns them, and how serving systems fetch them.
 - Resolution cache is in-memory (dev) or **Redis** (prod), behind a single port.
 
 **Embedded admin console**
-- A Vite / React single-page app with a monochrome design system, compiled into the binary
-  via `go:embed` — dashboards, model and version detail, the lineage graph, an audit
-  timeline, and stage promotion — served by an in-process backend-for-frontend.
+- A Vite / React single-page app compiled into the binary via `go:embed` — a home page of
+  what needs attention, model and version detail, the lineage graph, the governance
+  queues, an audit timeline, and stage promotion — served by an in-process
+  backend-for-frontend.
 
 **Production operations**
 - `/healthz`, a real `/readyz` (dependency reachability), and Prometheus `/metrics` from a

@@ -71,17 +71,31 @@ but the *permission* to do so is enforced by infra, not Lineage (§00 axiom 4).
 - **Stack:** Vite + React + TypeScript, Tailwind v4, shadcn-style components
   (`cn`/`cva`/`tailwind-merge`, hand-authored `components/ui/*`). Source in
   `internal/api/adminui/web/`.
-- **Design system:** **monochrome** (grayscale tokens only, no accent color), **1px hairline**
-  borders, **sharp** (`--radius: 0`) corners, mono type for ids/digests; auto light/dark via
-  `prefers-color-scheme`.
-- **Embedding:** `make web` (pnpm build) emits `web/dist`, embedded with `//go:embed all:web/dist`
-  and served by the BFF — one binary, no runtime Node. The committed `dist` lets `go build`
-  work without the frontend toolchain.
+- **Design system:** cool slate background, white surfaces, one brand blue (the fingerprint's
+  topology hue), and three status colours — green ok, amber needs attention, red problem —
+  each always paired with an icon or a word. IBM Plex Sans for UI, Plex Mono for ids and
+  digests only; fonts are bundled so air-gapped installs render the same. Sentence case, no
+  all-caps labels. Auto light/dark via `prefers-color-scheme`.
+- **Plain language:** every API code (actions, enums, verdicts, stale reasons) is shown through
+  one label table (`web/src/lib/labels.ts`); raw codes never reach the screen.
+- **Embedding:** `make web` (pnpm build) emits `web/dist`, embedded under the `console` build
+  tag and served by the BFF — one binary, no runtime Node. `dist` is not committed; a plain
+  `go build` compiles a stub console.
 - **Serving:** static assets by path; any other path returns `index.html` so client-side
   routes resolve. BFF routes (`/api/*`) are matched first.
-- **Pages:** Overview (counts, stage distribution, recent activity), Models (searchable rollup
-  table), Model detail (version timeline), Version detail (artifacts, lineage, deployments,
-  audit timeline), Activity feed.
+- **Pages:**
+
+| Page | Answers |
+|---|---|
+| Home | What needs attention across every governance area, what is in production, what just happened |
+| Models | Every model with its production version, EU risk class and model-risk tier; views for needs attention / in production / archived |
+| Model | Summary, then tabs: versions by stage, governance, details |
+| Version | Summary (artifacts, deployments, change from previous, governance), then tabs: overview, structure & evaluations, lineage, governance, history |
+| Compare | What kind of change one version is from another, from the fingerprints |
+| Governance | Tabs: to do, EU AI Act, modification reviews, model risk, change control, audit integrity |
+| Activity | Every audit event, grouped by day, filterable by area |
+
+Tabs are kept in the URL (`?tab=`), so any view can be linked.
 
 ## 6. See Also
 
