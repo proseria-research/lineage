@@ -18,8 +18,8 @@ import { VERDICT_LABEL } from "@/components/Review";
 import { fmtTime, relTime } from "@/lib/utils";
 
 const TABS = [
-  { id: "versions", label: "Versions" },
   { id: "use", label: "Use" },
+  { id: "versions", label: "Versions" },
   { id: "governance", label: "Governance" },
   { id: "details", label: "Details" },
 ];
