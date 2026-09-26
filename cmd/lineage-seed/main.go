@@ -78,6 +78,9 @@ func run(c *client) error {
 		if err := classify(c, m); err != nil {
 			return fmt.Errorf("classify %s: %w", m.Name, err)
 		}
+		if err := seedModelRisk(c, m); err != nil {
+			return fmt.Errorf("model risk %s: %w", m.Name, err)
+		}
 		log.Printf("  %-22s %2d version(s)", m.Name, len(m.Versions))
 	}
 
@@ -85,6 +88,7 @@ func run(c *client) error {
 	log.Printf("try:  curl %s/v1/models/fraud-detector/resolve?stage=production", c.base)
 	log.Printf("      curl %s/v1/models/sentiment-classifier/diff?from=2.2.0-rc1\\&to=2.2.0-int8", c.base)
 	log.Printf("      curl %s/v1/reviews?status=open", c.base)
+	log.Printf("      curl %s/v1/models?mrmTier=tier_1\\&mrmState=stale", c.base)
 	log.Printf("      open the console at http://localhost:8080")
 	return nil
 }
@@ -102,6 +106,38 @@ func classify(c *client, m seedModel) error {
 		in.ReviewDueAt = &due
 	}
 	return c.do("PUT", "/v1/models/"+m.Name+"/classifications/eu_ai_act", in, nil)
+}
+
+// seedModelRisk records the model's model-risk tier and its validations (§20). Untiered models are
+// left alone, as unclassified ones are: `untiered` is a real state the console renders.
+func seedModelRisk(c *client, m seedModel) error {
+	if m.MRM == nil {
+		return nil
+	}
+	if err := c.do("PUT", "/v1/models/"+m.Name+"/classifications/mrm", m.MRM.ClassificationInput, nil); err != nil {
+		return err
+	}
+	for _, v := range m.MRM.Validations {
+		in := v.ValidationInput
+		base := "/v1/models/" + m.Name + "/versions/" + v.Version
+		if v.Evidence != "" {
+			var a struct {
+				ID string `json:"id"`
+			}
+			if err := c.do("GET", base+"/artifacts/"+v.Evidence, nil, &a); err != nil {
+				return fmt.Errorf("evidence %s: %w", v.Evidence, err)
+			}
+			in.EvidenceArtifactID = a.ID
+		}
+		if v.ValidForDays > 0 {
+			until := time.Now().AddDate(0, 0, v.ValidForDays).UnixMilli()
+			in.ValidUntil = &until
+		}
+		if err := c.as(v.By).do("POST", base+"/validations", in, nil); err != nil {
+			return fmt.Errorf("validation of %s: %w", v.Version, err)
+		}
+	}
+	return nil
 }
 
 // seedVersion publishes a version, uploads any real bytes, then walks it up the stage
@@ -131,6 +167,12 @@ func seedVersion(c *client, model string, v version) error {
 		if err := c.do("POST", "/v1/models/"+model+"/versions/"+v.Name+":transition", t, nil); err != nil {
 			return fmt.Errorf("transition →%s: %w", to, err)
 		}
+	}
+	// §20.7 clause 3 compares strictly: an evaluation in the promotion's millisecond is not
+	// monitoring *since* it. Letting the clock move keeps the seeded production versions
+	// reliably monitored rather than monitored depending on how fast the loop ran.
+	if len(v.Path) > 0 {
+		time.Sleep(2 * time.Millisecond)
 	}
 	for _, d := range v.Deployments {
 		if err := c.do("POST", "/v1/models/"+model+"/versions/"+v.Name+"/deployments", d, nil); err != nil {
@@ -196,6 +238,14 @@ type client struct {
 	base  string
 	actor string
 	http  *http.Client
+}
+
+// as returns a client that writes under another identity, for the one write whose
+// server-set attribution is the point (§20.6).
+func (c *client) as(actor string) *client {
+	cp := *c
+	cp.actor = actor
+	return &cp
 }
 
 // do sends a JSON request and decodes a JSON response into out (nil discards the body).

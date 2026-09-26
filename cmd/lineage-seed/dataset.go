@@ -23,6 +23,28 @@ type seedModel struct {
 	// on an unclassified model is not in it at all (§17.4), so leaving a model unclassified
 	// here is what seeds the "not governed, not queued" case.
 	Classification *seedClassification
+	// MRM is the model-risk tier and its validations (§20), applied after the EU
+	// classification. Validations are recorded after every version exists, for the §16.5
+	// reason: §20.7 clause 2 asks whether a version was published *since* the validation.
+	MRM *seedMRM
+}
+
+// seedMRM is a declared tier plus the validations recorded against it.
+type seedMRM struct {
+	core.ClassificationInput
+	Validations []seedValidation
+}
+
+// seedValidation is one validation. By is the validator's identity, sent as the actor header
+// for this one write — validatedBy is server-set from it (§20.9.1), so a fixture wanting an
+// independent validator has to *be* one. Evidence names an artifact on the version, resolved
+// to its id at seed time; ValidForDays is relative for the ReviewInDays reason.
+type seedValidation struct {
+	Version string
+	By      string
+	core.ValidationInput
+	Evidence     string
+	ValidForDays int
 }
 
 // seedClassification is a declared assessment plus a *relative* review date. Absolute dates
@@ -213,6 +235,34 @@ var dataset = []seedModel{
 			},
 			ReviewInDays: 180,
 		},
+		// Tier 1, validated conditionally: the model's state reads `stale` with
+		// `conditions_outstanding` until someone records that the conditions are met — the
+		// common real answer, and the one that shows the reason in the console (§20.5).
+		// The release candidate carries a self-validation by its own author, so the
+		// independence flag has something to flag (§20.6).
+		MRM: &seedMRM{
+			ClassificationInput: core.ClassificationInput{
+				MRMTier: domain.MRMTier1,
+				Basis:   "Automated declines on the authorization path; direct customer and loss impact above $500.",
+			},
+			Validations: []seedValidation{{
+				Version: "1.1.0", By: "mrm-validation@acme.example",
+				ValidationInput: core.ValidationInput{
+					Outcome:    domain.ValidationConditional,
+					Scope:      "Card-not-present decisioning only. Not validated for merchant onboarding.",
+					Findings:   "Recall stable across segments; population drift elevated on the travel MCC group.",
+					Conditions: "Re-measure PSI on travel MCC monthly; escalate to MRM above 0.25.",
+				},
+				Evidence:     "model-card.md",
+				ValidForDays: 365,
+			}, {
+				Version: "1.2.0-rc1", By: "dev@acme.example",
+				ValidationInput: core.ValidationInput{
+					Outcome:  domain.ValidationUndetermined,
+					Findings: "Shadow evaluation still running; no conclusion yet.",
+				},
+			}},
+		},
 		Versions: []version{
 			{
 				Name: "1.0.0", Author: "ana@acme.example",
@@ -301,6 +351,23 @@ var dataset = []seedModel{
 			Description: "Monthly subscriber churn propensity for lifecycle campaigns.",
 			Owner:       "growth-ml@acme.example",
 			Labels:      map[string]string{"team": "growth", "tier": "standard"},
+		},
+		// Tier 3, approved by an independent validator, monitored since promotion: the
+		// `current` case, so the console shows a covered model beside the ones that are not.
+		MRM: &seedMRM{
+			ClassificationInput: core.ClassificationInput{
+				MRMTier: domain.MRMTier3,
+				Basis:   "Marketing targeting only; no customer-facing decision.",
+			},
+			Validations: []seedValidation{{
+				Version: "1.0.0", By: "mrm-validation@acme.example",
+				ValidationInput: core.ValidationInput{
+					Outcome: domain.ValidationApproved,
+					Scope:   "Lifecycle campaign targeting.",
+				},
+				Evidence:     "metrics.json",
+				ValidForDays: 365,
+			}},
 		},
 		Versions: []version{
 			{
@@ -535,6 +602,13 @@ var dataset = []seedModel{
 			Description: "Weekly SKU-level demand forecasting for supply planning.",
 			Owner:       "supply-ml@acme.example",
 			Labels:      map[string]string{"team": "supply", "tier": "standard"},
+		},
+		// Tiered, never validated: the `unvalidated` rung (§20.7).
+		MRM: &seedMRM{
+			ClassificationInput: core.ClassificationInput{
+				MRMTier: domain.MRMTier2,
+				Basis:   "Feeds purchase orders; errors carry inventory cost.",
+			},
 		},
 		Versions: []version{
 			{

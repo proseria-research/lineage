@@ -153,6 +153,70 @@ func TestSeedRunsCleanAndPopulatesCompliance(t *testing.T) {
 		}
 	}
 
+	// ---- Model risk: one model on each rung the console distinguishes (§20.7) ----
+	//
+	// Asserted exactly, because each is seeded to show one thing: a stale tier-1 model with
+	// its reason, a covered one, and one nobody has validated. A reason appearing here that
+	// was not seeded — `unmonitored_in_production` from a fast loop, `version_published_since`
+	// from validating too early — is the fixture manufacturing drift.
+	var mrm struct {
+		Items []struct {
+			Name string
+			MRM  *struct {
+				MRMTier          string `json:"mrmTier"`
+				State            string
+				StaleReasons     []string
+				Version          string
+				LatestValidation *struct {
+					Outcome               string
+					EvidenceArtifactID    string `json:"evidenceArtifactId"`
+					IndependenceEvidenced bool   `json:"independenceEvidenced"`
+				} `json:"latestValidation"`
+			}
+		}
+	}
+	get(t, srv, "/v1/models?include=mrm&pageSize=100", &mrm)
+	states := map[string]string{}
+	for _, m := range mrm.Items {
+		if m.MRM == nil {
+			continue
+		}
+		states[m.Name] = m.MRM.State
+		switch m.Name {
+		case "fraud-detector":
+			if m.MRM.MRMTier != "tier_1" || m.MRM.State != "stale" || m.MRM.Version != "1.1.0" ||
+				len(m.MRM.StaleReasons) != 1 || m.MRM.StaleReasons[0] != "conditions_outstanding" {
+				t.Errorf("fraud-detector mrm: %+v", m.MRM)
+			}
+			if lv := m.MRM.LatestValidation; lv == nil || lv.EvidenceArtifactID == "" || !lv.IndependenceEvidenced {
+				t.Errorf("fraud-detector latest validation: %+v", lv)
+			}
+		case "churn-predictor":
+			if m.MRM.State != "current" {
+				t.Errorf("churn-predictor mrm: %s %v", m.MRM.State, m.MRM.StaleReasons)
+			}
+		case "demand-forecast":
+			if m.MRM.State != "unvalidated" {
+				t.Errorf("demand-forecast mrm: %s", m.MRM.State)
+			}
+		}
+	}
+	if len(states) != 3 {
+		t.Fatalf("expected three tiered models, got %v", states)
+	}
+
+	// The self-validation on the release candidate is recorded and flagged, not refused.
+	var rc struct {
+		Items []struct {
+			ValidatedBy           string `json:"validatedBy"`
+			IndependenceEvidenced bool   `json:"independenceEvidenced"`
+		}
+	}
+	get(t, srv, "/v1/models/fraud-detector/versions/1.2.0-rc1/validations", &rc)
+	if len(rc.Items) != 1 || rc.Items[0].IndependenceEvidenced {
+		t.Errorf("rc self-validation: %+v", rc.Items)
+	}
+
 	// ---- Re-seeding refuses rather than half-applying ----
 	//
 	// Seeding is additive and never deletes (§19.4). The second run must fail on the first
