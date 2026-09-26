@@ -12,8 +12,18 @@ import (
 	"github.com/proseria-research/lineage/internal/domain"
 )
 
+// Store is one type in two roles, like sqlstore's. Opened, mu is a real lock over *state.
+// Inside InTx it is a transaction's view: state is a private working copy and mu a no-op,
+// because the outer InTx already holds the real lock for the whole unit of work.
 type Store struct {
-	mu          sync.RWMutex
+	mu   rwLocker
+	inTx bool
+	*state
+}
+
+// state is everything the store holds. It is separate from Store so a unit of work can clone
+// it, run against the clone, and swap it in on success — rollback is simply not swapping.
+type state struct {
 	models      map[string]*domain.Model        // id -> model
 	modelByNm   map[string]string               // name -> id
 	versions    map[string]*domain.ModelVersion // id -> version
@@ -51,7 +61,7 @@ type Store struct {
 }
 
 func New() *Store {
-	return &Store{
+	return &Store{mu: &sync.RWMutex{}, state: &state{
 		models:      map[string]*domain.Model{},
 		modelByNm:   map[string]string{},
 		versions:    map[string]*domain.ModelVersion{},
@@ -65,7 +75,7 @@ func New() *Store {
 
 		classifications: map[string]map[domain.Regime]*domain.RiskClassification{},
 		epochs:          map[int64]*domain.AuditEpoch{},
-	}
+	}}
 }
 
 var _ domain.MetadataStore = (*Store)(nil)

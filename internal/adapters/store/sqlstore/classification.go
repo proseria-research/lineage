@@ -25,29 +25,28 @@ const classificationCols = `model_id,regime,eu_gpai_tier,eu_system_risk_class,mr
 // Scoped to (model_id, regime), so a write under one regime cannot touch another's row or
 // its classified_at anchor (§16.3.2).
 func (s *Store) PutClassification(ctx context.Context, c *domain.RiskClassification) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
+	// Joins a caller's unit of work when there is one (InTx), so this commits with it.
+	return s.inTx(ctx, func(t *Store) error {
+		tx := t.q
 
-	if _, err := tx.ExecContext(ctx, s.rb(
-		`DELETE FROM classification WHERE model_id=? AND regime=?`), c.ModelID, string(c.Regime)); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, s.rb(
-		`INSERT INTO classification (`+classificationCols+`) VALUES (?,?,?,?,?,?,?,?,?,?)`),
-		c.ModelID, string(c.Regime), nullEnum(string(c.EUGpaiTier)), nullEnum(string(c.EUSystemRiskClass)),
-		nullEnum(string(c.MRMTier)),
-		c.IntendedPurpose, c.Basis, c.ClassifiedAt, c.ClassifiedBy, c.ReviewDueAt,
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
+		if _, err := tx.ExecContext(ctx, s.rb(
+			`DELETE FROM classification WHERE model_id=? AND regime=?`), c.ModelID, string(c.Regime)); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, s.rb(
+			`INSERT INTO classification (`+classificationCols+`) VALUES (?,?,?,?,?,?,?,?,?,?)`),
+			c.ModelID, string(c.Regime), nullEnum(string(c.EUGpaiTier)), nullEnum(string(c.EUSystemRiskClass)),
+			nullEnum(string(c.MRMTier)),
+			c.IntendedPurpose, c.Basis, c.ClassifiedAt, c.ClassifiedBy, c.ReviewDueAt,
+		); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *Store) GetClassification(ctx context.Context, modelID string, regime domain.Regime) (*domain.RiskClassification, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(
+	row := s.q.QueryRowContext(ctx, s.rb(
 		`SELECT `+classificationCols+` FROM classification WHERE model_id=? AND regime=?`),
 		modelID, string(regime))
 	c, err := scanClassification(row)
@@ -60,7 +59,7 @@ func (s *Store) GetClassification(ctx context.Context, modelID string, regime do
 }
 
 func (s *Store) ListClassifications(ctx context.Context, modelID string) ([]*domain.RiskClassification, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+classificationCols+` FROM classification WHERE model_id=? ORDER BY regime`), modelID)
 	if err != nil {
 		return nil, err
@@ -118,7 +117,7 @@ func nullEnum(v string) any {
 // COALESCE to 0 means "no such row", which the predicate reads as an absent fact.
 func (s *Store) DriftFactsFor(ctx context.Context, modelID string) (domain.DriftFacts, error) {
 	var f domain.DriftFacts
-	err := s.db.QueryRowContext(ctx, s.rb(`
+	err := s.q.QueryRowContext(ctx, s.rb(`
 		SELECT COALESCE(MAX(created_at), 0),
 		       COALESCE(MAX(CASE WHEN stage = 'production' THEN updated_at END), 0)
 		FROM model_version WHERE model_id = ?`), modelID,
@@ -174,7 +173,7 @@ func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domai
 	}
 	q += ` ORDER BY m.created_at DESC, m.id DESC`
 
-	rows, err := s.db.QueryContext(ctx, s.rb(q), append(joinArgs, args...)...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), append(joinArgs, args...)...)
 	if err != nil {
 		return nil, err
 	}

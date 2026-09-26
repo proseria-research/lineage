@@ -15,7 +15,7 @@ const reviewCols = `id,version_id,edge_id,verdict_at_review,outcome,note,reviewe
 
 // CreateReview appends. There is no update or delete path anywhere in this file (§17.4).
 func (s *Store) CreateReview(ctx context.Context, r *domain.ModificationReview) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO modification_review (`+reviewCols+`) VALUES (?,?,?,?,?,?,?,?)`),
 		r.ID, r.VersionID, r.EdgeID, string(r.VerdictAtReview), string(r.Outcome),
 		r.Note, r.ReviewedBy, r.ReviewedAt)
@@ -30,7 +30,7 @@ func (s *Store) CreateReview(ctx context.Context, r *domain.ModificationReview) 
 // resolve their ties the same way (§11.7). Nothing is lost either way: both rows are returned
 // here, and only which one the queue calls "latest" is affected.
 func (s *Store) ListReviews(ctx context.Context, versionID string) ([]*domain.ModificationReview, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+reviewCols+` FROM modification_review WHERE version_id=?
 		 ORDER BY reviewed_at DESC, id DESC`), versionID)
 	if err != nil {
@@ -99,7 +99,7 @@ func (s *Store) ListDerivations(ctx context.Context, regime domain.Regime, model
 	}
 	q += ` ORDER BY e.created_at DESC, e.id DESC`
 
-	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, err
 	}

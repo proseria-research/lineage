@@ -28,7 +28,7 @@ func (s *Store) SetHold(ctx context.Context, subjectType, subjectID string, h *d
 	if h != nil {
 		since, by = h.HeldSince, h.HeldBy
 	}
-	res, err := s.db.ExecContext(ctx, s.rb(
+	res, err := s.q.ExecContext(ctx, s.rb(
 		`UPDATE `+table+` SET held_since=?,held_by=? WHERE id=?`), since, by, subjectID)
 	return affected(res, err, subjectType)
 }
@@ -61,7 +61,7 @@ func (s *Store) modelDeleteGuard(ctx context.Context, id string) (domain.DeleteG
 	var by, name string
 	var created int64
 	var heldVersionID sql.NullString
-	err := s.db.QueryRowContext(ctx, s.rb(q), id).Scan(&since, &by, &created, &name, &newest, &heldVersionID)
+	err := s.q.QueryRowContext(ctx, s.rb(q), id).Scan(&since, &by, &created, &name, &newest, &heldVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DeleteGuard{}, domain.NotFound("model not found")
 	}
@@ -79,7 +79,7 @@ func (s *Store) modelDeleteGuard(ctx context.Context, id string) (domain.DeleteG
 		const vq = `SELECT held_since, held_by, name FROM model_version WHERE id = ?`
 		var vSince sql.NullInt64
 		var vBy, vName string
-		if err := s.db.QueryRowContext(ctx, s.rb(vq), heldVersionID.String).Scan(&vSince, &vBy, &vName); err != nil {
+		if err := s.q.QueryRowContext(ctx, s.rb(vq), heldVersionID.String).Scan(&vSince, &vBy, &vName); err != nil {
 			return domain.DeleteGuard{}, err
 		}
 		g.Hold = scanHold(vSince, sql.NullString{String: vBy, Valid: true})
@@ -98,7 +98,7 @@ func (s *Store) versionDeleteGuard(ctx context.Context, id string) (domain.Delet
 	var vSince, mSince sql.NullInt64
 	var vBy, mBy, mName string
 	var created int64
-	err := s.db.QueryRowContext(ctx, s.rb(q), id).Scan(&vSince, &vBy, &created, &mSince, &mBy, &mName)
+	err := s.q.QueryRowContext(ctx, s.rb(q), id).Scan(&vSince, &vBy, &created, &mSince, &mBy, &mName)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DeleteGuard{}, domain.NotFound("version not found")
 	}

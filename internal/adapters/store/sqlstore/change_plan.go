@@ -21,54 +21,47 @@ const changePlanCols = `id,model_id,ref,summary,allowed_verdicts,allowed_methods
 // Postgres, the database write lock on SQLite — so two declarations for one model serialise
 // and CheckPlanDeclaration reads a list nobody else is appending to.
 func (s *Store) CreateChangePlan(ctx context.Context, p *domain.ChangePlan, supersedes string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
+	// Joins a caller's unit of work when there is one (InTx), so this commits with it.
+	return s.inTx(ctx, func(t *Store) error {
+		tx := t.q
 
-	res, err := tx.ExecContext(ctx, s.rb(`UPDATE model SET updated_at = updated_at WHERE id=?`), p.ModelID)
-	if err := affected(res, err, "model"); err != nil {
-		return err
-	}
-	existing, err := s.listChangePlans(ctx, tx, p.ModelID)
-	if err != nil {
-		return err
-	}
-	old, err := domain.CheckPlanDeclaration(existing, p, supersedes)
-	if err != nil {
-		return err
-	}
-	if old != nil {
-		if _, err := tx.ExecContext(ctx, s.rb(
-			`UPDATE change_plan SET effective_to=? WHERE id=? AND effective_to IS NULL`),
-			p.EffectiveFrom, old.ID); err != nil {
+		res, err := tx.ExecContext(ctx, s.rb(`UPDATE model SET updated_at = updated_at WHERE id=?`), p.ModelID)
+		if err := affected(res, err, "model"); err != nil {
 			return err
 		}
-	}
-	verdicts, _ := json.Marshal(p.AllowedVerdicts)
-	var methods any
-	if p.AllowedMethods != nil {
-		b, _ := json.Marshal(p.AllowedMethods)
-		methods = string(b)
-	}
-	if _, err := tx.ExecContext(ctx, s.rb(
-		`INSERT INTO change_plan (`+changePlanCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?)`),
-		p.ID, p.ModelID, p.Ref, p.Summary, string(verdicts), methods, p.ProtocolArtifactID,
-		p.EffectiveFrom, p.EffectiveTo, p.DeclaredBy, p.DeclaredAt); err != nil {
-		return err
-	}
-	return tx.Commit()
+		existing, err := s.listChangePlans(ctx, tx, p.ModelID)
+		if err != nil {
+			return err
+		}
+		old, err := domain.CheckPlanDeclaration(existing, p, supersedes)
+		if err != nil {
+			return err
+		}
+		if old != nil {
+			if _, err := tx.ExecContext(ctx, s.rb(
+				`UPDATE change_plan SET effective_to=? WHERE id=? AND effective_to IS NULL`),
+				p.EffectiveFrom, old.ID); err != nil {
+				return err
+			}
+		}
+		verdicts, _ := json.Marshal(p.AllowedVerdicts)
+		var methods any
+		if p.AllowedMethods != nil {
+			b, _ := json.Marshal(p.AllowedMethods)
+			methods = string(b)
+		}
+		if _, err := tx.ExecContext(ctx, s.rb(
+			`INSERT INTO change_plan (`+changePlanCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?)`),
+			p.ID, p.ModelID, p.Ref, p.Summary, string(verdicts), methods, p.ProtocolArtifactID,
+			p.EffectiveFrom, p.EffectiveTo, p.DeclaredBy, p.DeclaredAt); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *Store) ListChangePlans(ctx context.Context, modelID string) ([]*domain.ChangePlan, error) {
-	return s.listChangePlans(ctx, s.db, modelID)
-}
-
-// querier is what *sql.DB and *sql.Tx share, so the declaration's in-transaction read and the
-// plain read are one statement.
-type querier interface {
-	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
+	return s.listChangePlans(ctx, s.q, modelID)
 }
 
 func (s *Store) listChangePlans(ctx context.Context, db querier, modelID string) ([]*domain.ChangePlan, error) {
@@ -145,7 +138,7 @@ func (s *Store) ListPlanDerivations(ctx context.Context, modelID, versionID stri
 	}
 	q += ` ORDER BY v.created_at DESC, v.id DESC, e.id DESC`
 
-	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
+	rows, err := s.q.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {
 		return nil, err
 	}

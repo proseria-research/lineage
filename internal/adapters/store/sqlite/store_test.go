@@ -22,4 +22,5 @@ func TestSQLiteStore(t *testing.T) {
 	storetest.RunMRM(t, store)
 	storetest.RunChangePlans(t, store)
 	storetest.RunAttestation(t, store)
+	storetest.RunUnitOfWork(t, store)
 }

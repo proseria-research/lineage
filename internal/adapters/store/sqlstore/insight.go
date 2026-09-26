@@ -20,7 +20,7 @@ const insightCols = `version_id,framework_name,framework_version,producer_name,p
 	`created_at,updated_at`
 
 func (s *Store) GetInsight(ctx context.Context, versionID string) (*domain.VersionInsight, error) {
-	row := s.db.QueryRowContext(ctx, s.rb(
+	row := s.q.QueryRowContext(ctx, s.rb(
 		`SELECT `+insightCols+` FROM version_insight WHERE version_id=?`), versionID)
 	in, err := scanInsight(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -50,20 +50,19 @@ func (s *Store) UpsertInsight(ctx context.Context, in *domain.VersionInsight) er
 	}
 	// No ON CONFLICT: the syntax is portable but the update list is long and both engines
 	// serialize writes for a single version, so delete-then-insert keeps one code path.
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, s.rb(`DELETE FROM version_insight WHERE version_id=?`), in.VersionID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, s.rb(
-		`INSERT INTO version_insight (`+insightCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
-		args...); err != nil {
-		return err
-	}
-	return tx.Commit()
+	// Joins a caller's unit of work when there is one (InTx), so this commits with it.
+	return s.inTx(ctx, func(t *Store) error {
+		tx := t.q
+		if _, err := tx.ExecContext(ctx, s.rb(`DELETE FROM version_insight WHERE version_id=?`), in.VersionID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, s.rb(
+			`INSERT INTO version_insight (`+insightCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+			args...); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 const layerCols = "version_id,ordinal,path,op_type,repeat_count,shape_signature,dtype,param_count,bytes"
@@ -71,27 +70,26 @@ const layerCols = "version_id,ordinal,path,op_type,repeat_count,shape_signature,
 // ReplaceLayerBlocks swaps the whole set in one transaction — the breakdown is a list, so
 // there is no per-element merge (§11.6.1).
 func (s *Store) ReplaceLayerBlocks(ctx context.Context, versionID string, blocks []*domain.LayerBlock) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, s.rb(`DELETE FROM layer_block WHERE version_id=?`), versionID); err != nil {
-		return err
-	}
-	for _, b := range blocks {
-		if _, err := tx.ExecContext(ctx, s.rb(
-			`INSERT INTO layer_block (`+layerCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
-			versionID, b.Ordinal, b.Path, b.OpType, b.RepeatCount, b.ShapeSignature, b.Dtype,
-			b.ParamCount, b.Bytes); err != nil {
+	// Joins a caller's unit of work when there is one (InTx), so this commits with it.
+	return s.inTx(ctx, func(t *Store) error {
+		tx := t.q
+		if _, err := tx.ExecContext(ctx, s.rb(`DELETE FROM layer_block WHERE version_id=?`), versionID); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		for _, b := range blocks {
+			if _, err := tx.ExecContext(ctx, s.rb(
+				`INSERT INTO layer_block (`+layerCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
+				versionID, b.Ordinal, b.Path, b.OpType, b.RepeatCount, b.ShapeSignature, b.Dtype,
+				b.ParamCount, b.Bytes); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (s *Store) ListLayerBlocks(ctx context.Context, versionID string) ([]*domain.LayerBlock, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+layerCols+` FROM layer_block WHERE version_id=? ORDER BY ordinal`), versionID)
 	if err != nil {
 		return nil, err
@@ -115,27 +113,26 @@ const footprintCols = `id,version_id,scenario,device_class,batch,seq_len,weights
 // UpsertFootprint replaces the row for (version, scenario): a re-measurement of the same
 // scenario supersedes the previous one, unlike evaluations which append (§11.6.1).
 func (s *Store) UpsertFootprint(ctx context.Context, f *domain.Footprint) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, s.rb(
-		`DELETE FROM footprint WHERE version_id=? AND scenario=?`), f.VersionID, f.Scenario); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, s.rb(
-		`INSERT INTO footprint (`+footprintCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
-		f.ID, f.VersionID, f.Scenario, f.DeviceClass, f.Batch, f.SeqLen, f.WeightsBytes,
-		f.KVCacheBytes, f.ActivationBytes, f.RuntimeOverheadBytes, f.TotalBytes,
-		string(f.Source), jsonText(f.Basis), f.CreatedAt, f.UpdatedAt); err != nil {
-		return err
-	}
-	return tx.Commit()
+	// Joins a caller's unit of work when there is one (InTx), so this commits with it.
+	return s.inTx(ctx, func(t *Store) error {
+		tx := t.q
+		if _, err := tx.ExecContext(ctx, s.rb(
+			`DELETE FROM footprint WHERE version_id=? AND scenario=?`), f.VersionID, f.Scenario); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, s.rb(
+			`INSERT INTO footprint (`+footprintCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
+			f.ID, f.VersionID, f.Scenario, f.DeviceClass, f.Batch, f.SeqLen, f.WeightsBytes,
+			f.KVCacheBytes, f.ActivationBytes, f.RuntimeOverheadBytes, f.TotalBytes,
+			string(f.Source), jsonText(f.Basis), f.CreatedAt, f.UpdatedAt); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *Store) ListFootprints(ctx context.Context, versionID string) ([]*domain.Footprint, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+footprintCols+` FROM footprint WHERE version_id=? ORDER BY scenario`), versionID)
 	if err != nil {
 		return nil, err
@@ -162,7 +159,7 @@ const evalCols = `id,version_id,suite,metric,split,value,higher_is_better,n_samp
 	`harness_version,params,evidence_artifact_id,source,run_at,created_at`
 
 func (s *Store) CreateEvaluation(ctx context.Context, e *domain.Evaluation) error {
-	_, err := s.db.ExecContext(ctx, s.rb(
+	_, err := s.q.ExecContext(ctx, s.rb(
 		`INSERT INTO evaluation (`+evalCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
 		e.ID, e.VersionID, e.Suite, e.Metric, e.Split, e.Value, e.HigherIsBetter, e.NSamples,
 		e.HarnessName, e.HarnessVersion, jsonText(e.Params), e.EvidenceArtifactID,
@@ -171,7 +168,7 @@ func (s *Store) CreateEvaluation(ctx context.Context, e *domain.Evaluation) erro
 }
 
 func (s *Store) ListEvaluations(ctx context.Context, versionID string) ([]*domain.Evaluation, error) {
-	rows, err := s.db.QueryContext(ctx, s.rb(
+	rows, err := s.q.QueryContext(ctx, s.rb(
 		`SELECT `+evalCols+` FROM evaluation WHERE version_id=? ORDER BY run_at DESC, created_at DESC, id DESC`),
 		versionID)
 	if err != nil {
