@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import { Lock } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, useTab } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StageBadge } from "@/components/StageBadge";
+import { Term } from "@/components/Term";
 import { StageActions } from "@/components/StageActions";
 import { StageTrack } from "@/components/StageTrack";
 import { LineageGraphView } from "@/components/LineageGraphView";
@@ -68,6 +70,14 @@ export default function VersionDetail() {
           <span className="flex flex-wrap items-center gap-3">
             <span className="font-mono">{v.name}</span>
             <StageBadge stage={v.stage} />
+            {v.lockedAt ? (
+              <Term k="version_locked">
+                <Badge variant="neutral" title={`Locked ${relTime(v.lockedAt)}`}>
+                  <Lock className="h-3 w-3" aria-hidden />
+                  Locked
+                </Badge>
+              </Term>
+            ) : null}
           </span>
         }
         sub={

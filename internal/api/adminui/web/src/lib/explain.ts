@@ -213,6 +213,12 @@ export const EXPLAIN: Record<string, Explanation> = {
   no_plan: { term: "No plan", plain: "This model has no change control plan." },
 
   // ---- Records ----
+  version_locked: {
+    term: "Locked",
+    plain: "This version's files can't be changed any more — none added, replaced or removed. It locked the first time it reached staging, and stays locked even if it goes back to draft or is archived.",
+    why: "What was tested is what ships. Validations, reviews and fingerprints describe exactly these files, so they stay true.",
+    next: "To change the files, publish a new version. This one's description, labels, stage and holds can still change.",
+  },
   legal_hold: {
     term: "Legal hold",
     plain: "The model or version can't be deleted while a legal matter is open.",

@@ -175,6 +175,8 @@ export interface VersionSummary {
   // This version's *own* hold. A version under a held model is not marked here — see
   // VersionDetail.modelHold.
   legalHold: Hold | null;
+  // When the artifact set froze — first entry into staging (§00.11.19). Absent while unlocked.
+  lockedAt?: number;
 }
 
 export interface ModelDetail {

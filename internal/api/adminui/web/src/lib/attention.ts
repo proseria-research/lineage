@@ -31,7 +31,7 @@ export interface AttentionItem {
 export const REASON_TEXT: Record<StaleReason, string> = {
   review_due_passed: "Its scheduled review date has passed.",
   version_published_since: "A new version was published after it was assessed.",
-  production_changed_since: "What's in production changed after it was assessed — a version was promoted, or files were added to it.",
+  production_changed_since: "What's in production changed after it was assessed — a version was promoted to production.",
   derivation_since: "Someone derived a new model from it after it was assessed.",
   validation_expired: "Its validation has expired.",
   unmonitored_in_production: "It is in production with no evaluation recorded since it was promoted.",
