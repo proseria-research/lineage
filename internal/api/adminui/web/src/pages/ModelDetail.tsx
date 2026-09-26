@@ -11,12 +11,15 @@ import { ClassificationCell } from "@/components/Classification";
 import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/components/State";
 import { Button } from "@/components/ui/button";
 import { ChangePlanDialog } from "@/components/GovernanceDialogs";
+import { UsePanel } from "@/components/UsePanel";
+import { Code2 } from "lucide-react";
 import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { VERDICT_LABEL } from "@/components/Review";
 import { fmtTime, relTime } from "@/lib/utils";
 
 const TABS = [
   { id: "versions", label: "Versions" },
+  { id: "use", label: "Use" },
   { id: "governance", label: "Governance" },
   { id: "details", label: "Details" },
 ];
@@ -45,7 +48,15 @@ export default function ModelDetail() {
           </span>
         }
         sub={m.owner ? `Owned by ${m.owner}` : "No owner recorded"}
-        right={<HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />}
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => setTab("use")}>
+              <Code2 className="h-4 w-4" />
+              Use this model
+            </Button>
+            <HoldAction subject={{ model: m.name }} hold={m.legalHold} onChanged={reload} />
+          </div>
+        }
       />
 
       {m.legalHold ? (
@@ -96,6 +107,13 @@ export default function ModelDetail() {
             <VersionBoard model={model} versions={data.versions} />
           </>
         ))}
+
+      {tab === "use" && (
+        <UsePanel
+          model={m.name}
+          stages={(["production", "staging"] as const).filter((st) => data.versions.some((v) => v.stage === st))}
+        />
+      )}
 
       {tab === "governance" && (
         <div className="space-y-6">

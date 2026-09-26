@@ -15,6 +15,12 @@ export interface AuditEvent {
   data?: { from?: Stage; to?: Stage; reason?: string };
 }
 
+export interface ClientConfig {
+  modelApiUrl?: string;
+  modelApiPort?: string;
+  docsUrl?: string;
+}
+
 export interface Overview {
   counts: { models: number; versions: number; artifacts: number; deployments: number };
   stages: Record<Stage, number>;
@@ -564,6 +570,7 @@ export interface ClassificationInput {
 
 export const api = {
   overview: () => getJSON<Overview>("/api/overview"),
+  config: () => getJSON<ClientConfig>("/api/config"),
   models: (q = "", filters: Record<string, string> = {}) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);

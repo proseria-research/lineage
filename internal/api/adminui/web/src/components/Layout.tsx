@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Boxes, ShieldCheck, History, Search } from "lucide-react";
+import { Home, Boxes, ShieldCheck, History, Search, BookOpen, Braces } from "lucide-react";
+import { useClientConfig } from "@/lib/useClientConfig";
+import { CopyText } from "@/components/CopyText";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Wordmark } from "@/components/Logo";
@@ -18,7 +20,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[15rem_1fr]">
-      <aside className="border-b bg-card md:sticky md:top-0 md:h-screen md:border-b-0 md:border-r">
+      <aside className="border-b bg-card md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-b-0 md:border-r">
         <div className="flex h-14 items-center px-5">
           <Wordmark />
         </div>
@@ -43,6 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
+        <ConnectBox />
       </aside>
 
       <div className="flex min-w-0 flex-col">
@@ -65,6 +68,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </form>
         </header>
         <main className="mx-auto w-full max-w-[84rem] min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+// Where to point your code, always one glance away: the Model API address (copyable), the API
+// reference and the documentation.
+function ConnectBox() {
+  const info = useClientConfig();
+  if (!info) return null;
+  return (
+    <div className="mt-auto hidden border-t px-5 py-4 text-xs md:block">
+      <div className="mb-1 font-medium text-foreground">Model API</div>
+      <CopyText text={info.modelApi} />
+      <div className="mt-3 flex flex-col gap-1.5">
+        <a href={`${info.modelApi}/v1/openapi.json`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
+          <Braces className="h-3.5 w-3.5" /> API reference
+        </a>
+        <a href={info.docs} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
+          <BookOpen className="h-3.5 w-3.5" /> Documentation
+        </a>
       </div>
     </div>
   );
