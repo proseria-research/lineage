@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 // The "how this works" panel at the top of a governance tab: what the programme is, in plain
 // words; three steps covering what you do, what Lineage watches and when it asks you to look;
-// and what every label on the tab means. Collapsible, and the choice is remembered per tab.
+// and what every label on the tab means. Collapsed until opened.
 
 export interface Guide {
   summary: string;
@@ -15,26 +15,11 @@ export interface Guide {
   source?: string;
 }
 
-const storeKey = (id: string) => `lineage.howItWorks.${id}`;
-
-export function HowItWorks({ id, guide }: { id: string; guide: Guide }) {
-  const [open, setOpen] = useState(() => {
-    try {
-      return localStorage.getItem(storeKey(id)) !== "closed";
-    } catch {
-      return true;
-    }
-  });
-  const toggle = () => {
-    setOpen((o) => {
-      try {
-        localStorage.setItem(storeKey(id), o ? "closed" : "open");
-      } catch {
-        /* per-viewer convenience only */
-      }
-      return !o;
-    });
-  };
+export function HowItWorks({ guide }: { id?: string; guide: Guide }) {
+  // Always starts collapsed: the explanation is there when someone wants it, and out of the
+  // way on every other visit.
+  const [open, setOpen] = useState(false);
+  const toggle = () => setOpen((o) => !o);
 
   return (
     <section className="mb-6 rounded-lg border bg-card">
