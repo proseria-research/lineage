@@ -50,6 +50,7 @@ type MetadataStore interface {
 	ComplianceStore
 	ReviewStore
 	ValidationStore
+	ChangePlanStore
 	RetentionStore
 	AttestationStore
 }
@@ -91,6 +92,9 @@ type ArtifactStore interface {
 	CreateArtifact(ctx context.Context, a *Artifact) error
 	GetArtifact(ctx context.Context, versionID, name string) (*Artifact, error)
 	ListArtifacts(ctx context.Context, versionID string) ([]*Artifact, error)
+	// GetArtifactByID fetches an artifact wherever it lives, for references held outside a
+	// version — a change plan's protocol document (§22.6.1). NotFound when absent.
+	GetArtifactByID(ctx context.Context, id string) (*Artifact, error)
 	UpdateArtifact(ctx context.Context, a *Artifact) error
 	DeleteArtifact(ctx context.Context, id string) error
 	// ArtifactRefsURI reports whether any artifact row still points at uri. GC uses it to

@@ -138,6 +138,10 @@ func (s *tracedStore) GetArtifact(ctx context.Context, versionID, name string) (
 	return do1(ctx, s.t, "store.GetArtifact", func(c context.Context) (*domain.Artifact, error) { return s.next.GetArtifact(c, versionID, name) })
 }
 
+func (s *tracedStore) GetArtifactByID(ctx context.Context, id string) (*domain.Artifact, error) {
+	return do1(ctx, s.t, "store.GetArtifactByID", func(c context.Context) (*domain.Artifact, error) { return s.next.GetArtifactByID(c, id) })
+}
+
 func (s *tracedStore) ListArtifacts(ctx context.Context, versionID string) ([]*domain.Artifact, error) {
 	return do1(ctx, s.t, "store.ListArtifacts", func(c context.Context) ([]*domain.Artifact, error) { return s.next.ListArtifacts(c, versionID) })
 }
@@ -305,6 +309,26 @@ func (s *tracedStore) ClearValidationConditions(ctx context.Context, versionID, 
 func (s *tracedStore) ListMRMInventory(ctx context.Context, o domain.ListOptions, f domain.MRMFilter) ([]*domain.MRMInventoryRow, error) {
 	return do1(ctx, s.t, "store.ListMRMInventory", func(c context.Context) ([]*domain.MRMInventoryRow, error) {
 		return s.next.ListMRMInventory(c, o, f)
+	})
+}
+
+// ---- Change control plans (§22) ----
+
+func (s *tracedStore) CreateChangePlan(ctx context.Context, p *domain.ChangePlan, supersedes string) error {
+	return do0(ctx, s.t, "store.CreateChangePlan", func(c context.Context) error {
+		return s.next.CreateChangePlan(c, p, supersedes)
+	})
+}
+
+func (s *tracedStore) ListChangePlans(ctx context.Context, modelID string) ([]*domain.ChangePlan, error) {
+	return do1(ctx, s.t, "store.ListChangePlans", func(c context.Context) ([]*domain.ChangePlan, error) {
+		return s.next.ListChangePlans(c, modelID)
+	})
+}
+
+func (s *tracedStore) ListPlanDerivations(ctx context.Context, modelID, versionID string) ([]*domain.PlanDerivationRow, error) {
+	return do1(ctx, s.t, "store.ListPlanDerivations", func(c context.Context) ([]*domain.PlanDerivationRow, error) {
+		return s.next.ListPlanDerivations(c, modelID, versionID)
 	})
 }
 
