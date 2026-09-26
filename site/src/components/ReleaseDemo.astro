@@ -100,7 +100,7 @@ const versions = (n: number) => `${n} version${n === 1 ? '' : 's'}`;
 
 	<div class="demo__use">
 		<p class="demo__use-lead">
-			Serving code requests the <strong>production</strong> stage, not a version:
+			Your serving code asks for <strong>production</strong>, not a version number:
 		</p>
 		<p class="demo__call">
 			<span class="demo__verb">GET</span>
@@ -110,7 +110,7 @@ const versions = (n: number) => `${n} version${n === 1 ? '' : 's'}`;
 	</div>
 
 	<p class="demo__log" data-log aria-live="polite">
-		<span data-log-text>Promote 1.4.0 to see the same request resolve differently.</span>
+		<span data-log-text>Try it: promote 1.4.0 and see what the same request returns.</span>
 		<button class="demo__reset" type="button" data-reset disabled>Start over</button>
 	</p>
 </figure>
@@ -159,7 +159,7 @@ const versions = (n: number) => `${n} version${n === 1 ? '' : 's'}`;
 			recount();
 			result.textContent = demo.dataset.resolvedNext ?? '';
 			[badge('1.4.0'), badge('1.3.0'), result].forEach(flash);
-			logText.textContent = 'Recorded: 1.4.0 promoted, 1.3.0 archived, one transaction. No client change.';
+			logText.textContent = 'Recorded: 1.4.0 is live and 1.3.0 archived, in one step. No client code changed.';
 			promote.disabled = true;
 			reset.disabled = false;
 			reset.focus();
