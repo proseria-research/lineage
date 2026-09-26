@@ -25,7 +25,7 @@ function Tooltip({
       {children}
       <span
         role="tooltip"
-        className={cn("pointer-events-none absolute top-full z-30 mt-1 w-max max-w-[min(16rem,calc(100vw-2rem))] border bg-popover px-2 py-1.5 text-left text-xs normal-case leading-relaxed text-popover-foreground opacity-0 shadow-sm transition-none group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100", alignment)}
+        className={cn("pointer-events-none absolute top-full z-30 mt-1.5 w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-md border bg-popover px-2.5 py-2 shadow-md text-left text-xs normal-case leading-relaxed text-popover-foreground opacity-0 transition-none group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100", alignment)}
       >
         {content}
       </span>
