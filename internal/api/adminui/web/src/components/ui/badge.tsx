@@ -2,19 +2,26 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// Monochrome badges: differentiation comes from fill / outline / dashed, never color.
+// Pills. Status variants (ok / warn / danger) carry meaning; everything else is neutral.
+// Sentence case, so a badge reads as a word rather than a code.
 const badgeVariants = cva(
-  "inline-flex items-center border px-1.5 py-0.5 text-[0.6875rem] font-medium uppercase tracking-wider leading-none",
+  "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium leading-4",
   {
     variants: {
       variant: {
-        solid: "bg-foreground text-background border-foreground",
-        outline: "bg-transparent text-foreground border-foreground",
-        muted: "bg-transparent text-muted-foreground border-border",
-        dashed: "bg-transparent text-muted-foreground border-border border-dashed",
+        ok: "border-transparent bg-ok-soft text-ok",
+        warn: "border-transparent bg-warn-soft text-warn",
+        danger: "border-transparent bg-danger-soft text-danger",
+        brand: "border-transparent bg-brand-soft text-brand",
+        neutral: "border-transparent bg-secondary text-secondary-foreground",
+        // Kept for existing call sites.
+        solid: "border-transparent bg-foreground text-background",
+        outline: "border-border bg-transparent text-foreground",
+        muted: "border-transparent bg-secondary text-muted-foreground",
+        dashed: "border-dashed border-border bg-transparent text-muted-foreground",
       },
     },
-    defaultVariants: { variant: "outline" },
+    defaultVariants: { variant: "neutral" },
   },
 );
 
