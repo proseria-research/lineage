@@ -208,6 +208,9 @@ func (s *Service) PatchArtifact(ctx context.Context, actor, model, version, name
 		(in.SizeBytes != nil && *in.SizeBytes != a.SizeBytes) {
 		return nil, domain.Precondition("artifact content (uri/digest/sizeBytes) is immutable; new content ⇒ new version", nil)
 	}
+	// On a locked version (§00.11.19) the fields left — mediaType, serviceAccount,
+	// customProperties — are descriptive metadata; none changes the set or its bytes, so they
+	// stay editable. The refusals are the add/replace/remove paths.
 	if in.MediaType != nil {
 		a.MediaType = *in.MediaType
 	}
@@ -239,6 +242,9 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor, model, version, nam
 	a, err := s.store.GetArtifact(ctx, v.ID, name)
 	if err != nil {
 		return err
+	}
+	if v.Locked() {
+		return domain.VersionLocked(v, "delete artifact '"+name+"'")
 	}
 	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
 		if err := tx.DeleteArtifact(ctx, a.ID); err != nil {

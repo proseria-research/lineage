@@ -109,6 +109,10 @@ func (s *Service) InitiateUpload(ctx context.Context, actor, model, version stri
 	if err != nil {
 		return nil, err
 	}
+	// Refused before any bytes move (§00.11.19): a locked version takes no new files.
+	if v.Locked() {
+		return nil, domain.VersionLocked(v, "upload artifact '"+in.Name+"'")
+	}
 	// Fail fast on an existing name so the client doesn't upload bytes it can't finalize (§05.5).
 	// Compared case-insensitively: artifact names are filenames, and `README.md` alongside
 	// `readme.md` would resolve to one path on a case-insensitive filesystem (macOS, and any
@@ -176,6 +180,12 @@ func (s *Service) UploadContent(ctx context.Context, uploadID string, r io.Reade
 	if b == nil {
 		return domain.Internal("upload backend '" + pu.backend + "' unavailable")
 	}
+	// An upload initiated before the version locked must not land its bytes after (§00.11.19).
+	if v, err := s.lockedVersion(ctx, pu.versionID); err != nil {
+		return err
+	} else if v != nil {
+		return domain.VersionLocked(v, "upload artifact '"+pu.in.Name+"'")
+	}
 	h := sha256.New()
 	uri, err := b.Put(ctx, pu.path, io.TeeReader(r, h), size, pu.in.MediaType)
 	if err != nil {
@@ -211,6 +221,18 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	b := s.backend(pu.backend)
 	if b == nil {
 		return nil, domain.Internal("upload backend '" + pu.backend + "' unavailable")
+	}
+	// The version may have locked since initiate (§00.11.19). Refuse before assembling, and
+	// take back what we can: a multipart upload is aborted, stream-through bytes deleted.
+	var lv *domain.ModelVersion
+	if lv, err = s.lockedVersion(ctx, pu.versionID); err != nil {
+		return nil, err
+	} else if lv != nil {
+		if pu.multipart {
+			_ = b.AbortMultipart(ctx, pu.path, pu.backendUploadID)
+		}
+		s.discardRejected(ctx, pu, b)
+		return nil, domain.VersionLocked(lv, "upload artifact '"+pu.in.Name+"'")
 	}
 
 	// Assemble a multipart upload from the client-observed part ETags before verifying.
@@ -305,6 +327,9 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 	if err != nil {
 		return nil, err
 	}
+	if v.Locked() {
+		return nil, domain.VersionLocked(v, "register artifact '"+in.Name+"'")
+	}
 	a, err := s.newArtifact(ctx, v.ID, in)
 	if err != nil {
 		return nil, err
@@ -319,6 +344,19 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 	}
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	return a, nil
+}
+
+// lockedVersion returns the version when its artifact set is locked (§00.11.19), nil when
+// it is still open.
+func (s *Service) lockedVersion(ctx context.Context, versionID string) (*domain.ModelVersion, error) {
+	v, err := s.store.GetVersionByID(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+	if !v.Locked() {
+		return nil, nil
+	}
+	return v, nil
 }
 
 // discardRejected removes bytes we wrote for an upload that then failed verification. Only
