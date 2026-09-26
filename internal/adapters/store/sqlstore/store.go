@@ -208,7 +208,7 @@ func (s *Store) UpdateModel(ctx context.Context, m *domain.Model) error {
 // vSel joins the model to fill the denormalized ModelVersion.Model (name) field. It reads
 // the version's own hold (§19.6) and deliberately not the model's: inheritance is resolved by
 // DeleteGuardFor, so a version never reports a hold it does not itself carry.
-const vSel = `SELECT v.id,v.model_id,v.name,v.description,v.author,v.stage,v.labels,v.custom_properties,v.created_at,v.updated_at,m.name,v.held_since,v.held_by,v.stage_changed_at ` +
+const vSel = `SELECT v.id,v.model_id,v.name,v.description,v.author,v.stage,v.labels,v.custom_properties,v.created_at,v.updated_at,m.name,v.held_since,v.held_by,v.stage_changed_at,v.locked_at ` +
 	`FROM model_version v JOIN model m ON m.id=v.model_id`
 
 // CreateVersion records the version entering its first stage at creation unless the caller
@@ -219,10 +219,10 @@ func (s *Store) CreateVersion(ctx context.Context, v *domain.ModelVersion) error
 		v.StageChangedAt = v.CreatedAt
 	}
 	_, err := s.q.ExecContext(ctx, s.rb(
-		`INSERT INTO model_version (id,model_id,name,description,author,stage,labels,custom_properties,created_at,updated_at,stage_changed_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`),
+		`INSERT INTO model_version (id,model_id,name,description,author,stage,labels,custom_properties,created_at,updated_at,stage_changed_at,locked_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`),
 		v.ID, v.ModelID, v.Name, v.Description, v.Author, string(v.Stage),
-		marshalMap(v.Labels), jsonText(v.CustomProperties), v.CreatedAt, v.UpdatedAt, v.StageChangedAt)
+		marshalMap(v.Labels), jsonText(v.CustomProperties), v.CreatedAt, v.UpdatedAt, v.StageChangedAt, nullMillis(v.LockedAt))
 	if s.d.IsUniqueViolation(err) {
 		return domain.Exists("version '" + v.Name + "' already exists")
 	}
@@ -319,8 +319,15 @@ func (s *Store) SetStage(ctx context.Context, versionID string, to domain.Stage,
 				return err
 			}
 		}
-		res, err := t.q.ExecContext(ctx, t.rb(`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=? WHERE id=?`),
-			string(to), now, now, versionID)
+		// First entry into staging/production freezes the artifact set (§00.11.19); COALESCE
+		// keeps the original time on every later entry, and nothing ever clears it.
+		q := `UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=? WHERE id=?`
+		args := []any{string(to), now, now, versionID}
+		if domain.LocksArtifacts(to) {
+			q = `UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=?, locked_at=COALESCE(locked_at, ?) WHERE id=?`
+			args = []any{string(to), now, now, now, versionID}
+		}
+		res, err := t.q.ExecContext(ctx, t.rb(q), args...)
 		return affected(res, err, "version")
 	})
 }
@@ -618,13 +625,14 @@ func scanVersion(sc scanner) (*domain.ModelVersion, error) {
 	var v domain.ModelVersion
 	var stage, labels string
 	var cp sql.NullString
-	var since, stageChanged sql.NullInt64
+	var since, stageChanged, locked sql.NullInt64
 	var by sql.NullString
 	if err := sc.Scan(&v.ID, &v.ModelID, &v.Name, &v.Description, &v.Author, &stage, &labels, &cp, &v.CreatedAt, &v.UpdatedAt, &v.Model,
-		&since, &by, &stageChanged); err != nil {
+		&since, &by, &stageChanged, &locked); err != nil {
 		return nil, err
 	}
 	v.StageChangedAt = stageChanged.Int64
+	v.LockedAt = locked.Int64
 	v.Stage = domain.Stage(stage)
 	v.Labels = unmarshalMap(labels)
 	v.CustomProperties = fromNull(cp)
@@ -746,4 +754,12 @@ func prefixCols(cols, alias string) string {
 		parts[i] = alias + "." + strings.TrimSpace(c)
 	}
 	return strings.Join(parts, ",")
+}
+
+// nullMillis stores a domain "0 = unset" timestamp as NULL.
+func nullMillis(v int64) any {
+	if v == 0 {
+		return nil
+	}
+	return v
 }

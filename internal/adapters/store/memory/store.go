@@ -286,6 +286,7 @@ func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
 	stored.LegalHold = cur.LegalHold // not writable through an update; see UpdateModel
 	// Only SetStage moves a stage, so only SetStage moves its timestamp (§20.8.3).
 	stored.StageChangedAt = cur.StageChangedAt
+	stored.LockedAt = cur.LockedAt // set by SetStage alone, never cleared (§00.11.19)
 	s.versions[v.ID] = stored
 	return nil
 }
@@ -373,6 +374,9 @@ func (s *Store) SetStage(_ context.Context, versionID string, to domain.Stage, s
 	}
 	v.Stage = to
 	v.UpdatedAt, v.StageChangedAt = now, now
+	if domain.LocksArtifacts(to) && v.LockedAt == 0 {
+		v.LockedAt = now
+	}
 	return nil
 }
 

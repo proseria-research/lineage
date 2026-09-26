@@ -123,3 +123,95 @@ func TestMRMMigrationUpgradesExistingData(t *testing.T) {
 		t.Fatalf("classification rows survived their model: %v n=%d", err, n)
 	}
 }
+
+// TestLockedAtMigrationBackfill runs the §00.11.19 migration over a database written by the
+// schema before it. A version is locked if its history shows it ever entered staging or
+// production (earliest such event), else if it sits there now (stage_changed_at).
+func TestLockedAtMigrationBackfill(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "up.db")+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+
+	first := -1
+	for i, m := range migrations {
+		if strings.Contains(m, "ADD COLUMN locked_at") {
+			first = i
+			break
+		}
+	}
+	if first < 0 {
+		t.Fatal("could not find the locked_at migration")
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%v\n%s", err, q)
+		}
+	}
+	exec(`CREATE TABLE schema_version (version INTEGER NOT NULL)`)
+	for i := 0; i < first; i++ {
+		exec(migrations[i])
+		exec(`INSERT INTO schema_version (version) VALUES (?)`, i+1)
+	}
+	seedLockHistory(t, exec)
+
+	s, err := Open(db, sqliteDialect{})
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	checkLockBackfill(t, s)
+}
+
+// seedLockHistory writes the versions and events the backfill must read, in the pre-migration
+// schema.
+func seedLockHistory(t *testing.T, exec func(string, ...any)) {
+	t.Helper()
+	exec(`INSERT INTO model (id,name,state,created_at,updated_at) VALUES ('m1','fraud','ACTIVE',1,1)`)
+	for _, v := range []struct {
+		id, stage string
+		changed   int64
+	}{
+		{"staged", "staging", 400},      // no history: falls back to stage_changed_at
+		{"returned", "draft", 700},      // staging at 300, back to draft at 700
+		{"retired", "archived", 900},    // staging 200, production 500, archived 900
+		{"shelved", "archived", 250},    // draft → archived directly: never locked
+		{"fresh", "draft", 100},         // never moved
+		{"prodnohist", "production", 0}, // no history, no stage_changed_at: updated_at
+	} {
+		exec(`INSERT INTO model_version (id,model_id,name,stage,created_at,updated_at,stage_changed_at) VALUES (?,'m1',?,?,100,950,NULLIF(?,0))`,
+			v.id, v.id, v.stage, v.changed)
+	}
+	for _, e := range []struct {
+		id, subject, data string
+		at                int64
+	}{
+		{"e1", "returned", `{"from":"draft","reason":"","to":"staging"}`, 300},
+		{"e2", "returned", `{"from":"staging","reason":"","to":"draft"}`, 700},
+		{"e3", "retired", `{"from":"draft","reason":"","to":"staging"}`, 200},
+		{"e4", "retired", `{"from":"staging","reason":"","to":"production"}`, 500},
+		{"e5", "retired", `{"from":"production","reason":"","to":"archived"}`, 900},
+		{"e6", "shelved", `{"from":"draft","reason":"to staging later","to":"archived"}`, 250},
+	} {
+		exec(`INSERT INTO audit_event (id,at,action,subject_type,subject_id,data) VALUES (?,?,'version.stage_changed','model_version',?,?)`,
+			e.id, e.at, e.subject, e.data)
+	}
+}
+
+func checkLockBackfill(t *testing.T, s *Store) {
+	t.Helper()
+	for id, want := range map[string]int64{
+		"staged": 400, "returned": 300, "retired": 200, "shelved": 0, "fresh": 0, "prodnohist": 950,
+	} {
+		v, err := s.GetVersionByID(context.Background(), id)
+		if err != nil {
+			t.Fatalf("GetVersionByID %s: %v", id, err)
+		}
+		if v.LockedAt != want {
+			t.Fatalf("%s backfilled locked_at = %d, want %d", id, v.LockedAt, want)
+		}
+	}
+}

@@ -112,6 +112,10 @@ type ModelVersion struct {
 	// store on create and on every stage move, demotions included. It is what §20.7 clause 3
 	// measures monitoring against; UpdatedAt cannot serve, because a description edit moves it.
 	StageChangedAt int64 `json:"stageChangedAt,omitempty"`
+	// LockedAt is when the version's artifact set froze: the first time it entered staging or
+	// production (§02.4.1, §00.11.19). Set by the store inside that stage move and never
+	// cleared — a version sent back to draft, demoted or archived stays locked. 0 = unlocked.
+	LockedAt int64 `json:"lockedAt,omitempty"`
 	// LegalHold is this version's own hold, nil when not held (§19.3). A version under a held
 	// model is *not* marked here — inheritance is resolved at the delete guard, not copied
 	// onto rows, so releasing the model does not leave stale marks behind on its versions.
