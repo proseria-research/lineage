@@ -536,6 +536,10 @@ func (s *Store) ListAudit(ctx context.Context, subjectType, subjectID string, o 
 		q += ` AND subject_id=?`
 		args = append(args, subjectID)
 	}
+	if o.AsOf > 0 {
+		q += ` AND at<=?`
+		args = append(args, o.AsOf)
+	}
 	q += ` ORDER BY at DESC, id DESC`
 	rows, err := s.db.QueryContext(ctx, s.rb(q), args...)
 	if err != nil {

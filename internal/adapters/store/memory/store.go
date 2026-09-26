@@ -565,6 +565,9 @@ func (s *Store) ListAudit(_ context.Context, subjectType, subjectID string, o do
 		if subjectID != "" && e.SubjectID != subjectID {
 			continue
 		}
+		if o.AsOf > 0 && e.At > o.AsOf {
+			continue
+		}
 		out = append(out, e)
 	}
 	sortByCreated(out, func(e *domain.AuditEvent) (int64, string) { return e.At, e.ID })

@@ -115,6 +115,13 @@ func Run(t *testing.T, store domain.MetadataStore) {
 	if es, _, err := store.ListAudit(ctx, "model", m.ID, domain.ListOptions{}); err != nil || len(es) != 1 {
 		t.Fatalf("ListAudit by subject: %v len=%d", err, len(es))
 	}
+	// asOf bounds the feed inclusively (§03.3).
+	if es, _, err := store.ListAudit(ctx, "model", m.ID, domain.ListOptions{AsOf: now}); err != nil || len(es) != 1 {
+		t.Fatalf("ListAudit asOf=at is inclusive: %v len=%d", err, len(es))
+	}
+	if es, _, err := store.ListAudit(ctx, "model", m.ID, domain.ListOptions{AsOf: now - 1}); err != nil || len(es) != 0 {
+		t.Fatalf("ListAudit asOf before at: %v len=%d", err, len(es))
+	}
 
 	// Artifact get / update (metadata) / uri reference / delete.
 	if got, err := store.GetArtifact(ctx, v14.ID, "model.onnx"); err != nil || got.Digest != "sha256:aaa" {

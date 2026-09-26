@@ -391,6 +391,9 @@
         "summary": "Audit trail for a model",
         "parameters": [
           {
+            "$ref": "#/components/parameters/asOf"
+          },
+          {
             "$ref": "#/components/parameters/pageSize"
           },
           {
@@ -1614,6 +1617,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/asOf"
+          },
+          {
             "$ref": "#/components/parameters/pageSize"
           },
           {
@@ -2540,6 +2546,16 @@
         "schema": {
           "type": "string"
         }
+      },
+      "asOf": {
+        "name": "asOf",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1
+        },
+        "description": "Epoch-millis instant; return only audit events with at <= asOf. The history as it stood then, stable however much is written later. 400 invalid_argument if not a positive integer."
       },
       "orderBy": {
         "name": "orderBy",
