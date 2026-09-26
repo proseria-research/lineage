@@ -24,6 +24,9 @@ type Dialect interface {
 	// LockModelByVersionSQL returns a statement (one ? = version id) that locks the owning
 	// model row FOR UPDATE, or "" if the engine needs no explicit lock (SQLite: single-writer).
 	LockModelByVersionSQL() string
+	// LockVersionRowSQL returns a statement (one ? = version id) that takes a shared lock on
+	// the version row, or "" where writes already serialize (SQLite: single-writer).
+	LockVersionRowSQL() string
 	// JSONContainsClause returns a WHERE fragment (one ? = the JSON operand) that tests
 	// whether a JSON column contains an object, or "" if the engine can't push this down and
 	// the store must filter in Go. Postgres: `<col>::jsonb @> ?::jsonb` (§02.7).
@@ -249,6 +252,17 @@ func (s *Store) GetVersionByID(ctx context.Context, id string) (*domain.ModelVer
 		return nil, domain.NotFound("version '" + id + "' not found")
 	}
 	return v, err
+}
+
+// LockVersionForArtifacts takes a shared row lock (FOR SHARE on Postgres) that conflicts with
+// the UPDATE a promotion makes, then reads the version on the same transaction.
+func (s *Store) LockVersionForArtifacts(ctx context.Context, id string) (*domain.ModelVersion, error) {
+	if lock := s.d.LockVersionRowSQL(); lock != "" {
+		if _, err := s.q.ExecContext(ctx, s.rb(lock), id); err != nil {
+			return nil, err
+		}
+	}
+	return s.GetVersionByID(ctx, id)
 }
 
 func (s *Store) ListVersions(ctx context.Context, model string, o domain.ListOptions) ([]*domain.ModelVersion, string, error) {

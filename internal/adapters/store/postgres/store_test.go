@@ -51,6 +51,7 @@ func TestPostgresStore(t *testing.T) {
 	storetest.RunReviews(t, s)
 	storetest.RunMRM(t, s)
 	storetest.RunArtifactLock(t, s)
+	storetest.RunArtifactLockSerializes(t, s)
 	storetest.RunChangePlans(t, s)
 	storetest.RunAttestation(t, s)
 	storetest.RunUnitOfWork(t, s)

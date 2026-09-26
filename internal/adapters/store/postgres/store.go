@@ -47,6 +47,13 @@ func (dialect) LockModelByVersionSQL() string {
 	return `SELECT id FROM model WHERE id = (SELECT model_id FROM model_version WHERE id = ?) FOR UPDATE`
 }
 
+// LockVersionRowSQL takes a shared lock on the version row. FOR SHARE conflicts with the FOR
+// NO KEY UPDATE lock a promotion's UPDATE takes, so an artifact write and a promotion into
+// staging cannot interleave (§00.11.19). One placeholder = the version id.
+func (dialect) LockVersionRowSQL() string {
+	return `SELECT id FROM model_version WHERE id = ? FOR SHARE`
+}
+
 // JSONContainsClause pushes label / custom_properties containment into JSONB (§02.7). The
 // columns are TEXT holding JSON; casting to jsonb lets Postgres use the @> operator (GIN-able).
 func (dialect) JSONContainsClause(column string) string {

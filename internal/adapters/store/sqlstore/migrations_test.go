@@ -19,6 +19,7 @@ type sqliteDialect struct{}
 func (sqliteDialect) Name() string                     { return "sqlite" }
 func (sqliteDialect) Rebind(q string) string           { return q }
 func (sqliteDialect) LockModelByVersionSQL() string    { return "" }
+func (sqliteDialect) LockVersionRowSQL() string        { return "" }
 func (sqliteDialect) JSONContainsClause(string) string { return "" }
 func (sqliteDialect) IsUniqueViolation(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
