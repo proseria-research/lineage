@@ -56,11 +56,11 @@ flowchart LR
     classDef done fill:#1f7a3d,stroke:#0d3d1e,color:#fff;
     classDef active fill:#b45309,stroke:#7c3a06,color:#fff;
     classDef todo fill:#334155,stroke:#1e293b,color:#fff;
-    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16 done;
-    class M17,M18,M19 todo;
+    class M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14,M15,M16,M17 done;
+    class M18,M19 todo;
 ```
 
-**Next up:** M19 whenever there is capacity. M17 and M18 are built when a user needs them.
+**Next up:** M19 whenever there is capacity. M18 is built when a user needs it.
 
 ## Status Summary
 
@@ -83,12 +83,12 @@ flowchart LR
 | M14 | EU risk classification & drift | `16` | ✅ |
 | M15 | Retention, legal hold, Merkle audit sealing | `19` | ✅ |
 | M16 | EU modification review (Art. 25) | `17` | ✅ |
-| M17 | Model risk management: tier, validation, monitoring | `20` | ⬜ |
+| M17 | Model risk management: tier, validation, monitoring | `20` | ✅ |
 | M18 | Change control plans (FDA PCCP shape) | `22` | ⬜ |
 | M19 | API contract guarantees | `03` | ⬜ |
 
-**Open work:** M17 and M18 cover the non-EU regimes specced in docs `20` and `22`. They are
-ordered by demand, not by dependency (§15.6.1): neither blocks the other. M19 turns two
+**Open work:** M18 covers the last non-EU regime specced, doc `22`; M17 (doc `20`) has
+shipped. It is built on demand, not by dependency (§15.6.1). M19 turns two
 existing API contracts into CI checks. There are no blocked decisions: §00.11.11–16 are all
 resolved.
 
@@ -710,7 +710,7 @@ modification; conformity assessment, CE marking, or EU database submission; Art.
 inference logging; risk management, human oversight, or cybersecurity (not
 built); advice on retention periods.
 
-## M17 — Model Risk Management ⬜
+## M17 — Model Risk Management ✅
 
 **Goal:** a single set of fields that serves SR 26-2, PRA SS1/23, and OSFI E-23 (§20).
 **Acceptance:** `GET /v1/models?mrmTier=tier_1&mrmState=stale` returns a tier-1 model whose
@@ -719,34 +719,55 @@ production version has had no evaluation since it was promoted, with the reason
 **Depends on:** M14 (the `classification` row). **Phase:** 9.
 **Why it might come first:** of the regimes in doc `15`, it is the only one with budget
 already allocated today, rather than a deadline still to come.
+**Done:** `0a0161d`…`efbaa53`. Acceptance is asserted over HTTP in `modelapi` and in core, not
+yet verified on a live binary. Store conformance, including regime isolation and the
+cross-regime `CHECK`, passes on memory, SQLite, and real Postgres; an upgrade test runs the
+migration over M16-era SQLite rows. The seeded registry shows one model on each MRM rung.
 
-- [ ] **One new column and one new `regime` value** (§20.8.1): add `mrm_tier` to
+**The work forced five corrections, all recorded in `20`.** The `CHECK` is changed by
+**rebuilding** `classification` (SQLite cannot alter one), still in the one shared migration
+list. The model-level state needs a **subject version** — production, else newest — since
+§20.7 is per version and the inventory per model. **`undetermined` reads `unvalidated`**, not
+`current`. The inventory's `mrm` object is the row's classification view (`mrmTier`, not
+`tier`). `evidence_artifact_id` carries **no foreign key**, for the §17.5.1 reason. Two
+additions: `POST …/validations/{id}:clearConditions` (the doc named the column but no
+endpoint, 409 `not_conditional` / `already_cleared`), and `GET …/validations` returning that
+version's own state.
+
+- [x] **One new column and one new `regime` value** (§20.8.1): add `mrm_tier` to
       `classification`, add `mrm` to `regime`, and add a branch to the §16.7.1 `CHECK`. An MRM
       assessment is the row `(model_id, 'mrm')`. There is **no `mrm_basis`**: the shared
       `basis` column is filled in again on that row, which is exactly what per-regime rows make
       possible (§20.4)
-- [ ] `out_of_scope` tier with a **required basis**. The SR 26-2 carve-out for generative AI is
+- [x] `out_of_scope` tier with a **required basis**. The SR 26-2 carve-out for generative AI is
       *declared*, never inferred (§20.3); the registry does not decide what a regulation covers
-- [ ] `validation` table (§20.8.2), append-only. A validation is a **judgement**, not a
+- [x] `validation` table (§20.8.2), append-only. A validation is a **judgement**, not a
       measurement, so it is kept separate from `evaluation` (§20.5). A `conditional` result
       requires a non-empty `conditions`
-- [ ] `stage_changed_at` on `model_version`, backfilled from `audit_event`. This is the only
+- [x] `stage_changed_at` on `model_version`, backfilled from `audit_event`. This is the only
       new column that clause 3 needs
-- [ ] `mrmState` predicate (§20.7) reusing the §16.5 drift machinery, with all four clauses.
+- [x] `mrmState` predicate (§20.7) reusing the §16.5 drift machinery, with all four clauses.
       **`unmonitored_in_production` matters most**: it catches the ongoing-monitoring failure
       that all three regimes exist to prevent
-- [ ] Independence is **recorded, not enforced** (§20.6): flag a validation whose
+- [x] Independence is **recorded, not enforced** (§20.6): flag a validation whose
       `validated_by` matches the version's author, but never reject the write
-- [ ] `PUT`/`GET /v1/models/{m}/classifications/mrm`; inventory filter
+- [x] `PUT`/`GET /v1/models/{m}/classifications/mrm`; inventory filter
       `GET /v1/models?mrmTier=&mrmState=`
-- [ ] `validatedBy` and `validatedAt` are set by the server; client-supplied values return `400`
-- [ ] Tests: each staleness clause; `conditional` without `conditions` is rejected; latest row
+- [x] `validatedBy` and `validatedAt` are set by the server; client-supplied values return `400`
+- [x] Tests: each staleness clause; `conditional` without `conditions` is rejected; latest row
       per version; the independence flag on a self-validated version
-- [ ] **Regime isolation, deferred from M14:** writing the `mrm` row leaves the `eu_ai_act`
+- [x] **Regime isolation, deferred from M14:** writing the `mrm` row leaves the `eu_ai_act`
       row's `classified_at` and staleness unchanged. This is the bug the `(model_id, regime)`
       key exists to prevent (§16.3.2), and M17 is the first milestone with two regimes that
       could trigger it. Also test that the `CHECK` rejects an enum from the wrong regime on both
       dialects
+- [x] OpenAPI (`MRMTier`, `MRMState`, `Validation*`, two paths, `stageChangedAt`) and the SDK
+      operation manifest regenerated
+- [x] Console (§20.10): a model-risk tier column on the model table, model-risk panels on the
+      model and version pages with the validation timeline, and a model-risk worklist on the
+      compliance page. `untiered` renders as `untiered`; nothing is gated
+- [x] Seed: `fraud-detector` tier 1 and stale (`conditions_outstanding`), `churn-predictor`
+      tier 3 and current, `demand-forecast` tier 2 and unvalidated, plus one self-validation
 
 ## M18 — Change Control Plans ⬜
 

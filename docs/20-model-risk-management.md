@@ -6,9 +6,9 @@
 > from one field set, because the three ask for the same three things (§3). The tier field is
 > `mrm_*`-prefixed and takes its own `classification` row, per `16.3.1` and `16.3.2`.
 >
-> Status: **Proposed**. A governed model inventory: a risk tier per model, an independent
-> validation record per version, and evidence that production models are still being watched.
-> The landscape is `15.2.2`.
+> Status: **Implemented (M17).** A governed model inventory: a risk tier per model, an
+> independent validation record per version, and evidence that production models are still
+> being watched. The landscape is `15.2.2`.
 
 ## 1. Scope
 
@@ -84,6 +84,10 @@ this, not a reason to pre-build it (`00.11.5`).
 the most severe and the one that opts out. It is the shared `16.7.1` column, holding this
 regime's reasoning because this is this regime's row — there is no `mrm_basis`.
 
+`intended_purpose` is optional on this row: `16.6` requires it for an EU class, but this regime
+asks for a tier and its reasoning, and the reasoning is `basis`. An omitted tier is stored as
+`untiered`, the same way `16` materialises `unclassified`.
+
 ## 5. `validation` — a Judgement, Not a Measurement
 
 `11` already stores `evaluation`. Validation is a different kind of fact and must not be
@@ -109,7 +113,11 @@ registry that forced it into approved-or-not would lose the conditions that make
 
 Append-only, like `evaluation`: a re-validation is a new row, and the current answer is the
 latest row per version. Nothing is ever overwritten, because *what we believed in March* is
-the question an examiner asks.
+the question an examiner asks. The one later write is `conditions_cleared_at`, set once (§9).
+
+**Recording a validation does not require a tier**, for the `17.4` reason: refusing a
+validator's judgement because nobody filled in a tier would lose the one thing here that
+cannot be recomputed.
 
 ## 6. Independence Is Evidenced, Not Enforced
 
@@ -126,6 +134,10 @@ header that carries a team rather than a person are all legitimate and would all
 API returns `independenceEvidenced: false`, and a human decides whether that is a finding —
 `15.3` applied to a field where the registry genuinely cannot know.
 
+Read literally, a version with no recorded `author` evidences independence whenever a
+validator is named: there is no name to have matched. The flag is computed on read, never
+stored, and `validation.record` carries it on the audit event.
+
 ## 7. `mrmState` — Reusing the Drift Machinery
 
 `16.5.1` is precise about what carries over: the **shape**, not the query. This one anchors on
@@ -137,9 +149,24 @@ Two of the four triggers are this regime's own.
 | State | Meaning |
 |---|---|
 | `untiered` | no `mrm` classification row, or `mrm_tier = 'untiered'` |
-| `unvalidated` | tiered, but no validation row, or the latest is `rejected` |
+| `unvalidated` | tiered, but no validation row, or the latest is `rejected` or `undetermined` |
 | `stale` | validated, and at least one trigger fired |
 | `current` | tiered, validated, nothing fired |
+
+**`undetermined` is `unvalidated`, not validated** (corrected in M17). An undetermined
+validation is someone saying they cannot yet conclude the version is fit; reading it as
+`current` would tell an examiner the model is covered when the validator said it is not. Only
+`approved` and `conditional` reach the stale/current rungs. `out_of_scope` runs the same
+ladder — such a model usually reads `unvalidated`, which is true, and the tier says why that is
+fine.
+
+**The model-level state is about one version** (added in M17). The predicate is per version;
+the inventory is per model. A model's state is evaluated for its **subject version: the
+production version if it has one, else its newest**. Production is what clause 3 is about, and
+the newest is what a validator looks at before anything is in production. One SQL statement
+chooses it for the inventory and the single-model read alike, so the choice exists once. The
+response names the version (`version`), and `GET …/validations` answers the same question for
+any other version.
 
 Computed on read, so it cannot itself go stale. Given the latest validation `val` for version
 `v` of model `m`:
@@ -155,7 +182,11 @@ stale(v) :=  (val.valid_until IS NOT NULL AND val.valid_until < now)          �
              AND val.conditions_cleared_at IS NULL                             → conditions_outstanding
 ```
 
-Every reason that fired is returned, not the first (`16.5`).
+Every reason that fired is returned, not the first (`16.5`). Comparisons are strict both ways
+`16.5` needs: a version published in the validation's millisecond is not *since* it, and an
+evaluation run in the promotion's millisecond is not monitoring *since* it. The state type is
+shared with `16.4` — `stale` and `current` mean the same under both regimes — and the ladder a
+row reads is its own regime's.
 
 ```mermaid
 flowchart TB
@@ -174,7 +205,8 @@ flowchart TB
 it since" is precisely the ongoing-monitoring failure all three regimes are written to catch,
 and it is answerable from rows Lineage already has. It needs `stage_changed_at` on
 `model_version` — the one non-additive-looking change here, and it is a nullable column
-backfilled from `audit_event`, so it is still a forward-only migration (`02.7`).
+backfilled from `audit_event`, so it is still a forward-only migration (`02.7`). A new
+promotion restarts the clock; an edit to the version does not.
 
 ## 8. Data Model
 
@@ -187,8 +219,15 @@ Additive only (`02.7`).
 | `mrm_tier` | enum? | **MRM** | `untiered` (default on MRM rows) \| `tier_1` \| `tier_2` \| `tier_3` \| `out_of_scope` |
 
 `regime` gains the value `mrm`; the `16.7.1` CHECK gains a branch — `regime = 'mrm'` requires
-`mrm_tier` non-null and the `eu_*` group null. An MRM assessment is a row with
-`(model_id, 'mrm')`.
+`mrm_tier` non-null and the `eu_*` group null — and the EU branch gains `mrm_tier IS NULL`, so
+a cross-regime enum is refused by the engine in both directions. An MRM assessment is a row
+with `(model_id, 'mrm')`.
+
+**The CHECK is changed by rebuilding the table** (corrected in M17). SQLite cannot alter a
+CHECK in place, and migrations are one shared list (`16`, as corrected in M14). So the
+migration creates the new shape, copies, drops, renames and recreates the indexes — portable
+to both engines, and still forward-only. Nothing references `classification`, so the drop
+cascades nowhere.
 
 No existing column changes shape. `intended_purpose`, `basis`, `classified_at`, `classified_by`
 and `review_due_at` are the shared `16.7.1` columns, answered again on this row — which is why
@@ -206,15 +245,28 @@ this regime needs no `mrm_basis` of its own (§4).
 | `conditions` | str? | required non-empty when `outcome = 'conditional'` |
 | `conditions_cleared_at` | ts? | set by a later write; drives clause 4 (§7) |
 | `valid_until` | ts? | null = no expiry, itself surfaced |
-| `evidence_artifact_id` | id? | FK→`artifact.id` where `kind` in (`DOC`,`METRICS`) — the report itself |
+| `evidence_artifact_id` | id? | →`artifact.id` where `kind` in (`DOC`,`METRICS`) — the report itself. **No FK** (below) |
 | `validated_by` | str? | `X-Lineage-Actor` at write; §6 compares it to `model_version.author` |
 | `validated_at` | ts | server-set |
+
+**`evidence_artifact_id` carries no foreign key** (corrected in M17), for the `17.5.1`
+`edge_id` reason: a cascade would erase the record that a validation happened when its report
+is deleted, and `SET NULL` would rewrite what the record says it rested on. It is checked at
+write instead: an artifact of kind `DOC` or `METRICS` on the **same version**, else `400`.
+`METRICS` is `02`'s reserved kind; the artifact table does not enforce kinds, so it can
+already exist.
 
 ### 8.3 `model_version` — one new column
 
 | Column | Type | Notes |
 |---|---|---|
 | `stage_changed_at` | ts? | when the version last entered its current stage; backfilled from `audit_event` |
+
+Set on create, and on every stage move **including a demotion**, so an archived version never
+claims it entered production. The backfill takes the latest `version.stage_changed` event, and
+`created_at` for a version that never moved. A version demoted before M17 has no event of its
+own, so its backfilled value is its own last move — it is archived, and clause 3 only reads
+production.
 
 ### 8.4 Indexes
 
@@ -234,12 +286,19 @@ GET   /v1/models/{m}/classifications/mrm
 PUT   /v1/models/{m}/classifications/mrm         mrmTier + the shared 16.7.1 fields
 POST  /v1/models/{m}/versions/{v}/validations
 GET   /v1/models/{m}/versions/{v}/validations
+POST  /v1/models/{m}/versions/{v}/validations/{id}:clearConditions
 GET   /v1/models?mrmTier=&mrmState=
 ```
 
 `16.8`'s endpoint, with `mrm` in the regime slot. The EU row is written at
 `…/classifications/eu_ai_act` and the two never collide — which is what lets both stay
-full-replace `PUT`s.
+full-replace `PUT`s. An EU field on the `mrm` path, or `mrmTier` on the EU path, is `400`
+with `details.field`.
+
+`GET …/validations` returns the history newest first **plus that version's own `state` and
+`staleReasons`** (added in M17) — the only way to ask §7 about a version other than the
+subject. `:clearConditions` takes no body and is the one later write on a validation
+(added in M17: §8.2 named the column but no endpoint).
 
 Audit actions: `validation.record`, `validation.conditions_cleared`, appended in the same
 transaction (`02.5` invariant 4).
@@ -274,17 +333,30 @@ GET /v1/models?mrmTier=tier_1&mrmState=stale
 { "items": [
     { "name": "fraud-detector", "owner": "risk-eng",
       "mrm": {
-        "tier": "tier_1",
+        "regime": "mrm",
+        "mrmTier": "tier_1",
         "basis": "Drives automated card-not-present declines above $500.",
+        "classifiedAt": 1772000000000, "classifiedBy": "mrm@acme.example",
         "state": "stale",
         "staleReasons": ["unmonitored_in_production", "conditions_outstanding"],
+        "version": "1.4.0",
         "latestValidation": {
-          "outcome": "conditional", "validatedAt": 1773000000000,
+          "id": "01JAW…", "outcome": "conditional", "validatedAt": 1773000000000,
           "validatedBy": "mrm@acme.example", "validUntil": 1830000000000,
-          "independenceEvidenced": true },
+          "independenceEvidenced": true, "source": "declared" },
         "source": "declared" } }
   ], "nextPageToken": null }
 ```
+
+**`mrm` is the `mrm` row's classification view** (corrected in M17), the same object
+`GET …/classifications/mrm` returns: so the tier is `mrmTier`, not `tier`, and the row's own
+anchor fields come with it. It is absent when the model has no `mrm` row — absence is
+`untiered`, as `16.8.2` treats `unclassified`.
+
+The lens is on when `mrmTier` or `mrmState` is set, or with `include=mrm` or `regime=mrm`.
+With EU filters as well, the response carries both `classification` and `mrm` and returns the
+models that pass **both** — the console's one table with two regimes' columns (§10). The tier
+is pushed into SQL; the state is computed and paged after filtering, as in `16.8.2`.
 
 ### 9.3 Errors
 
@@ -294,9 +366,12 @@ GET /v1/models?mrmTier=tier_1&mrmState=stale
 |---|---|---|---|
 | `mrmTier` in (`tier_1`,`out_of_scope`) without `basis` | `unprocessable` | 422 | `field: "basis"` |
 | `outcome = conditional` without `conditions` | `unprocessable` | 422 | `field: "conditions"` |
-| `validUntil` not `> now` | `invalid_argument` | 400 | |
+| `validUntil` not `> now` | `invalid_argument` | 400 | `field` |
+| `evidenceArtifactId` not a `DOC`/`METRICS` artifact on this version | `invalid_argument` | 400 | `field` |
+| Unknown `outcome`, `mrmTier` or `mrmState` | `invalid_argument` | 400 | `field`, `allowedValues` |
 | Client-supplied `validatedBy` / `validatedAt` | `invalid_argument` | 400 | |
 | Clearing conditions on a non-`conditional` validation | `failed_precondition` | 409 | `reason: "not_conditional"` |
+| Clearing conditions a second time | `failed_precondition` | 409 | `reason: "already_cleared"` |
 
 ## 10. Console (`06`)
 
@@ -307,6 +382,13 @@ GET /v1/models?mrmTier=tier_1&mrmState=stale
 - `untiered` renders as `untiered`, never as `tier_3`. Guessing low is the expensive direction.
 - Validation history is a timeline, not a current-value field — the supersession is the point.
 
+As built (M17): a model-risk tier column on the model table, honouring `mrmTier`/`mrmState` from
+the URL, whose stale or unvalidated marker links to the version the state is about; a
+model-risk panel on the model page (state of the subject version, latest validation) and on the
+version page (this version's state and full timeline, a self-validation flagged); and a
+model-risk worklist on the compliance page. The console records nothing for this regime yet —
+tiering and validating are `/v1` writes.
+
 ## 11. Deferred
 
 | Item | When |
@@ -316,6 +398,8 @@ GET /v1/models?mrmTier=tier_1&mrmState=stale
 | Model-family (rather than version) validation | If a firm validates at the model level; the table would move, not change shape |
 | Automatic scope inference for the SR 26-2 genAI carve-out | Never. `15.3` — the registry does not decide what a regulation covers |
 | Committee workflow, sign-off routing | Not a registry concern. Registry facts are an input to whatever tool does it |
+| Console forms to tier, validate and clear conditions | When a user asks; `16`'s classify dialog is the pattern |
+| Moving `16.5` clause 3 onto `stage_changed_at` | Now possible, removing its deliberate false positive; a behaviour change to `16`, so its own decision |
 
 ## 12. See Also
 
