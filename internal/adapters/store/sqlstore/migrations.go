@@ -177,7 +177,7 @@ var migrations = []string{
 	//
 	// The CHECK ties each enum group to the discriminator, which is what keeps a sparse
 	// column set honest rather than merely wide. Today there is one branch, so it also
-	// rejects any regime this build does not define; M19 adds an `mrm` branch that asserts
+	// rejects any regime this build does not define; M17 adds an `mrm` branch that asserts
 	// the EU group is null on those rows, and vice versa (`20.8.1`).
 	`CREATE TABLE IF NOT EXISTS classification (
 		model_id TEXT NOT NULL REFERENCES model(id) ON DELETE CASCADE,

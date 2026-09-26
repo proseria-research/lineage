@@ -2,7 +2,7 @@ package domain
 
 import "context"
 
-// ComplianceStore persists risk classifications (§16.7.1) and, as M14–M16 land, the rest of
+// ComplianceStore persists risk classifications (§16.7.1) and the rest of
 // the compliance record. It is a separate sub-interface of MetadataStore rather than more
 // methods on the flat port, so the compliance surface stays nameable on its own.
 //

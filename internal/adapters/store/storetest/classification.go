@@ -111,7 +111,7 @@ func runClassifications(t *testing.T, cs domain.ComplianceStore, modelID, otherM
 	}
 
 	// The other half of the key — that a write under one regime leaves another regime's
-	// ClassifiedAt anchor alone (§16.3.2) — is asserted in M19, which adds the second regime
+	// ClassifiedAt anchor alone (§16.3.2) — is asserted in M17, which adds the second regime
 	// there is currently nothing to isolate from.
 }
 
@@ -146,7 +146,7 @@ func RunSQLConstraints(t *testing.T, store domain.MetadataStore) {
 		c:    domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeEUAIAct, EUSystemRiskClass: domain.EUClassMinimal},
 	}, {
 		// Today the CHECK has one branch, so it also refuses a regime this build does not
-		// define. M19 adds the `mrm` branch alongside it (`20.8.1`).
+		// define. M17 adds the `mrm` branch alongside it (`20.8.1`).
 		name: "a regime with no branch in the CHECK",
 		c:    domain.RiskClassification{ModelID: m.ID, Regime: "uk_ai_bill", ClassifiedAt: now},
 	}}
