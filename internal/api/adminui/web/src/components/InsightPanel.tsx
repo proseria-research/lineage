@@ -1,3 +1,4 @@
+import { RING_LABEL } from "@/components/VersionMark";
 import type { ReactNode } from "react";
 import type { Evaluation, FactSource, FieldSource, Footprint, VersionInsight } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -167,7 +168,7 @@ export function InsightPanel({
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
                 {(["topology", "shape", "dtype", "weights"] as const).map((level) => (
                   <div key={level}>
-                    <div className="label-caps">{level}</div>
+                    <div className="label-caps">{RING_LABEL[level]}</div>
                     <Tooltip content={insight.hashes?.[level] ?? NOT_REPORTED}>
                       <span className={[
                         "truncate font-mono text-xs",

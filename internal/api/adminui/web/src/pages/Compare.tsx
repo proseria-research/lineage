@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
-import { FingerprintMark, type RingName } from "@/components/VersionMark";
+import { FingerprintMark, RING_HELP, RING_LABEL, type RingName } from "@/components/VersionMark";
 import { TensorInfo } from "@/components/TensorInfo";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { VERDICT_LABEL } from "@/components/Review";
@@ -25,6 +25,13 @@ const verdictBlurb: Record<Verdict, string> = {
 };
 
 const HASH_LEVELS = ["topology", "shape", "dtype", "weights"] as const;
+
+const FIELD_LABEL: Record<string, string> = {
+  paramCountTotal: "Parameters",
+  tensorCount: "Tensors",
+  diskBytes: "Size on disk",
+  weightsBytes: "Weights in memory",
+};
 
 export default function Compare() {
   const { model = "" } = useParams();
@@ -102,7 +109,7 @@ export default function Compare() {
                 <div className="flex flex-col items-center gap-2">
                   <FingerprintMark
                     insight={fingerprint("from")}
-                    size={96}
+                    size={128}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
                   />
                   <Tooltip content={from}>
@@ -113,7 +120,7 @@ export default function Compare() {
                 <div className="flex flex-col items-center gap-2">
                   <FingerprintMark
                     insight={fingerprint("to")}
-                    size={96}
+                    size={128}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
                   />
                   <Tooltip content={to} align="end">
@@ -126,7 +133,7 @@ export default function Compare() {
             )}
             {hasFingerprint && (
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                {hasChangedLevel ? "Coloured rings changed; muted rings match." : "The reported rings match."} Dotted rings were not reported.
+                {hasChangedLevel ? "Coloured rings changed; grey rings are the same." : "The reported rings match."} Dotted rings were not reported.
               </p>
             )}
           </div>
@@ -144,7 +151,7 @@ export default function Compare() {
                 const h = data.hashes?.[level];
                 return (
                   <TableRow key={level}>
-                    <TableCell className="label-caps">{level}</TableCell>
+                    <TableCell className="font-medium" title={RING_HELP[level as RingName]}>{RING_LABEL[level as RingName]}</TableCell>
                     <TableCell className="max-w-[16rem] truncate font-mono text-xs text-muted-foreground">
                       {h?.from || "—"}
                     </TableCell>
@@ -154,11 +161,11 @@ export default function Compare() {
                     <TableCell className="text-right">
                       {/* "not reported" is distinct from "unchanged": one side never told us. */}
                       {!h?.present ? (
-                        <Badge variant="dashed">not reported</Badge>
+                        <Badge variant="dashed">Not reported</Badge>
                       ) : h.changed ? (
-                        <Badge variant="solid">changed</Badge>
+                        <Badge variant="warn">Changed</Badge>
                       ) : (
-                        <Badge variant="muted">same</Badge>
+                        <Badge variant="neutral">Same</Badge>
                       )}
                     </TableCell>
                   </TableRow>
@@ -186,10 +193,10 @@ export default function Compare() {
                 <div className="grid grid-cols-4 gap-2">
                   {(
                     [
-                      ["unchanged", data.tensors.unchanged],
-                      ["changed", data.tensors.changed],
-                      ["added", data.tensors.added],
-                      ["removed", data.tensors.removed],
+                      ["Unchanged", data.tensors.unchanged],
+                      ["Changed", data.tensors.changed],
+                      ["Added", data.tensors.added],
+                      ["Removed", data.tensors.removed],
                     ] as const
                   ).map(([label, n]) => (
                     <div key={label} className="border p-2">
@@ -241,7 +248,7 @@ export default function Compare() {
                     const fmt = (n?: number | null) => (isBytes ? fmtBytesOrUnreported(n) : fmtCount(n));
                     return (
                       <TableRow key={p.field}>
-                        <TableCell className="font-mono text-xs">{p.field}</TableCell>
+                        <TableCell>{FIELD_LABEL[p.field] ?? p.field}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{fmt(p.from)}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{fmt(p.to)}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">

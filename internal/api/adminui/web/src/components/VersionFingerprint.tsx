@@ -3,7 +3,7 @@ import { Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Empty } from "@/components/State";
-import { FingerprintMark, RING_ORDER, RING_TONE, hasFingerprint } from "@/components/VersionMark";
+import { FingerprintMark, RING_HELP, RING_LABEL, RING_ORDER, RING_TONE, hasFingerprint } from "@/components/VersionMark";
 import { NOT_REPORTED } from "@/lib/utils";
 
 // The identity section (§12.4): four concentric rings, one per fingerprint hash, sized to
@@ -28,7 +28,10 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
     <Card className="flex flex-col">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
-          <CardTitle>Fingerprint</CardTitle>
+          <div>
+            <CardTitle>Fingerprint</CardTitle>
+            <p className="text-xs text-muted-foreground">Identity at four depths, outermost first</p>
+          </div>
           {present.length > 0 && (
             <Tooltip content={reach} className="shrink-0" align="end">
               <span className="cursor-help text-muted-foreground" aria-label={reach} role="note">
@@ -41,8 +44,8 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
       <CardContent className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
         {!hasFingerprint(insight) ? (
           <Empty>
-            No fingerprint hashes reported. Without them a diff cannot separate an untouched republish
-            from a fine-tune.
+            No fingerprint reported. Without one, Lineage can't tell an untouched re-publish from a
+            fine-tune.
           </Empty>
         ) : (
           <>
@@ -51,32 +54,32 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
               size={168}
             />
 
-            {/* Outermost ring first, matching the drawing: topology → shape → dtype → weights.
-                Each marker carries its ring's colour, which is what turns the hues in the disc
-                from decoration into a legend. An absent level stays grey and dashed — colour
-                means "reported", so absence cannot borrow one. */}
-            <div className="grid w-full grid-cols-2 gap-x-4 gap-y-1">
+            {/* Outermost ring first, matching the drawing. An absent level stays grey and
+                dashed — colour means "reported", so absence cannot borrow one. */}
+            <ul className="w-full space-y-1.5">
               {RING_ORDER.map((ring) => {
-                const reported = !!insight?.hashes?.[ring];
-                const tone = RING_TONE[ring];
+                const h = insight?.hashes?.[ring];
                 return (
-                  <Tooltip key={ring} content={insight?.hashes?.[ring] ?? `${ring}: ${NOT_REPORTED}`}>
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className={[
-                          "h-2 w-2 shrink-0 border",
-                          reported
-                            ? `${tone.bg} ${tone.border}`
-                            : "border-dashed border-muted-foreground bg-transparent opacity-50",
-                        ].join(" ")}
-                      />
-                      <span className={["label-caps truncate", reported ? "" : "opacity-60"].join(" ")}>{ring}</span>
-                    </span>
-                  </Tooltip>
+                  <li key={ring}>
+                    <Tooltip className="flex w-full" content={h ? `${RING_HELP[ring]} ${h}` : `${RING_HELP[ring]} Not reported.`}>
+                      <span className="flex w-full items-center gap-2 text-sm">
+                        <span
+                          className={
+                            h
+                              ? `h-2.5 w-2.5 shrink-0 rounded-full ${RING_TONE[ring].bg}`
+                              : "h-2.5 w-2.5 shrink-0 rounded-full border border-dashed border-muted-foreground"
+                          }
+                        />
+                        <span className={h ? "" : "text-muted-foreground"}>{RING_LABEL[ring]}</span>
+                        <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
+                          {h ? h.replace(/^sha256:/, "").slice(0, 8) : NOT_REPORTED}
+                        </span>
+                      </span>
+                    </Tooltip>
+                  </li>
                 );
               })}
-            </div>
-
+            </ul>
           </>
         )}
       </CardContent>

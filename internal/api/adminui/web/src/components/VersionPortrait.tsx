@@ -20,7 +20,7 @@ function Chan({ k, v, muted }: { k: string; v: string; muted?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b py-1.5">
       <span className="label-caps shrink-0">{k}</span>
-      <span className={["text-right font-mono text-xs", muted ? "italic text-muted-foreground" : ""].join(" ")}>{v}</span>
+      <span className={["text-right text-xs", muted ? "text-muted-foreground" : "font-mono"].join(" ")}>{v}</span>
     </div>
   );
 }
@@ -147,7 +147,7 @@ export function VersionPortrait({ insight }: { insight: VersionInsight | null })
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-          <Chan k="Connections" v="adjacent layers · schematic" muted />
+          <Chan k="Connections" v="drawn between neighbouring layers; not the real wiring" muted />
           <Chan
             k="Total parameters"
             v={insight?.paramCountTotal == null ? NOT_REPORTED : fmtCount(insight.paramCountTotal)}
