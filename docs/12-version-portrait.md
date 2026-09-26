@@ -127,10 +127,17 @@ Drawn from `insight.hashes`. Four concentric rings, outermost first:
 | 3 | `dtype` | 24 |
 | 4 | `weights` | 14 |
 
-Each ring is 24 arc segments over 360° with a 2° gap. Segment `k` is stroked iff bit `k` of
-the seeded stream (§5) is set; ring `i` is rotated `7.5° · i` so rings never align into
-spokes. **A hash that is absent is drawn as a `1 3` dotted full circle in the muted tone** —
-present-but-different and absent-entirely must not look alike.
+Each ring is a **guilloche band**: three interlaced strands of the same wave, each shifted by
+a third of a lobe, weaving around the ring's radius within its own lane. The seeded stream
+(§5) for that ring's hash picks the lobe count (6–14), a slow swell of the amplitude (2–5
+bulges) and its depth, and the band's rotation. The same hash always draws the same band and a
+different hash a visibly different one; the shape encodes nothing beyond that. Under 24px a
+ring is a single strand. **A hash that is absent is drawn as a dotted full circle in the muted
+tone** — present-but-different and absent-entirely must not look alike. In a pair, a side with
+no hashes at all draws four dotted rings rather than nothing.
+
+The first cut drew each ring as 24 on/off arc segments (bit `k` of the stream); at every size
+it read as a scattered barcode rather than an emblem, so it was replaced.
 
 ### 4.1 Ring colour
 

@@ -107,7 +107,7 @@ export default function Compare() {
             {hasFingerprint ? (
               <div className="flex items-center justify-center gap-8 sm:gap-14">
                 <div className="flex flex-col items-center gap-2">
-                  <FingerprintMark
+                  <FingerprintMark placeholder
                     insight={fingerprint("from")}
                     size={128}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
@@ -118,7 +118,7 @@ export default function Compare() {
                 </div>
                 <span className="text-muted-foreground" aria-hidden="true">→</span>
                 <div className="flex flex-col items-center gap-2">
-                  <FingerprintMark
+                  <FingerprintMark placeholder
                     insight={fingerprint("to")}
                     size={128}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
