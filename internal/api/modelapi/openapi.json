@@ -684,6 +684,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Refused: the version is locked (details.reason version_locked, with lockedAt). Its artifact set froze when it first entered staging; publish a new version instead.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -720,6 +730,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UploadTicket"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused: the version is locked (details.reason version_locked, with lockedAt). Its artifact set froze when it first entered staging; publish a new version instead.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -770,6 +790,16 @@
           },
           "400": {
             "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "Refused: the version is locked (details.reason version_locked, with lockedAt). Its artifact set froze when it first entered staging; publish a new version instead.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -812,6 +842,16 @@
           },
           "422": {
             "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "Refused: the version is locked (details.reason version_locked, with lockedAt). Its artifact set froze when it first entered staging; publish a new version instead.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -880,7 +920,8 @@
           "409": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Edits descriptive metadata only — mediaType, serviceAccount, customProperties — and is allowed on a locked version too. uri, digest and sizeBytes are immutable on every version: a changed value is 409."
       },
       "delete": {
         "operationId": "deleteArtifact",
@@ -891,6 +932,16 @@
         "responses": {
           "204": {
             "description": "Deleted"
+          },
+          "409": {
+            "description": "Refused: the version is locked (details.reason version_locked, with lockedAt). Its artifact set froze when it first entered staging; publish a new version instead.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -2745,6 +2796,11 @@
             "type": "integer",
             "format": "int64",
             "description": "When the version entered its current stage. Moved only by a stage transition (including a demotion), never by an edit — the anchor of the MRM monitoring check."
+          },
+          "lockedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the version first entered staging or production and its artifact set froze. Absent while unlocked; never cleared. On a locked version artifact register, upload, finalize and delete are refused with 409 failed_precondition, details.reason version_locked — publish a new version to change files."
           },
           "legalHold": {
             "$ref": "#/components/schemas/Hold"
