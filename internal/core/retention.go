@@ -109,12 +109,13 @@ func (s *Service) setHold(ctx context.Context, actor, subjectType, subjectID, la
 		h = &domain.Hold{HeldSince: domain.NowMillis(), HeldBy: actor}
 		action, summary = "hold.set", "placed legal hold on "+label
 	}
-	if err := s.store.SetHold(ctx, subjectType, subjectID, h); err != nil {
-		return err
-	}
 	data, _ := json.Marshal(map[string]string{"reason": reason})
-	s.audit(ctx, actor, action, subjectType, subjectID, summary, data)
-	return nil
+	return s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.SetHold(ctx, subjectType, subjectID, h); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, action, subjectType, subjectID, summary, data)
+	})
 }
 
 // ---- The delete guard ----

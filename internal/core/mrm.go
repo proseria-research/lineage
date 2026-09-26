@@ -71,10 +71,6 @@ func (s *Service) RecordValidation(ctx context.Context, actor, model, version st
 		// Server-set: the value of either is that the registry witnessed it (§20.9.1).
 		ValidatedBy: actor, ValidatedAt: now,
 	}
-	if err := s.store.CreateValidation(ctx, val); err != nil {
-		return nil, err
-	}
-
 	view := domain.NewValidationView(val, v.Author)
 	data, _ := json.Marshal(map[string]any{
 		"validationId":          val.ID,
@@ -82,8 +78,15 @@ func (s *Service) RecordValidation(ctx context.Context, actor, model, version st
 		"validUntil":            val.ValidUntil,
 		"independenceEvidenced": view.IndependenceEvidenced,
 	})
-	s.audit(ctx, actor, "validation.record", "model_version", v.ID,
-		model+"@"+version+" validated "+string(val.Outcome), data)
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateValidation(ctx, val); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "validation.record", "model_version", v.ID,
+			model+"@"+version+" validated "+string(val.Outcome), data)
+	}); err != nil {
+		return nil, err
+	}
 	return view, nil
 }
 
@@ -177,14 +180,17 @@ func (s *Service) ClearValidationConditions(ctx context.Context, actor, model, v
 			map[string]any{"reason": "not_conditional"})
 	}
 	now := domain.NowMillis()
-	if err := s.store.ClearValidationConditions(ctx, v.ID, id, now); err != nil {
+	data, _ := json.Marshal(map[string]any{"validationId": id})
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.ClearValidationConditions(ctx, v.ID, id, now); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "validation.conditions_cleared", "model_version", v.ID,
+			model+"@"+version+" validation conditions cleared", data)
+	}); err != nil {
 		return nil, err
 	}
 	val.ConditionsClearedAt = &now
-
-	data, _ := json.Marshal(map[string]any{"validationId": id})
-	s.audit(ctx, actor, "validation.conditions_cleared", "model_version", v.ID,
-		model+"@"+version+" validation conditions cleared", data)
 	return domain.NewValidationView(val, v.Author), nil
 }
 

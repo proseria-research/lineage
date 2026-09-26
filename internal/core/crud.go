@@ -46,10 +46,14 @@ func (s *Service) PatchModel(ctx context.Context, actor, name string, in PatchMo
 		m.State = *in.State
 	}
 	m.UpdatedAt = domain.NowMillis()
-	if err := s.store.UpdateModel(ctx, m); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.UpdateModel(ctx, m); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "model.update", "model", m.ID, "updated model "+m.Name, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "model.update", "model", m.ID, "updated model "+m.Name, nil)
 	s.events.Publish(domain.Event{Type: "model.updated", Model: m.Name})
 	return m, nil
 }
@@ -82,10 +86,14 @@ func (s *Service) DeleteModel(ctx context.Context, actor, name string, force boo
 				map[string]any{"productionVersions": n, "hint": "retry with ?force=true"})
 		}
 	}
-	if err := s.store.DeleteModel(ctx, m.ID); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.DeleteModel(ctx, m.ID); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "model.delete", "model", m.ID, "deleted model "+m.Name, nil)
+	}); err != nil {
 		return err
 	}
-	s.audit(ctx, actor, "model.delete", "model", m.ID, "deleted model "+m.Name, nil)
 	s.events.Publish(domain.Event{Type: "model.deleted", Model: m.Name})
 	return nil
 }
@@ -119,10 +127,14 @@ func (s *Service) PatchVersion(ctx context.Context, actor, model, version string
 		v.CustomProperties = in.CustomProperties
 	}
 	v.UpdatedAt = domain.NowMillis()
-	if err := s.store.UpdateVersion(ctx, v); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.UpdateVersion(ctx, v); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "version.update", "model_version", v.ID, "updated "+model+"@"+version, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "version.update", "model_version", v.ID, "updated "+model+"@"+version, nil)
 	s.events.Publish(domain.Event{Type: "version.updated", Model: model, Version: version})
 	return v, nil
 }
@@ -141,10 +153,14 @@ func (s *Service) DeleteVersion(ctx context.Context, actor, model, version strin
 		return domain.Precondition("version '"+model+"@"+version+"' is in production; delete blocked",
 			map[string]any{"hint": "retry with ?force=true"})
 	}
-	if err := s.store.DeleteVersion(ctx, v.ID); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.DeleteVersion(ctx, v.ID); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "version.delete", "model_version", v.ID, "deleted "+model+"@"+version, nil)
+	}); err != nil {
 		return err
 	}
-	s.audit(ctx, actor, "version.delete", "model_version", v.ID, "deleted "+model+"@"+version, nil)
 	s.events.Publish(domain.Event{Type: "version.deleted", Model: model, Version: version})
 	return nil
 }
@@ -202,10 +218,14 @@ func (s *Service) PatchArtifact(ctx context.Context, actor, model, version, name
 		a.CustomProperties = in.CustomProperties
 	}
 	a.UpdatedAt = domain.NowMillis()
-	if err := s.store.UpdateArtifact(ctx, a); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.UpdateArtifact(ctx, a); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "artifact.update", "artifact", a.ID, "updated "+model+"@"+version+"/"+name, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "artifact.update", "artifact", a.ID, "updated "+model+"@"+version+"/"+name, nil)
 	s.events.Publish(domain.Event{Type: "artifact.updated", Model: model, Version: version})
 	return a, nil
 }
@@ -220,10 +240,14 @@ func (s *Service) DeleteArtifact(ctx context.Context, actor, model, version, nam
 	if err != nil {
 		return err
 	}
-	if err := s.store.DeleteArtifact(ctx, a.ID); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.DeleteArtifact(ctx, a.ID); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "artifact.delete", "artifact", a.ID, "deleted "+model+"@"+version+"/"+name, nil)
+	}); err != nil {
 		return err
 	}
-	s.audit(ctx, actor, "artifact.delete", "artifact", a.ID, "deleted "+model+"@"+version+"/"+name, nil)
 	s.events.Publish(domain.Event{Type: "artifact.deleted", Model: model, Version: version})
 	return nil
 }

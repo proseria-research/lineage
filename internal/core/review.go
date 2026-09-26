@@ -61,10 +61,6 @@ func (s *Service) RecordReview(ctx context.Context, actor, model, version string
 		VerdictAtReview: c.Verdict, Outcome: in.Outcome, Note: in.Note,
 		ReviewedBy: actor, ReviewedAt: domain.NowMillis(),
 	}
-	if err := s.store.CreateReview(ctx, r); err != nil {
-		return nil, err
-	}
-
 	// The outcome and the frozen verdict go on the event as structured data, not only in the
 	// prose: an auditor reconstructing who concluded what, against what evidence, reads fields
 	// (§16.8, same argument as classification.set).
@@ -73,8 +69,15 @@ func (s *Service) RecordReview(ctx context.Context, actor, model, version string
 		"outcome":         string(in.Outcome),
 		"verdictAtReview": string(c.Verdict),
 	})
-	s.audit(ctx, actor, "review.record", "model_version", v.ID,
-		model+"@"+version+" derivation reviewed "+string(in.Outcome)+" (verdict "+string(c.Verdict)+")", data)
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateReview(ctx, r); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "review.record", "model_version", v.ID,
+			model+"@"+version+" derivation reviewed "+string(in.Outcome)+" (verdict "+string(c.Verdict)+")", data)
+	}); err != nil {
+		return nil, err
+	}
 	return r, nil
 }
 

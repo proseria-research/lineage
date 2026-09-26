@@ -121,10 +121,14 @@ func (s *Service) CreateModel(ctx context.Context, actor string, in CreateModelI
 		State: domain.StateActive, Labels: in.Labels, CustomProperties: in.CustomProperties,
 		CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.store.CreateModel(ctx, m); err != nil {
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateModel(ctx, m); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "model.create", "model", m.ID, "created model "+m.Name, nil)
+	}); err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "model.create", "model", m.ID, "created model "+m.Name, nil)
 	return m, nil
 }
 
@@ -198,25 +202,41 @@ func (s *Service) PublishVersion(ctx context.Context, actor, model string, in Pu
 	}
 	// Assign, never `:=`, inside these blocks: a shadowed err would leave the deferred
 	// RecordError above looking at a nil and marking a failed publish as a clean span.
-	if err = s.store.CreateVersion(ctx, v); err != nil {
-		return nil, nil, err
-	}
+	//
+	// Artifacts are built (validated, Stat-filled) before the transaction opens, so no backend
+	// round trip holds it; the version, its artifacts and the event then commit together, and
+	// a bad artifact can no longer leave a half-published version behind.
 	arts := make([]*domain.Artifact, 0, len(in.Artifacts))
 	for _, ai := range in.Artifacts {
 		var a *domain.Artifact
-		a, err = s.registerArtifact(ctx, v.ID, ai)
+		a, err = s.newArtifact(ctx, v.ID, ai)
 		if err != nil {
 			return nil, nil, err
 		}
 		arts = append(arts, a)
 	}
-	s.audit(ctx, actor, "version.create", "model_version", v.ID, "published "+m.Name+"@"+v.Name, nil)
+	if err = s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateVersion(ctx, v); err != nil {
+			return err
+		}
+		for _, a := range arts {
+			if err := tx.CreateArtifact(ctx, a); err != nil {
+				return err
+			}
+		}
+		return s.audit(ctx, tx, actor, "version.create", "model_version", v.ID, "published "+m.Name+"@"+v.Name, nil)
+	}); err != nil {
+		return nil, nil, err
+	}
 	s.events.Publish(domain.Event{Type: "version.created", Model: m.Name, Version: v.Name})
 	s.meter.VersionPublished()
 	return v, arts, nil
 }
 
-func (s *Service) registerArtifact(ctx context.Context, versionID string, ai ArtifactInput) (*domain.Artifact, error) {
+// newArtifact validates an artifact input and fills digest/size from the backend. It writes
+// nothing: the caller stores the row inside its unit of work, so the Stat round trip never
+// holds a transaction open.
+func (s *Service) newArtifact(ctx context.Context, versionID string, ai ArtifactInput) (*domain.Artifact, error) {
 	if ai.Kind == "" {
 		ai.Kind = domain.KindModel
 	}
@@ -244,7 +264,7 @@ func (s *Service) registerArtifact(ctx context.Context, versionID string, ai Art
 		Digest: ai.Digest, MediaType: ai.MediaType, ModelFormat: ai.ModelFormat,
 		ServiceAccount: ai.ServiceAccount, CreatedAt: now, UpdatedAt: now,
 	}
-	return a, s.store.CreateArtifact(ctx, a)
+	return a, nil
 }
 
 func (s *Service) GetVersion(ctx context.Context, model, version string) (*domain.ModelVersion, error) {
@@ -287,21 +307,31 @@ func (s *Service) Transition(ctx context.Context, actor, model, version string, 
 			demoted = true
 		}
 	}
-	if err = s.store.SetStage(ctx, v.ID, to, domain.IsSingleton(to)); err != nil {
+	data, _ := json.Marshal(map[string]string{"from": string(v.Stage), "to": string(to), "reason": reason})
+	// The event is written under SetStage's model lock, so the demotion, the promotion and
+	// the record of both commit as one (§02.4, §02.5).
+	if err = s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.SetStage(ctx, v.ID, to, domain.IsSingleton(to)); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "version.stage_changed", "model_version", v.ID, model+"@"+version+" → "+string(to), data)
+	}); err != nil {
 		return nil, err
 	}
 	sp.SetString("lineage.demoted", strconv.FormatBool(demoted))
-	data, _ := json.Marshal(map[string]string{"from": string(v.Stage), "to": string(to), "reason": reason})
-	s.audit(ctx, actor, "version.stage_changed", "model_version", v.ID, model+"@"+version+" → "+string(to), data)
 	s.events.Publish(domain.Event{Type: "version.stage_changed", Model: model, Version: version, Data: map[string]any{"to": to}})
 	s.meter.StageTransitioned(to, demoted)
 	v.Stage = to
 	return v, nil
 }
 
-func (s *Service) audit(ctx context.Context, actor, action, subjType, subjID, summary string, data json.RawMessage) {
+// audit appends one event through tx — the unit of work that makes the change it describes, so
+// the two commit or roll back together (§02.5). There is deliberately no variant that takes
+// the plain store: an event written outside the change's transaction is the gap this closes.
+// The error is the caller's to return, which fails the request and rolls the change back.
+func (s *Service) audit(ctx context.Context, tx domain.MetadataStore, actor, action, subjType, subjID, summary string, data json.RawMessage) error {
 	at := domain.NowMillis()
-	_ = s.store.AppendAudit(ctx, &domain.AuditEvent{
+	return tx.AppendAudit(ctx, &domain.AuditEvent{
 		ID: domain.NewID(), At: at, Actor: actor, Action: action,
 		SubjectType: subjType, SubjectID: subjID, Summary: summary, Data: data,
 		// The epoch is derived from this row's own clock and reads no other row (§19.5.1) —

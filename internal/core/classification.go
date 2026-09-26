@@ -60,10 +60,6 @@ func (s *Service) SetClassification(ctx context.Context, actor, model string, re
 	if verr := domain.ValidateRiskClassification(c, now); verr != nil {
 		return nil, verr
 	}
-	if err := s.store.PutClassification(ctx, &c); err != nil {
-		return nil, err
-	}
-
 	fields := map[string]any{"regime": string(regime), "reviewDueAt": c.ReviewDueAt}
 	answer := string(c.EUSystemRiskClass)
 	if regime == domain.RegimeMRM {
@@ -76,8 +72,15 @@ func (s *Service) SetClassification(ctx context.Context, actor, model string, re
 	data, _ := json.Marshal(fields)
 	// The regime is recorded on the event, not just in the summary: an auditor reconstructing
 	// who classified what under which rulebook reads structured data, not prose (§16.8).
-	s.audit(ctx, actor, "classification.set", "model", m.ID,
-		model+" classified "+answer+" under "+string(regime), data)
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.PutClassification(ctx, &c); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "classification.set", "model", m.ID,
+			model+" classified "+answer+" under "+string(regime), data)
+	}); err != nil {
+		return nil, err
+	}
 
 	return s.viewFor(ctx, m.ID, &c, now)
 }

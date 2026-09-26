@@ -17,4 +17,5 @@ func TestMemoryStore(t *testing.T) {
 	storetest.RunChangePlans(t, store)
 	storetest.RunAttestation(t, store)
 	storetest.RunUnitOfWork(t, store)
+	storetest.RunAuditAtomicity(t, store)
 }

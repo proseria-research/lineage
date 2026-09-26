@@ -66,9 +66,6 @@ func (s *Service) DeclareChangePlan(ctx context.Context, actor, model string, in
 			return nil, err
 		}
 	}
-	if err := s.store.CreateChangePlan(ctx, p, in.Supersedes); err != nil {
-		return nil, err
-	}
 
 	// The envelope goes on the event as data, so "what was pre-authorised, from when" is
 	// reconstructible from the audit trail alone.
@@ -80,12 +77,24 @@ func (s *Service) DeclareChangePlan(ctx context.Context, actor, model string, in
 		"effectiveFrom":   p.EffectiveFrom,
 		"supersedes":      in.Supersedes,
 	})
-	s.audit(ctx, actor, "change_plan.declare", "model", m.ID, m.Name+" change plan declared", data)
-	if in.Supersedes != "" {
-		data, _ := json.Marshal(map[string]any{
+	// Both events ride the declaration's transaction, inside the model lock CreateChangePlan
+	// takes: the plan, the closed predecessor and the record of each commit as one.
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateChangePlan(ctx, p, in.Supersedes); err != nil {
+			return err
+		}
+		if err := s.audit(ctx, tx, actor, "change_plan.declare", "model", m.ID, m.Name+" change plan declared", data); err != nil {
+			return err
+		}
+		if in.Supersedes == "" {
+			return nil
+		}
+		sup, _ := json.Marshal(map[string]any{
 			"planId": in.Supersedes, "supersededBy": p.ID, "effectiveTo": p.EffectiveFrom,
 		})
-		s.audit(ctx, actor, "change_plan.supersede", "model", m.ID, m.Name+" change plan superseded", data)
+		return s.audit(ctx, tx, actor, "change_plan.supersede", "model", m.ID, m.Name+" change plan superseded", sup)
+	}); err != nil {
+		return nil, err
 	}
 	return p, nil
 }

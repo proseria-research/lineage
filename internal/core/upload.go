@@ -274,7 +274,7 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 		digest = declaredDigest
 	}
 
-	a, err := s.registerArtifact(ctx, pu.versionID, ArtifactInput{
+	a, err := s.newArtifact(ctx, pu.versionID, ArtifactInput{
 		Kind: pu.in.Kind, Name: pu.in.Name, URI: pu.uri, StorageBackend: pu.backend,
 		StoragePath: pu.path, Digest: digest, SizeBytes: size, MediaType: pu.in.MediaType,
 		ModelFormat: pu.in.ModelFormat, ServiceAccount: pu.in.ServiceAccount,
@@ -282,7 +282,17 @@ func (s *Service) FinalizeUpload(ctx context.Context, actor, model, version, upl
 	if err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "artifact.upload", "artifact", a.ID, "uploaded "+model+"@"+version+"/"+a.Name, nil)
+	// The bytes are already in the backend — they cannot join a database transaction. What
+	// is atomic is the row and its event; if that unit fails, no new row references the object
+	// and the reference-counted sweeper treats it as an upload never finalized (§05.8).
+	if err = s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateArtifact(ctx, a); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "artifact.upload", "artifact", a.ID, "uploaded "+model+"@"+version+"/"+a.Name, nil)
+	}); err != nil {
+		return nil, err
+	}
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	s.meter.UploadFinalized(time.Since(start).Seconds(), false)
 	return a, nil
@@ -295,11 +305,18 @@ func (s *Service) RegisterArtifact(ctx context.Context, actor, model, version st
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.registerArtifact(ctx, v.ID, in)
+	a, err := s.newArtifact(ctx, v.ID, in)
 	if err != nil {
 		return nil, err
 	}
-	s.audit(ctx, actor, "artifact.register", "artifact", a.ID, "registered "+model+"@"+version+"/"+a.Name, nil)
+	if err := s.store.InTx(ctx, func(tx domain.MetadataStore) error {
+		if err := tx.CreateArtifact(ctx, a); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, actor, "artifact.register", "artifact", a.ID, "registered "+model+"@"+version+"/"+a.Name, nil)
+	}); err != nil {
+		return nil, err
+	}
 	s.events.Publish(domain.Event{Type: "artifact.created", Model: model, Version: version})
 	return a, nil
 }
