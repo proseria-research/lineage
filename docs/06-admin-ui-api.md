@@ -78,6 +78,14 @@ but the *permission* to do so is enforced by infra, not Lineage (§00 axiom 4).
   all-caps labels. Auto light/dark via `prefers-color-scheme`.
 - **Plain language:** every API code (actions, enums, verdicts, stale reasons) is shown through
   one label table (`web/src/lib/labels.ts`); raw codes never reach the screen.
+- **Using a model:** model and version pages have a **Use** tab (and a header button) with
+  copyable snippets — `curl` against `resolve`/`content`, the Python SDK, the CLI, and a KServe
+  `InferenceService` with a `lineage://` URI — filled in with the model, a stage (model page) or
+  the exact version, and this registry's Model API address. The sidebar always shows that
+  address with links to the API reference (`/v1/openapi.json`) and the documentation. The
+  address comes from `GET /api/config` (`LINEAGE_PUBLIC_MODEL_API_URL`, Helm
+  `publicModelApiUrl`); unset, the console assumes its own host on the Model API port and says
+  so. `LINEAGE_DOCS_URL` points the documentation link.
 - **Governance explained:** every governance label (risk class, tier, validation, verdict, plan
   check, hold) opens a card on hover or click — what it means, why it matters, an example, what
   to do, and its source — from one table (`web/src/lib/explain.ts`). Each Governance tab opens

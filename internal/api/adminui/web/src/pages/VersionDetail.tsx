@@ -20,6 +20,9 @@ import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
 import { HoldAction, HoldNote } from "@/components/Hold";
 import { EventRow } from "@/components/ActivityFeed";
+import { UsePanel } from "@/components/UsePanel";
+import { Button } from "@/components/ui/button";
+import { Code2 } from "lucide-react";
 import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/components/State";
 import { humanize } from "@/lib/labels";
@@ -27,6 +30,7 @@ import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "use", label: "Use" },
   { id: "structure", label: "Structure & evaluations" },
   { id: "lineage", label: "Lineage" },
   { id: "governance", label: "Governance" },
@@ -90,6 +94,10 @@ export default function VersionDetail() {
         }
         right={
           <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => setTab("use")}>
+              <Code2 className="h-4 w-4" />
+              Use this version
+            </Button>
             <StageActions model={model} version={v.name} targets={data.allowedTargets} onDone={reload} />
             <HoldAction
               subject={{ model: data.model, version: v.name }}
@@ -246,6 +254,15 @@ export default function VersionDetail() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {tab === "use" && (
+        <UsePanel
+          model={model}
+          version={v.name}
+          artifacts={data.artifacts}
+          format={data.artifacts.find((a) => a.kind === "MODEL")?.modelFormat?.name}
+        />
       )}
 
       {tab === "structure" && (
