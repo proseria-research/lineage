@@ -1,3 +1,4 @@
+import { useRowLink } from "@/lib/useRowLink";
 import { Term } from "@/components/Term";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -78,8 +79,12 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
   const anyHash = HASH_LEVELS.some((l) => it.hashes?.[l]?.from || it.hashes?.[l]?.to);
   const parent = it.derivedFrom ? `${it.derivedFrom.model} ${it.derivedFrom.version}` : it.derivedFromRef;
 
+  const row = useRowLink()(`/models/${encodeURIComponent(it.model)}/versions/${encodeURIComponent(it.version)}?tab=governance`);
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0">
+    <div
+      onClick={row.onClick}
+      className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0 ${row.rowClass}`}
+    >
       {anyHash ? (
         <div className="fp-pair flex shrink-0 items-center gap-2">
           <FingerprintMark placeholder insight={side("from")} size={52} emphasis={anyChanged ? changed : undefined} />
@@ -131,12 +136,17 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
 
 /** The plan register: every plan, superseded ones kept and marked (§22.6.1). */
 function PlanList({ plans }: { plans: ChangePlan[] }) {
+  const rowLink = useRowLink();
   return (
     <div className="border bg-card rounded-lg">
       {plans.map((p) => {
         const closed = p.effectiveTo != null;
         return (
-          <div key={p.id} className="border-b px-4 py-3 last:border-b-0">
+          <div
+            key={p.id}
+            onClick={rowLink(`/models/${encodeURIComponent(p.model)}?tab=governance`).onClick}
+            className={`border-b px-4 py-3 last:border-b-0 ${rowLink("").rowClass}`}
+          >
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <Link to={`/models/${p.model}`} className="font-medium hover:underline underline-offset-4">
                 {p.model}

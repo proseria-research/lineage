@@ -1,3 +1,4 @@
+import { useRowLink } from "@/lib/useRowLink";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
@@ -76,8 +77,12 @@ function Stat({ label, value, note }: { label: string; value: number; note?: str
 /** A worklist row: what it is, why it is here, and the one action that resolves it. */
 function WorkRow({ m, onClassify }: { m: ModelRollup; onClassify: (m: ModelRollup) => void }) {
   const never = stateOf(m) === "unclassified";
+  const row = useRowLink()(`/models/${encodeURIComponent(m.name)}`);
   return (
-    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b px-4 py-3 last:border-b-0">
+    <div
+      onClick={row.onClick}
+      className={`flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b px-4 py-3 last:border-b-0 ${row.rowClass}`}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <Link to={`/models/${m.name}`} className="font-medium hover:underline underline-offset-4">
@@ -105,6 +110,7 @@ function WorkRow({ m, onClassify }: { m: ModelRollup; onClassify: (m: ModelRollu
  * renders nothing when no model is tiered — the regime is not in use on this install.
  */
 function ModelRiskWork({ models }: { models: ModelRollup[] }) {
+  const rowLink = useRowLink();
   const tiered = models.filter((m) => m.mrm && m.mrm.mrmTier !== "untiered");
   if (tiered.length === 0) return null;
   const work = tiered
@@ -135,7 +141,15 @@ function ModelRiskWork({ models }: { models: ModelRollup[] }) {
                   : "No validation recorded."
                 : (c.staleReasons ?? []).map((r) => STALE_REASON_TEXT[r] ?? r).join("; ");
             return (
-              <div key={m.id} className="border-b px-4 py-3 last:border-b-0">
+              <div
+                key={m.id}
+                onClick={rowLink(
+                  c.version
+                    ? `/models/${encodeURIComponent(m.name)}/versions/${encodeURIComponent(c.version)}?tab=governance`
+                    : `/models/${encodeURIComponent(m.name)}?tab=governance`,
+                ).onClick}
+                className={`border-b px-4 py-3 last:border-b-0 ${rowLink("").rowClass}`}
+              >
                 <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                   <Link to={`/models/${m.name}`} className="font-medium hover:underline underline-offset-4">
                     {m.name}
@@ -186,6 +200,7 @@ const Count = ({ n, tone = "warn" }: { n: number; tone?: "warn" | "danger" }) =>
 
 export default function Compliance() {
   const [tab, setTab] = useTab(TABS);
+  const rowLink = useRowLink();
   const { data, error, loading, reload } = useAsync(
     () =>
       Promise.all([api.models(), api.reviews("open"), api.changePlans()]).then(([m, r, p]) => ({
@@ -281,7 +296,8 @@ export default function Compliance() {
                     {covered.map((m) => (
                       <div
                         key={m.id}
-                        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b px-5 py-3 last:border-b-0"
+                        onClick={rowLink(`/models/${encodeURIComponent(m.name)}`).onClick}
+                        className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b px-5 py-3 last:border-b-0 ${rowLink("").rowClass}`}
                       >
                         <div className="flex items-center gap-2.5">
                           <Link to={`/models/${m.name}`} className="font-medium hover:underline">
@@ -333,7 +349,8 @@ export default function Compliance() {
                         {group.map((m) => (
                           <div
                             key={m.id}
-                            className="flex items-center justify-between gap-4 border-b px-4 py-2 text-sm last:border-b-0"
+                            onClick={rowLink(`/models/${encodeURIComponent(m.name)}`).onClick}
+                            className={`flex items-center justify-between gap-4 border-b px-4 py-2 text-sm last:border-b-0 ${rowLink("").rowClass}`}
                           >
                             <Link to={`/models/${m.name}`} className="truncate hover:underline">
                               {m.name}
