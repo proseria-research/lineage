@@ -103,7 +103,7 @@ func TestServerSetsClassifiedByFromTheActorHeader(t *testing.T) {
 	}
 }
 
-// The M13 acceptance criterion, over HTTP: publish, then read stale with its reason, with no
+// The M14 acceptance criterion, over HTTP: publish, then read stale with its reason, with no
 // background job having run.
 func TestDriftIsVisibleOnTheNextRequest(t *testing.T) {
 	srv := classifiableModel(t)
@@ -386,7 +386,7 @@ func TestInventoryPagingIsAppliedAfterTheStateFilter(t *testing.T) {
 		t.Fatalf("page = %v, want exactly the one match", got)
 	}
 	// Empty string, not null: that is what every /v1 list endpoint returns for "no more"
-	// (§16.8.2's example shows null, but the wire format predates M13 and is uniform).
+	// (§16.8.2's example shows null, but the wire format predates M14 and is uniform).
 	if tok, _ := body["nextPageToken"].(string); tok != "" {
 		t.Fatalf("nextPageToken = %q, want empty", tok)
 	}

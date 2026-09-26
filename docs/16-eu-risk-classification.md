@@ -4,7 +4,7 @@
 > them is named `eu_*` to make that obvious (§3.1). The drift machinery in §5 has nothing
 > EU-specific in it and a second country's rules would reuse the same shape.
 >
-> Status: **Implemented (M13; clause 4 wired in M16).** This is how we store how risky a model is — as something a person
+> Status: **Implemented (M14; clause 4 wired in M16).** This is how we store how risky a model is — as something a person
 > **states**, never something we guess — and how we notice when that statement has gone out
 > of date. Who decides what, and by when, is `15`; the review queue this feeds is `17`; the
 > report that carries it out the door is `18`.

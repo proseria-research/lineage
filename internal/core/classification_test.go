@@ -83,7 +83,7 @@ func TestClassifiedByAndAtAreServerSet(t *testing.T) {
 	}
 }
 
-// The acceptance criterion for M13: classify, publish, and the model reads stale on the very
+// The acceptance criterion for M14: classify, publish, and the model reads stale on the very
 // next request — with no background job having run.
 func TestPublishingAVersionMakesTheClassificationStaleAtReadTime(t *testing.T) {
 	s, ctx := classifiable(t)
