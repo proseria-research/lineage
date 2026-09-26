@@ -142,24 +142,33 @@ const ledger = [
 ];
 
 /*
- * The regulatory build-out — specced in docs/15–22, tracked as M13–M16. The section is framed
- * as a roadmap and each item is labelled as such. The internal milestone ids stay out of public
- * copy.
+ * The regulatory build-out — specced in docs/15–22, tracked as M14–M18. Each item carries its
+ * status, matching the compliance page. The internal milestone ids stay out of public copy.
  */
 const buildout = [
 	{
 		title: 'Risk classification',
 		body: 'Record the risk classification your team has assigned to each model, with the reasoning and the review date attached, and see automatically when a retrain or a promotion has left that assessment out of date.',
-		status: 'In design',
+		status: 'Available',
 	},
 	{
 		title: 'Retention and legal hold',
 		body: 'Place a hold on models and versions that form part of an active matter, enforce a configurable retention floor, and provide cryptographic assurance that the audit trail has not been altered.',
-		status: 'In design',
+		status: 'Available',
 	},
 	{
 		title: 'Modification review',
 		body: 'Route significant derivations to a reviewer, with the measured architectural change shown alongside the intent your team declared, so that a fine-tune never reaches production unexamined.',
+		status: 'Available',
+	},
+	{
+		title: 'Model risk records',
+		body: 'Record model risk tiers and independent validation results, and see when a tier-1 model has gone unmonitored in production.',
+		status: 'In design',
+	},
+	{
+		title: 'Change control plans',
+		body: 'Declare the envelope of changes a model may make without re-review, and check what actually shipped against it.',
 		status: 'In design',
 	},
 ];
@@ -467,11 +476,10 @@ const sections = [
 		<div class="shell" data-reveal>
 			<div class="section__head">
 				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>roadmap</p>
-				<h2 class="section__title">From evidence to documentation.</h2>
+				<h2 class="section__title">Compliance, built on the record.</h2>
 				<p class="section__lede">
-					The registry captures the underlying evidence today. The next phase of work turns that
-					evidence into the documentation specific frameworks ask for. These capabilities are in
-					active design with published specifications, and are not yet available.
+					Risk classification, retention and legal hold, and modification review are available
+					today. Model risk records and change control plans are specified and in design.
 				</p>
 			</div>
 
