@@ -43,16 +43,34 @@ paths = lin.download("fraud-detector", stage="production", dest="./model")
 
 ### Methods
 
+The client exposes these signatures:
+
+```python
+Client(base_url, *, actor=None, timeout=60.0)
+model_file(path, *, name=None, format=None, media_type=None)
+artifact_uri(uri, *, name, kind="MODEL", format=None, storage_backend=None)
+publish(*, model, version, artifacts=(), lineage=(), description=None, labels=None,
+        auto_capture=True, idempotency_key=None)
+transition(model, version, *, to, reason=None)
+resolve(model, *, stage=None, version=None)
+download(model, *, stage=None, version=None, dest, artifact=None, kind="MODEL")
+lineage(model, version, *, direction="upstream", depth=3)
+```
+
 | Method | Returns | Does |
 | --- | --- | --- |
-| `Client(base_url, *, actor=None, timeout=60.0)` | | `actor` is sent as `X-Lineage-Actor` on every Model API request |
-| `model_file(path, *, name=None, format=None, media_type=None)` | `Artifact` | Local `MODEL` file to upload. `name` defaults to the basename; `media_type` is guessed from the extension, else `application/octet-stream` |
-| `artifact_uri(uri, *, name, kind="MODEL", format=None, storage_backend=None)` | `Artifact` | Existing object to register by reference |
-| `publish(*, model, version, artifacts=(), lineage=(), description=None, labels=None, auto_capture=True, idempotency_key=None)` | `dict` | See below |
-| `transition(model, version, *, to, reason=None)` | `dict` | `POST :transition`; returns the version |
-| `resolve(model, *, stage=None, version=None)` | `Resolution` | `stage` and `version` are exclusive (`ValueError`). Neither resolves `production` |
-| `download(model, *, stage=None, version=None, dest, artifact=None, kind="MODEL")` | `list[Path]` | See below |
-| `lineage(model, version, *, direction="upstream", depth=3)` | `dict` | Graph traversal: `direction` is `upstream`, `downstream` or `both` |
+| `Client` | | Sends `actor` as `X-Lineage-Actor` on every Model API request |
+| `model_file` | `Artifact` | Local `MODEL` file to upload |
+| `artifact_uri` | `Artifact` | Existing object to register by reference |
+| `publish` | `dict` | See [publish](#publish) |
+| `transition` | `dict` | `POST :transition`; returns the version |
+| `resolve` | `Resolution` | See [resolve and download](#resolve-and-download) |
+| `download` | `list[Path]` | See [resolve and download](#resolve-and-download) |
+| `lineage` | `dict` | Graph traversal; `direction` is `upstream`, `downstream` or `both` |
+
+`model_file`'s `name` defaults to the basename; `media_type` is guessed from the extension, else
+`application/octet-stream`. In `resolve`, `stage` and `version` are exclusive (`ValueError`);
+passing neither resolves `production`.
 
 `format` is a `(name, version)` tuple; `version` may be `None`. For a `DOC` file, or to set
 `service_account`, construct `lineage.Artifact(name=..., path=... | uri=..., kind=...,
@@ -60,6 +78,8 @@ model_format=..., media_type=..., storage_backend=..., service_account=...)` dir
 one of `path` or `uri` is required.
 
 ### publish
+
+`publish` runs four steps:
 
 1. Creates the model with `Idempotency-Key: model:<model>`; an existing model is fine.
 2. Creates the version with `Idempotency-Key: version:<model>@<version>` (or `idempotency_key`),
@@ -75,13 +95,14 @@ artifacts that succeeded.
 
 With `auto_capture=True`, `publish` also adds:
 
-| Source | Edge |
-| --- | --- |
-| `LINEAGE_RUN_URI` or `LINEAGE_RUN_ID` (prefixed `run://` if it has no scheme) | `produced_by` |
-| Otherwise `git rev-parse HEAD` in the working directory, if it succeeds | `produced_by` `git://<sha>` |
-| `LINEAGE_DERIVED_FROM`, comma-separated | `derived_from` per entry |
+- A `produced_by` edge to `LINEAGE_RUN_URI` or `LINEAGE_RUN_ID` (prefixed `run://` if it has no
+  scheme). Otherwise, if `git rev-parse HEAD` succeeds in the working directory, a `produced_by`
+  edge to `git://<sha>`.
+- A `derived_from` edge per entry in `LINEAGE_DERIVED_FROM`, comma-separated.
 
 ### resolve and download
+
+`resolve` returns a `Resolution`; `download` resolves and writes files.
 
 `Resolution` fields: `model`, `version`, `stage`, `digest`, `model_format`, `artifacts` (list of
 dicts as on the wire), `raw` (the full response). `storage_uri` and `signed_url` are properties
@@ -98,10 +119,8 @@ names containing `/`, `\`, or equal to `.` or `..` are refused.
 Every non-2xx response raises `APIError` with `status`, `code`, `detail` and `details` from the
 problem body. Network failures raise `APIError` with status `0` and code `network_error`.
 
-| Raised by the SDK itself | `status` | `code` |
-| --- | --- | --- |
-| `download` selects no artifacts | 409 | `failed_precondition` |
-| Downloaded digest mismatch, unsafe artifact name | 422 | `unprocessable` |
+The SDK raises two errors itself: `409 failed_precondition` when `download` selects no
+artifacts, and `422 unprocessable` for a downloaded digest mismatch or an unsafe artifact name.
 
 ## CLI
 
@@ -116,21 +135,25 @@ go build -o bin/lineage-cli ./cmd/lineage-cli
 `make build` produces. Build with the command above instead.
 :::
 
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `LINEAGE_SERVER` | `http://localhost:8081` | Model API origin |
-| `LINEAGE_ACTOR` | unset | Sent as `X-Lineage-Actor` on API requests |
+Set `LINEAGE_SERVER` to the Model API origin (default `http://localhost:8081`). Set
+`LINEAGE_ACTOR` to send it as `X-Lineage-Actor` on API requests (unset by default).
 
 ### Commands
 
-| Command | Flags | Request |
-| --- | --- | --- |
-| `model list` | | `GET /v1/models` (first page) |
-| `version publish` | `-m MODEL` `-n VERSION` `-a FILE` (required), `--format NAME:VERSION` | Create model, create version, upload one file, finalize |
-| `version promote` | `-m MODEL` `-n VERSION` `--to STAGE` (required) | `POST .../{version}:transition` |
-| `resolve MODEL` | `--stage STAGE` or `--version VERSION` | `GET .../resolve`; neither resolves `production` |
-| `pull MODEL` | `--dest DIR` (required), `--stage` (default `production`), `--version`, `--kind` (default `MODEL`), `--artifact NAME` | Resolve, then download matching artifacts |
-| `lineage MODEL@VERSION` | `--direction` (default `upstream`) | `GET .../lineage?direction=...` at server default depth 3 |
+Each command maps to one or a few Model API requests.
+
+| Command | Required | Optional | Request |
+| --- | --- | --- | --- |
+| `model list` | | | `GET /v1/models` (first page) |
+| `version publish` | `-m` `-n` `-a FILE` | `--format NAME:VERSION` | Create model and version, upload one file, finalize |
+| `version promote` | `-m` `-n` `--to STAGE` | | `POST .../{version}:transition` |
+| `resolve MODEL` | | `--stage` or `--version` | `GET .../resolve` |
+| `pull MODEL` | `--dest DIR` | `--stage` `--version` `--kind` `--artifact NAME` | Resolve, then download matching artifacts |
+| `lineage MODEL@VERSION` | | `--direction` | `GET .../lineage?direction=...` |
+
+`-m` is the model and `-n` the version. `resolve` with neither `--stage` nor `--version` resolves
+`production`. `pull` defaults to `--stage production` and `--kind MODEL`. `lineage` defaults to
+`--direction upstream` and uses the server default depth of 3.
 
 Flags accept one or two dashes. For `resolve`, `pull` and `lineage`, flags may come before or
 after the operand.

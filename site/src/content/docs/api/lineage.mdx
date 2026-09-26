@@ -13,7 +13,7 @@ stores, attributes and queries them. It never opens an artifact to derive them.
 
 ## Lineage edges
 
-An edge runs from one version to a target, with a typed relation.
+An edge runs from one version to a target, with a typed relation:
 
 | Relation | Typical target |
 | --- | --- |
@@ -62,13 +62,15 @@ An edge to a URI carries `dstRef` instead of `dstType`/`dstId`. Setting both or 
 
 ## Traversal and impact analysis
 
+Walk edges from a version to find its ancestry or everything affected by it.
+
 Add `direction` to the `GET` and the response becomes a `LineageGraph`.
 
 | Parameter | Values | Default |
 | --- | --- | --- |
 | `direction` | `upstream`, `downstream`, `both` | unset: flat edge list |
-| `depth` | hops from the root; values above 25 are capped at 25 | `3` |
-| `relations` | comma-separated relations to follow | all |
+| `depth` | Hops from the root, capped at 25 | `3` |
+| `relations` | Comma-separated relations to follow | all |
 
 <LineageGraph />
 
@@ -166,6 +168,8 @@ Write rules:
 
 ## Version diff
 
+Compare two versions' fingerprints to classify the change.
+
 | Method | Path |
 | --- | --- |
 | `GET` | `/v1/models/{model}/diff?from={version}&to={version}` |
@@ -208,10 +212,15 @@ Beyond the verdict, the diff returns, when the facts exist:
 
 | Field | Content |
 | --- | --- |
-| `tensors` | Unchanged/changed/added/removed counts from `archDoc` digests; `changedPatterns` collapses block indices (`layers.*.q_proj`), separating a merged adapter from a full fine-tune |
+| `tensors` | Unchanged/changed/added/removed counts from `archDoc` digests |
 | `params` | Deltas for `paramCountTotal`, `tensorCount`, `diskBytes`, `weightsBytes`, with each side's source |
 | `footprints` | Per scenario; only the same scenario name compares |
-| `metrics` | Latest result per suite, metric, split and harness version. `direction` is `better`/`worse`/`same` from `higherIsBetter`; anything else is `comparable: false` with a `reason` |
+| `metrics` | Latest result per suite, metric, split and harness version |
+
+- `tensors.changedPatterns` collapses block indices (`layers.*.q_proj`), separating a merged
+  adapter from a full fine-tune.
+- `metrics[].direction` is `better`/`worse`/`same` from `higherIsBetter`; anything else is
+  `comparable: false` with a `reason`.
 
 The same verdict drives [modification review](/governance/compliance/#modification-review-art-25)
 and [change-control conformance](/governance/compliance/#change-control-plans).

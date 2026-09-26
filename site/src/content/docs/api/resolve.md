@@ -14,10 +14,12 @@ Consumers make one call to learn what to load, then download from storage direct
 
 ## Selectors
 
+A selector picks which version to resolve.
+
 | Query | Selects |
 | --- | --- |
 | `version=1.4.0` | That exact version, any stage |
-| `label.<key>=<value>` | Newest version carrying that label (not in the OpenAPI document) |
+| `label.<key>=<value>` | Newest version with that label (not in the OpenAPI document) |
 | `stage=staging` | Newest-created version in that stage |
 | none | `stage=production` |
 
@@ -33,6 +35,8 @@ composition block (`paramCount`, `dtype`, `diskBytes`, `minDeviceMemoryBytes`,
 | No version in the stage, or no label match | `409 failed_precondition`, detail `no version matches selector` |
 
 ## Response
+
+A resolution names the version and lists each artifact with its native and signed locations.
 
 ```bash
 curl 'localhost:8081/v1/models/fraud-detector/resolve?stage=production' \
@@ -77,6 +81,8 @@ curl 'localhost:8081/v1/models/fraud-detector/resolve?stage=production' \
 
 ## Storage URIs and signed URLs
 
+What you get in `storageUri` and `signedUrl` depends on the backend.
+
 | Backend | `storageUri` | `signedUrl` |
 | --- | --- | --- |
 | `s3` | `s3://<bucket>/<key>` | SigV4 presigned `GET`, valid 15 minutes |
@@ -89,6 +95,8 @@ Signed URLs are minted per response and never cached. Do not store them; store b
 endpoint below.
 
 ## Content endpoint
+
+`/content` fetches one artifact's bytes when you cannot or do not want to use the storage URI.
 
 ```bash
 curl -L -o model.onnx \
@@ -107,6 +115,8 @@ Streamed responses set `ETag: "<digest>"` and `Content-Type` from `mediaType`. `
 `Range`; other backends stream the whole object with `Content-Length`.
 
 ## Caching
+
+Poll cheaply with ETags; the server also caches selections.
 
 `resolve` returns `ETag: "<digest>"` and `Cache-Control: private, no-cache`. Send it back in
 `If-None-Match` to get `304` while the selection is unchanged.
@@ -138,12 +148,10 @@ with no manifest change.
 lineage://<model>[/<stage>][@<version>][#<artifact>]
 ```
 
-| URI | Downloads |
-| --- | --- |
-| `lineage://fraud-detector` | Every `MODEL` artifact of the production version |
-| `lineage://fraud-detector/staging` | Every `MODEL` artifact of the newest staging version |
-| `lineage://fraud-detector@1.4.0` | Every `MODEL` artifact of 1.4.0 |
-| `lineage://fraud-detector/production#model.onnx` | That one artifact |
+- `lineage://fraud-detector`: every `MODEL` artifact of the production version.
+- `lineage://fraud-detector/staging`: every `MODEL` artifact of the newest staging version.
+- `lineage://fraud-detector@1.4.0`: every `MODEL` artifact of 1.4.0.
+- `lineage://fraud-detector/production#model.onnx`: that one artifact.
 
 Register the scheme once per cluster, then use it as `storageUri`:
 
@@ -173,10 +181,11 @@ spec:
       storageUri: lineage://fraud-detector/production
 ```
 
-| Env | Default | Purpose |
-| --- | --- | --- |
-| `LINEAGE_ENDPOINT` | `http://lineage-model-api:8081` | Model API base URL |
-| `LINEAGE_ACTOR` | none | Sent as `X-Lineage-Actor` (fixed name, not `LINEAGE_ACTOR_HEADER`) |
+The init container reads two env vars:
+
+- `LINEAGE_ENDPOINT`: Model API base URL. Default `http://lineage-model-api:8081`.
+- `LINEAGE_ACTOR`: sent as `X-Lineage-Actor` (fixed name, not `LINEAGE_ACTOR_HEADER`). No
+  default.
 
 It downloads via `signedUrl` when present, else the content endpoint; skips `DOC` artifacts
 unless named in `#`; refuses artifact names containing path separators; and gives up after

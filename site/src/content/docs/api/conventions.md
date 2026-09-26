@@ -9,16 +9,17 @@ Rules shared by every Model API endpoint.
 
 ## Base URL and shape
 
-| Item | Value |
-| --- | --- |
-| Port | `:8081` (`LINEAGE_MODEL_API_ADDR`); the Admin UI on `:8080` is not part of the API |
-| Prefix | `/v1`, e.g. `http://localhost:8081/v1/models` |
-| Bodies | `application/json`; unknown fields are rejected with `400 invalid_argument` |
-| Addressing | By name: `/v1/models/{model}/versions/{version}/artifacts/{artifact}` |
-| Actions | `:verb` suffix on the resource, e.g. `…/versions/1.4.0:transition`, `…/artifacts:initiateUpload` |
-| Timestamps | Integer epoch-millis (`createdAt`, `updatedAt`, `lockedAt`, …) |
-| IDs | 26-character, time-sortable ULID-style strings, returned in every body |
-| Auth | None; enforced by your ingress, gateway or mesh |
+Every request follows these rules:
+
+- Port: `:8081` (`LINEAGE_MODEL_API_ADDR`). The Admin UI on `:8080` is not part of the API.
+- Prefix: `/v1`, e.g. `http://localhost:8081/v1/models`.
+- Bodies: `application/json`. Unknown fields are rejected with `400 invalid_argument`.
+- Addressing: by name, e.g. `/v1/models/{model}/versions/{version}/artifacts/{artifact}`.
+- Actions: a `:verb` suffix on the resource, e.g. `…/versions/1.4.0:transition`,
+  `…/artifacts:initiateUpload`.
+- Timestamps: integer epoch-millis (`createdAt`, `updatedAt`, `lockedAt`, …).
+- IDs: 26-character, time-sortable ULID-style strings, returned in every body.
+- Auth: none. Your ingress, gateway or mesh enforces it.
 
 ## The contract
 
@@ -26,13 +27,13 @@ Rules shared by every Model API endpoint.
 `Cache-Control: public, max-age=3600`). It is the source of truth; the Python SDK and CLI are
 generated from it. `GET /v1/insight-schema.json` serves the insight document's JSON Schema.
 
-`internal/contracttest` runs in CI on SQLite and Postgres and asserts two guarantees against a
-live server over HTTP only:
+`internal/contracttest` runs in CI on SQLite and Postgres. Against a live server, over HTTP only,
+it asserts two guarantees:
 
-| Guarantee | Meaning |
-| --- | --- |
-| Read completeness | Every recorded fact a compliance report needs is readable through `/v1`; no report needs the database, the Admin UI or the ops port |
-| Actor header | A configured header name is honoured and its value lands verbatim in the audit trail |
+- Read completeness: every recorded fact a compliance report needs is readable through `/v1`. No
+  report needs the database, the Admin UI or the ops port.
+- Actor header: a configured header name is honoured and its value lands verbatim in the audit
+  trail.
 
 ## Errors
 
@@ -74,13 +75,13 @@ A path or method that matches no route gets Go's plain-text `404` or `405`, not 
 
 ## Success status codes
 
-| Status | Used by |
-| --- | --- |
-| `200` | Reads, `PATCH`, `:transition`, `:archive`, `:hold`, `:release` |
-| `201` | Creates: model, version, artifact register, `finalizeUpload`, deployment, lineage edge |
-| `202` | `initiateUpload` (returns a ticket, not the artifact) |
-| `204` | `DELETE`, `uploadContent` |
-| `206` / `302` / `304` | Artifact content and `resolve`; see [Resolve](/api/resolve/) |
+Successful calls return these statuses:
+
+- `200`: reads, `PATCH`, `:transition`, `:archive`, `:hold`, `:release`.
+- `201`: creates: model, version, artifact register, `finalizeUpload`, deployment, lineage edge.
+- `202`: `initiateUpload`. It returns a ticket, not the artifact.
+- `204`: `DELETE`, `uploadContent`.
+- `206`, `302`, `304`: artifact content and `resolve`; see [Resolve](/api/resolve/).
 
 ## Pagination
 
@@ -91,11 +92,9 @@ Paged collections (`/v1/models`, `…/versions`, `…/audit`, `/v1/audit`, `/v1/
 {"items": [ … ], "nextPageToken": "MTc5MDAwMDAwMDAwMHwwMUs1Wjh…"}
 ```
 
-| Param | Behaviour |
-| --- | --- |
-| `pageSize` | Default `50`; values above `500` are clamped to `500` |
-| `pageToken` | Opaque cursor from the previous page |
-| `nextPageToken` | Empty string on the last page |
+`pageSize` defaults to `50`; values above `500` are clamped to `500`. Pass the previous page's
+`nextPageToken`, an opaque cursor, as `pageToken`. `nextPageToken` is an empty string on the last
+page.
 
 Order is newest first (models and versions by `createdAt`, audit events by `at`, then `id`,
 descending); the cursor is stable across concurrent inserts.
@@ -103,6 +102,8 @@ descending); the cursor is stable across concurrent inserts.
 with no paging.
 
 ## Filtering
+
+List endpoints accept these query parameters:
 
 | Param | Endpoints | Behaviour |
 | --- | --- | --- |
@@ -126,13 +127,12 @@ curl 'localhost:8081/v1/models?q=fraud&label.team=risk&pageSize=20'
 The first `2xx` response for a key is stored and replayed (status, headers, body) on any
 later request with that key.
 
-| Property | Behaviour |
-| --- | --- |
-| Scope | One keyspace for the whole process, shared by both endpoints and all models |
-| Matching | Key only; the request body is not compared |
-| What is stored | `2xx` responses only; an error is not stored, so a retry runs again |
-| Lifetime | 24 hours, in memory; lost on restart and not shared between replicas |
-| Concurrency | Two in-flight requests with one key both execute; the second gets `409 already_exists` |
+- Scope: one keyspace for the whole process, shared by both endpoints and all models.
+- Matching: by key only. The request body is not compared.
+- Stored: `2xx` responses only. An error is not stored, so a retry runs again.
+- Lifetime: 24 hours, in memory. Keys are lost on restart and not shared between replicas.
+- Concurrency: two in-flight requests with one key both execute; the second gets
+  `409 already_exists`.
 
 Derive keys from the intent and include the resource, e.g.
 `publish-fraud-detector-1.4.0`. A bare `1.4.0` reused for another model replays the first
@@ -143,12 +143,12 @@ model's response and creates nothing.
 Lineage records who made a change from a header set by your front door. It makes no
 authorization decision from it.
 
-| Term | Contract |
-| --- | --- |
-| Name | `LINEAGE_ACTOR_HEADER` (Helm `actorHeader`), default `X-Lineage-Actor`; startup fails on an invalid name |
-| Value | Trusted and recorded verbatim as `actor` on audit events and as `heldBy` on holds |
-| Absent | The request succeeds; `actor` is omitted from its audit event |
-| Stability | Renaming the header, or changing what the front door puts in it, is a breaking change for clients, proxies and reports |
+- Name: `LINEAGE_ACTOR_HEADER` (Helm `actorHeader`), default `X-Lineage-Actor`. Startup fails
+  on an invalid name.
+- Value: trusted and recorded verbatim as `actor` on audit events and as `heldBy` on holds.
+- Absent: the request succeeds; `actor` is omitted from its audit event.
+- Stability: renaming the header, or changing what the front door puts in it, is a breaking
+  change for clients, proxies and reports.
 
 Strip the header from untrusted traffic before your gateway sets it.
 

@@ -16,17 +16,20 @@ their location, digest and size, and brokers access to them.
 
 ## Architecture
 
-One Go binary serves three listeners.
+One Go binary serves three listeners:
 
 | Listener | Default | Audience | Serves |
 | --- | --- | --- | --- |
-| Model API | `:8081` | Machines: CI, SDK, CLI, inference | `/v1` — publish, promote, resolve, fetch, lineage, audit. Contract at `/v1/openapi.json` |
-| Admin console | `:8080` | Humans | Web UI for reviewing, promoting and governing; publishing goes through the Model API |
+| Model API | `:8081` | Machines: CI, SDK, CLI, inference | `/v1`: publish, promote, resolve, fetch, lineage, audit |
+| Admin console | `:8080` | Humans | Web UI for reviewing, promoting and governing |
 | Ops | `:9090` | Kubelet, Prometheus | `/healthz`, `/readyz`, `/metrics` |
 
-The port selects the surface; there is no `/admin` path prefix.
+The port selects the surface; there is no `/admin` path prefix. The Model API contract is at
+`/v1/openapi.json`. Publishing goes through the Model API, not the console.
 
 <Architecture />
+
+Three components are pluggable:
 
 | Component | Options | Config |
 | --- | --- | --- |
@@ -52,16 +55,17 @@ authenticates callers and controls the actor header.
 
 ## Core objects
 
-| Object | What it is |
-| --- | --- |
-| Model | A named, long-lived entry, e.g. `fraud-detector`. Has an owner, labels and a state |
-| Version | A release of a model, e.g. `1.4.0`, in exactly one stage |
-| Artifact | A file of a version: a pointer (`uri`) plus `digest`, `sizeBytes`, `modelFormat` |
-| Stage | `draft`, `staging`, `production`, `archived`. At most one version per model is in `production` |
-| Lineage edge | A typed link from a version to another version or an external URI |
-| Deployment | An informational record of where a version is served |
-| Evaluation | A metric result recorded against a version |
-| Audit event | An append-only record written with every mutation |
+Eight objects make up the registry:
+
+- Model: a named, long-lived entry, e.g. `fraud-detector`. It has an owner, labels and a state.
+- Version: a release of a model, e.g. `1.4.0`, in exactly one stage.
+- Artifact: a file of a version. A pointer (`uri`) plus `digest`, `sizeBytes`, `modelFormat`.
+- Stage: `draft`, `staging`, `production` or `archived`. At most one version per model is in
+  `production`.
+- Lineage edge: a typed link from a version to another version or an external URI.
+- Deployment: an informational record of where a version is served.
+- Evaluation: a metric result recorded against a version.
+- Audit event: an append-only record written with every mutation.
 
 A version's artifact set freezes the first time it enters `staging`: what was tested is what
 ships. Field-level detail is in [Data model](/start/data-model/).

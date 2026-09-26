@@ -11,21 +11,31 @@ their URI, digest and size.
 
 ## Metadata stores
 
+Lineage supports two relational engines for metadata.
+
 | | SQLite | Postgres |
 | --- | --- | --- |
 | `LINEAGE_DB_ENGINE` | `sqlite` (default) | `postgres` |
-| `LINEAGE_DB_PATH` | File path | DSN, e.g. `postgres://user:pass@host:5432/lineage?sslmode=require` |
+| `LINEAGE_DB_PATH` | File path | DSN |
 | Driver | `modernc.org/sqlite`, cgo-free | `pgx` |
-| Connection settings | WAL journal, `busy_timeout=5000`, foreign keys on, pool of 1 connection | Driver defaults; no pool cap set |
-| Writers | One. All writes serialize through the single connection. | Many. Promotions lock the model row (`FOR UPDATE`); artifact writes take `FOR SHARE` on the version row. |
-| Label and property filters | Evaluated in Go | Pushed down as JSONB containment (`@>`) |
-| Replicas | Exactly 1 (the chart enforces it) | 1 or more |
+| Connection pool | 1 connection | Driver defaults, no cap |
+| Writers | One | Many, with row locks |
+| Label and property filters | Evaluated in Go | JSONB containment (`@>`) |
+| Replicas | Exactly 1 (chart-enforced) | 1 or more |
 | Use for | Laptops, edge, small single-node installs | Production and HA |
+
+- SQLite runs with a WAL journal, `busy_timeout=5000` and foreign keys on. All writes
+  serialize through the single connection.
+- A Postgres DSN looks like `postgres://user:pass@host:5432/lineage?sslmode=require`.
+  Promotions lock the model row (`FOR UPDATE`); artifact writes take `FOR SHARE` on the
+  version row.
 
 Registry behaviour is the same on both. `LINEAGE_DB_ENGINE=memory` exists for tests and keeps
 nothing across restarts.
 
 ### Migrations
+
+Schema changes are applied automatically and never reversed.
 
 - One ordered, forward-only list of schema statements, applied in order and recorded in a
   `schema_version` table.
@@ -46,35 +56,42 @@ One backend is active per install, selected by `LINEAGE_STORAGE_DRIVER`.
 
 | Driver | Stores in | URI Lineage records |
 | --- | --- | --- |
-| `fs` | A directory (`LINEAGE_STORAGE_ROOT`), usually a PVC | `file://<model>/<version>/<artifact>`, relative to the root |
+| `fs` | A directory (`LINEAGE_STORAGE_ROOT`), usually a PVC | `file://<model>/<version>/<artifact>` |
 | `s3` | Any S3-compatible bucket | `s3://<bucket>/<model>/<version>/<artifact>` |
-| `oci` | An OCI registry: one manifest per version, one layer per artifact | `oci://<registry>/<prefix>/<model>:<version>#<artifact>` |
+| `oci` | An OCI registry | `oci://<registry>/<prefix>/<model>:<version>#<artifact>` |
+
+`fs` URIs are relative to the root. `oci` writes one manifest per version and one layer per
+artifact.
 
 There is no GCS or Azure Blob driver. Use an S3-compatible endpoint if your store offers one.
 
 ### How bytes move
 
+Each driver supports a different mix of signed URLs and stream-through.
+
 | Capability | `fs` | `s3` | `oci` |
 | --- | --- | --- | --- |
-| Signed download URL | No | Yes, SigV4, 15 min | Only if the registry answers a blob GET with a redirect to an absolute URL |
+| Signed download URL | No | Yes, SigV4, 15 min | Only via registry redirect |
 | Signed upload URL | No | Yes, 1 h | No |
 | Multipart upload | No | Yes, from 64 MiB | No |
 | Download without a signed URL | Stream-through `/content` | Stream-through `/content` | Stream-through `/content` |
 | Upload without a signed URL | Stream-through `uploadContent` | n/a | Stream-through `uploadContent` |
 | GC sweep | Yes | Yes | Skipped |
 
-Signed URLs are minted per response and never cached. When signing is unsupported or fails,
+`oci` signs a download only when the registry answers a blob GET with a redirect to an
+absolute URL. Signed URLs are minted per response and never cached. When signing is unsupported or fails,
 the artifact's `/content` endpoint streams the bytes through Lineage. Stream-through puts the
 bytes on the Model API pod's network and CPU; size pods accordingly for `fs` and `oci`.
 
 ### `s3`: AWS, MinIO, R2, Ceph
 
-| Store | Settings |
-| --- | --- |
-| AWS S3 | `LINEAGE_S3_BUCKET`, `LINEAGE_S3_REGION`. Leave the endpoint empty. |
-| MinIO | `LINEAGE_S3_ENDPOINT=http://minio:9000`, `LINEAGE_S3_PATH_STYLE=true`, static keys |
-| Cloudflare R2 | `LINEAGE_S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`, usually `LINEAGE_S3_PATH_STYLE=true`, static keys |
-| Ceph RGW | `LINEAGE_S3_ENDPOINT=<rgw url>`, `LINEAGE_S3_PATH_STYLE=true`, static keys |
+The `s3` driver works with any S3-compatible store:
+
+- AWS S3: set `LINEAGE_S3_BUCKET` and `LINEAGE_S3_REGION`. Leave the endpoint empty.
+- MinIO: `LINEAGE_S3_ENDPOINT=http://minio:9000`, `LINEAGE_S3_PATH_STYLE=true`, static keys.
+- Cloudflare R2: `LINEAGE_S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`, usually
+  `LINEAGE_S3_PATH_STYLE=true`, static keys.
+- Ceph RGW: `LINEAGE_S3_ENDPOINT=<rgw url>`, `LINEAGE_S3_PATH_STYLE=true`, static keys.
 
 Region defaults to `us-east-1` and is part of the SigV4 signature, so set it to what the
 store expects. Consumers download from signed URLs directly, so the endpoint must be
@@ -88,6 +105,8 @@ ServiceAccount with the role ARN and set no keys. The role needs `s3:GetObject`,
 `s3:AbortMultipartUpload`.
 
 ### `oci`: registries
+
+The `oci` driver stores artifacts in a container registry.
 
 - `LINEAGE_OCI_REGISTRY` is `host[:port]` only. `LINEAGE_OCI_REPOSITORY` is the prefix Lineage
   writes under.
@@ -133,12 +152,8 @@ Turn on bucket versioning or a soft-delete policy before enabling `sweep`.
 Back up both stores. Metadata without bytes points at nothing; bytes without metadata are
 unidentifiable.
 
-| Order | Backup | Restore |
-| --- | --- | --- |
-| 1 | Artifact bytes | Metadata |
-| 2 | Metadata | Artifact bytes |
-
-Taking bytes first means every metadata row points at an object the byte backup contains.
+Back up artifact bytes first, then metadata, so every metadata row points at an object the
+byte backup contains. Restore in the reverse order: metadata, then artifact bytes.
 
 ### Postgres
 
