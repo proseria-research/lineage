@@ -81,6 +81,9 @@ func run(c *client) error {
 		if err := seedModelRisk(c, m); err != nil {
 			return fmt.Errorf("model risk %s: %w", m.Name, err)
 		}
+		if err := declarePlans(c, m); err != nil {
+			return fmt.Errorf("change plans %s: %w", m.Name, err)
+		}
 		log.Printf("  %-22s %2d version(s)", m.Name, len(m.Versions))
 	}
 
@@ -89,6 +92,7 @@ func run(c *client) error {
 	log.Printf("      curl %s/v1/models/sentiment-classifier/diff?from=2.2.0-rc1\\&to=2.2.0-int8", c.base)
 	log.Printf("      curl %s/v1/reviews?status=open", c.base)
 	log.Printf("      curl %s/v1/models?mrmTier=tier_1\\&mrmState=stale", c.base)
+	log.Printf("      curl %s/v1/change-plans/conformance?status=outside_plan,undetermined", c.base)
 	log.Printf("      open the console at http://localhost:8080")
 	return nil
 }
@@ -136,6 +140,26 @@ func seedModelRisk(c *client, m seedModel) error {
 		if err := c.as(v.By).do("POST", base+"/validations", in, nil); err != nil {
 			return fmt.Errorf("validation of %s: %w", v.Version, err)
 		}
+	}
+	return nil
+}
+
+// declarePlans records the model's change control plans in order, each superseding the one
+// before (§22.6.1). Conformance is derived on read, so there is nothing else to seed: the
+// plans, the edges and the hashes already say everything.
+func declarePlans(c *client, m seedModel) error {
+	prev := ""
+	for _, p := range m.Plans {
+		in := p.ChangePlanInput
+		from := time.Now().AddDate(0, 0, -p.SinceDays).UnixMilli()
+		in.EffectiveFrom, in.Supersedes = &from, prev
+		var out struct {
+			ID string `json:"id"`
+		}
+		if err := c.as("regulatory@acme.example").do("POST", "/v1/models/"+m.Name+"/change-plans", in, &out); err != nil {
+			return fmt.Errorf("plan %s: %w", in.Ref, err)
+		}
+		prev = out.ID
 	}
 	return nil
 }

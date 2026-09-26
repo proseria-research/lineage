@@ -217,6 +217,51 @@ func TestSeedRunsCleanAndPopulatesCompliance(t *testing.T) {
 		t.Errorf("rc self-validation: %+v", rc.Items)
 	}
 
+	// ---- Change control: one row per status the console separates (§22.4) ----
+	//
+	// Asserted exactly, for the model-risk reason: a status appearing here that was not seeded
+	// is the fixture manufacturing a finding.
+	var conf struct {
+		Items []struct {
+			Model, Version, Conformance, Verdict, DeclaredMethod string
+			Reasons                                              []string
+			Plan                                                 *struct{ Ref string }
+		}
+	}
+	get(t, srv, "/v1/change-plans/conformance", &conf)
+	got := map[string]string{}
+	for _, it := range conf.Items {
+		got[it.Model+"@"+it.Version] = it.Conformance
+		if it.Model+"@"+it.Version == "sentiment-classifier@2.2.0-int8" {
+			if it.Verdict != "recast" || it.DeclaredMethod != "quantize" || len(it.Reasons) != 2 || it.Plan == nil || it.Plan.Ref != "PCCP-SC-2" {
+				t.Errorf("int8 conformance: %+v", it)
+			}
+		}
+	}
+	want := map[string]string{
+		"sentiment-classifier@2.2.0-rc1":  "within_plan",
+		"sentiment-classifier@2.2.0-int8": "outside_plan",
+		"demand-forecast@0.4.1":           "undetermined",
+	}
+	if len(got) != len(want) {
+		t.Errorf("conformance rows: %v", got)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s: %q, want %q", k, got[k], v)
+		}
+	}
+	var plans struct {
+		Items []struct {
+			Ref         string
+			EffectiveTo *int64 `json:"effectiveTo"`
+		}
+	}
+	get(t, srv, "/v1/models/sentiment-classifier/change-plans", &plans)
+	if len(plans.Items) != 2 || plans.Items[0].Ref != "PCCP-SC-2" || plans.Items[0].EffectiveTo != nil || plans.Items[1].EffectiveTo == nil {
+		t.Errorf("sentiment-classifier plans: %+v", plans.Items)
+	}
+
 	// ---- Re-seeding refuses rather than half-applying ----
 	//
 	// Seeding is additive and never deletes (§19.4). The second run must fail on the first
