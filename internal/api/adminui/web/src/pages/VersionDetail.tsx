@@ -11,6 +11,7 @@ import { LineageGraphView } from "@/components/LineageGraphView";
 import { InsightPanel } from "@/components/InsightPanel";
 import { CompliancePanel } from "@/components/Classification";
 import { VersionReviews } from "@/components/Review";
+import { MRMPanel } from "@/components/MRM";
 import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
 import { HoldAction, HoldNote } from "@/components/Hold";
@@ -137,6 +138,9 @@ export default function VersionDetail() {
 
       {/* Directly under the classification that put this derivation in the queue at all. */}
       <VersionReviews reviews={data.reviews} />
+
+      {/* The second regime (§20.10): this version's validations and its own state. */}
+      <MRMPanel c={data.mrm} validations={data.validations} version={v.name} />
 
       <InsightPanel insight={data.insight} footprints={data.footprints} evaluations={data.evaluations} />
 

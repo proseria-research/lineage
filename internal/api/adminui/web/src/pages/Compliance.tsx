@@ -8,6 +8,7 @@ import { ClassBadge, RiskClassBadge, STALE_REASON_TEXT } from "@/components/Clas
 import { ClassifyDialog } from "@/components/ClassifyDialog";
 import { EvidencePanel } from "@/components/Hold";
 import { ReviewQueue } from "@/components/Review";
+import { MRMStateBadge, TierBadge } from "@/components/MRM";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { relTime } from "@/lib/utils";
 
@@ -93,6 +94,68 @@ function WorkRow({ m, onClassify }: { m: ModelRollup; onClassify: (m: ModelRollu
   );
 }
 
+/**
+ * The second regime's worklist (§20.10): tiered models whose validation is missing or has
+ * gone stale, each with its reasons and a way through to the version they are about. It
+ * renders nothing when no model is tiered — the regime is not in use on this install.
+ */
+function ModelRiskWork({ models }: { models: ModelRollup[] }) {
+  const tiered = models.filter((m) => m.mrm && m.mrm.mrmTier !== "untiered");
+  if (tiered.length === 0) return null;
+  const work = tiered
+    .filter((m) => m.mrm!.state === "stale" || m.mrm!.state === "unvalidated")
+    // Stale first, as on the EU list: someone validated it once, so it is the cheaper fix.
+    .sort((a, b) => (a.mrm!.state === b.mrm!.state ? 0 : a.mrm!.state === "stale" ? -1 : 1));
+
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">Model risk · validation and monitoring</h2>
+        <span className="text-xs text-muted-foreground">
+          {tiered.length} tiered · {work.length} need attention
+        </span>
+      </div>
+      <div className="border bg-card">
+        {work.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            Every tiered model has a current validation and is being monitored.
+          </div>
+        ) : (
+          work.map((m) => {
+            const c = m.mrm!;
+            const why =
+              c.state === "unvalidated"
+                ? c.latestValidation
+                  ? `Latest validation is ${c.latestValidation.outcome}.`
+                  : "No validation recorded."
+                : (c.staleReasons ?? []).map((r) => STALE_REASON_TEXT[r] ?? r).join("; ");
+            return (
+              <div key={m.id} className="border-b px-4 py-3 last:border-b-0">
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  <Link to={`/models/${m.name}`} className="font-medium hover:underline underline-offset-4">
+                    {m.name}
+                  </Link>
+                  <TierBadge tier={c.mrmTier ?? "untiered"} />
+                  <MRMStateBadge state={c.state as "stale" | "unvalidated"} />
+                  {c.version && (
+                    <Link
+                      to={`/models/${m.name}/versions/${c.version}`}
+                      className="font-mono text-xs text-muted-foreground hover:underline underline-offset-4"
+                    >
+                      {c.version}
+                    </Link>
+                  )}
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">{why}</div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function Compliance() {
   const { data, error, loading, reload } = useAsync(() => api.models(), []);
   const [editing, setEditing] = useState<ModelRollup | null>(null);
@@ -122,7 +185,7 @@ export default function Compliance() {
 
   return (
     <div>
-      <PageHeader title="Compliance" sub="EU AI Act · risk classification and drift" />
+      <PageHeader title="Compliance" sub="EU AI Act risk classification and drift · model risk management" />
 
       {/* Whether the record can be trusted comes before what the record says. §19.8 keeps
           this off model pages because it describes the install, not any one model. */}
@@ -167,6 +230,8 @@ export default function Compliance() {
               same job continued: the queue only exists for models somebody has classified
               governed, and it renders nothing when there are no derivations to look at. */}
           <ReviewQueue />
+
+          <ModelRiskWork models={models} />
 
           {covered.length > 0 && (
             <section className="mt-6">

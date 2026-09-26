@@ -43,6 +43,9 @@ type modelRollup struct {
 	// console renders that as `unclassified`, never as `minimal` (§16.9) — which is only
 	// possible because the absence arrives as an absence rather than a default.
 	Classification *domain.ClassificationView `json:"classification"`
+	// MRM is the model's `mrm` row with its §20.7 state, null when untiered — rendered as
+	// `untiered`, never as a low tier (§20.10).
+	MRM *domain.ClassificationView `json:"mrm"`
 	// LegalHold is the model's own hold, null when not held (§19.8). The console shows it
 	// and shows what it blocks — a disabled action with no stated reason is worse than one
 	// that is simply absent.
@@ -92,6 +95,11 @@ type versionDetailDTO struct {
 	// the version page is where someone asks "is this thing I am about to promote governed,
 	// and is that assessment still good?" (§16.9). Null when unclassified.
 	Classification *domain.ClassificationView `json:"classification"`
+	// MRM is the model's `mrm` row, whose state is about the model's subject version (§20.7).
+	// Validations is *this* version's history and its own state against that row — the two
+	// differ when this is not the production version, and the page shows both.
+	MRM         *domain.ClassificationView `json:"mrm"`
+	Validations *core.VersionValidations   `json:"validations"`
 	// ModelHold is the owning model's hold, which covers this version transitively (§19.3.1).
 	// Carried separately from Version.LegalHold so the page can say *which* subject is held —
 	// releasing the wrong one is the mistake this prevents.
@@ -141,8 +149,9 @@ func (r *Router) overview(w http.ResponseWriter, req *http.Request) {
 }
 
 // models backs both the model table and the §16.9 inventory view — they are the same page.
-// Unlike the Model API, this always carries the classification: the console is the inventory,
-// so the join is the point rather than an opt-in cost.
+// Unlike the Model API, this always carries both regimes' rows: the console is the inventory,
+// so the joins are the point rather than an opt-in cost (§20.10: the same table, a second
+// regime's lens).
 func (r *Router) models(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	q := req.URL.Query()
@@ -153,7 +162,13 @@ func (r *Router) models(w http.ResponseWriter, req *http.Request) {
 		EUSystemRiskClass: domain.EUSystemRiskClass(q.Get("euSystemRiskClass")),
 		EUGpaiTier:        domain.EUGpaiTier(q.Get("euGpaiTier")),
 	}
-	items, next, err := r.svc.ListInventory(ctx, o, f, domain.ClassificationState(q.Get("classificationState")))
+	items, next, err := r.svc.Inventory(ctx, o, core.InventoryQuery{
+		EU: &core.EUInventory{Filter: f, State: domain.ClassificationState(q.Get("classificationState"))},
+		MRM: &core.MRMInventory{
+			Tier:  domain.MRMTier(q.Get("mrmTier")),
+			State: domain.ClassificationState(q.Get("mrmState")),
+		},
+	})
 	if err != nil {
 		api.WriteError(w, err)
 		return
@@ -162,6 +177,7 @@ func (r *Router) models(w http.ResponseWriter, req *http.Request) {
 	for _, it := range items {
 		roll := r.rollup(ctx, it.Model)
 		roll.Classification = it.Classification
+		roll.MRM = it.MRM
 		out = append(out, roll)
 	}
 	api.WriteJSON(w, http.StatusOK, map[string]any{"items": out, "nextPageToken": next})
@@ -193,6 +209,9 @@ func (r *Router) modelDetail(w http.ResponseWriter, req *http.Request) {
 	if c, cerr := r.svc.GetClassification(ctx, name, domain.RegimeEUAIAct); cerr == nil {
 		roll.Classification = c
 	}
+	if c, cerr := r.svc.GetClassification(ctx, name, domain.RegimeMRM); cerr == nil {
+		roll.MRM = c
+	}
 	api.WriteJSON(w, http.StatusOK, modelDetailDTO{Model: roll, Versions: summaries, Production: production})
 }
 
@@ -216,6 +235,10 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 	// Unclassified is a state, not a failure, so a not_found here becomes a null panel.
 	classification, _ := r.svc.GetClassification(ctx, model, domain.RegimeEUAIAct)
 	reviews, _ := r.svc.ListVersionReviews(ctx, model, version)
+	// Untiered is a state, so a not_found is a null row; the validation list is still read,
+	// because a validation recorded before anyone tiered the model is still a record.
+	mrm, _ := r.svc.GetClassification(ctx, model, domain.RegimeMRM)
+	validations, _ := r.svc.ListValidations(ctx, model, version)
 	// The owning model's hold covers this version transitively (§19.3.1), and the page has
 	// to be able to say which subject is actually held.
 	var modelHold *domain.Hold
@@ -226,7 +249,7 @@ func (r *Router) versionDetail(w http.ResponseWriter, req *http.Request) {
 		Model: model, Version: toSummary(v), AllowedTargets: allowedTargets(v.Stage),
 		Artifacts: nz(arts), Lineage: nz(edges), Deployments: nz(deps), Audit: nz(audit),
 		Reviews: nz(reviews), Insight: insight, Footprints: nz(footprints), Evaluations: nz(evals),
-		Classification: classification, ModelHold: modelHold,
+		Classification: classification, MRM: mrm, Validations: validations, ModelHold: modelHold,
 	})
 }
 
