@@ -73,11 +73,11 @@ function ConformanceRow({ it }: { it: ConformanceItem }) {
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b px-4 py-3 last:border-b-0">
       {anyHash ? (
         <div className="flex shrink-0 items-center gap-2">
-          <FingerprintMark insight={side("from")} size={52} emphasis={anyChanged ? changed : undefined} />
+          <FingerprintMark placeholder insight={side("from")} size={52} emphasis={anyChanged ? changed : undefined} />
           <span className="text-xs text-muted-foreground" aria-hidden="true">
             →
           </span>
-          <FingerprintMark insight={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
+          <FingerprintMark placeholder insight={side("to")} size={52} emphasis={anyChanged ? changed : undefined} />
         </div>
       ) : (
         <div className="flex h-11 w-[7.25rem] shrink-0 items-center justify-center border border-dashed text-xs text-muted-foreground">

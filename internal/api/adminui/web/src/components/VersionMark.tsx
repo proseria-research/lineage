@@ -302,40 +302,68 @@ export const RING_TONE: Record<RingName, { text: string; bg: string; border: str
   weights: { text: "text-fp-weights", bg: "bg-fp-weights", border: "border-fp-weights" },
 };
 
-function arcPath(cx: number, cy: number, r: number, a0: number, a1: number): string {
-  const p0x = cx + r * Math.cos(a0);
-  const p0y = cy + r * Math.sin(a0);
-  const p1x = cx + r * Math.cos(a1);
-  const p1y = cy + r * Math.sin(a1);
-  return `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
+/**
+ * One ring as a guilloche band: two strands weaving around the ring's radius, their waves
+ * seeded from the hash. The same hash always draws the same band and a different hash draws
+ * a visibly different one, which is all identity needs (§12.4); the shape itself encodes
+ * nothing further.
+ */
+function bandPaths(cx: number, cy: number, r: number, amp: number, hash: string, strands: number): string[] {
+  const next = stream(hash);
+  const unit = () => next() / 0xffffffff;
+  // A classic rosette: `strands` identical waves of n lobes, each shifted by an equal share
+  // of one lobe so they interlace. The hash picks the lobe count, a slow swell of the
+  // amplitude (m bulges around the ring) and the rotation — enough variety that two
+  // different hashes do not draw the same ring side by side.
+  const n = 6 + (next() % 9); // 6..14 lobes
+  const m = 2 + (next() % 4); // 2..5 swells
+  const rot = unit() * 2 * Math.PI;
+  const swellPhase = unit() * 2 * Math.PI;
+  const depth = 0.18 + unit() * 0.22;
+
+  const steps = 360;
+  const out: string[] = [];
+  for (let sIdx = 0; sIdx < strands; sIdx++) {
+    const lag = (sIdx * 2 * Math.PI) / (strands * n);
+    let d = "";
+    for (let k = 0; k <= steps; k++) {
+      const t = (k / steps) * 2 * Math.PI;
+      const a = amp * (1 - depth + depth * Math.cos(m * t + swellPhase));
+      const rr = r + a * Math.sin(n * (t + lag) + rot);
+      const x = cx + rr * Math.cos(t);
+      const y = cy + rr * Math.sin(t);
+      d += `${k === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    }
+    out.push(d + "Z");
+  }
+  return out;
 }
 
 function Fingerprint({
   hashes,
   size,
-  segments,
+  reduced,
   emphasis,
 }: {
   hashes: Partial<Record<RingName, string>>;
   size: number;
-  segments: number;
+  reduced: boolean;
   emphasis?: Partial<Record<RingName, boolean>>;
 }) {
   const k = size / 96;
   const cx = size / 2;
   const cy = size / 2;
-  // Stroke scales with the mark so a large disc reads as four solid rings and a thumbnail
-  // stays legible; round caps need a wider gap so neighbouring segments stay distinct.
-  const sw = Math.max(2, 3.4 * k);
+  const sw = Math.min(1.4, Math.max(0.8, 0.75 * k));
+  // Each band stays inside its own lane: rings are 10 units apart.
+  const amp = 3.6 * k;
   const out: React.ReactElement[] = [];
 
   RING_ORDER.forEach((name, i) => {
     const r = RING_R[i] * k;
     const h = hashes[name];
-    // Inner rings are small; cap their stroke so segments stay segments.
-    const rw = Math.min(sw, r * 0.2);
+    const muted = !!emphasis && !emphasis[name];
 
-    // Absent is a dotted circle in the muted tone: present-but-different and
+    // Absent is a dotted plain circle in the muted tone: present-but-different and
     // absent-entirely must not look alike (§12.4).
     if (!h) {
       out.push(
@@ -346,60 +374,32 @@ function Fingerprint({
           r={r}
           className="text-muted-foreground"
           stroke="currentColor"
-          strokeOpacity={0.55}
-          strokeWidth={Math.max(1, sw / 3)}
+          strokeOpacity={0.75}
+          strokeWidth={Math.max(1.4, sw * 1.6)}
+          strokeLinecap="round"
           fill="none"
-          strokeDasharray={`${Math.max(1, sw / 3)} ${sw * 1.2}`}
+          strokeDasharray={`0 ${Math.max(3.5, 4 * sw)}`}
         />,
       );
       return;
     }
 
-    // The ring's track, so the gaps in its pattern read as part of one ring.
-    out.push(
-      <circle
-        key={`${name}-track`}
-        cx={cx}
-        cy={cy}
-        r={r}
-        className={emphasis && !emphasis[name] ? "text-muted-foreground" : RING_TONE[name].text}
-        stroke="currentColor"
-        strokeOpacity={0.14}
-        strokeWidth={rw}
-        fill="none"
-      />,
-    );
-
-    const next = stream(h);
-    const rot = (7.5 * i * Math.PI) / 180; // so rings never align into spokes
-    const step = (2 * Math.PI) / segments;
-    const gap = Math.min(step * 0.5, (2 * Math.PI) / 180 + rw / r);
-    let word = next();
-    let bit = 0;
-
-    for (let seg = 0; seg < segments; seg++) {
-      if (bit >= 30) {
-        word = next();
-        bit = 0;
-      }
-      const on = (word >>> bit) & 1;
-      bit++;
-      if (!on) continue;
+    bandPaths(cx, cy, r, reduced ? amp * 0.6 : amp, h, reduced ? 1 : 3).forEach((d, sIdx) => {
       out.push(
         <path
-          key={`${name}${seg}`}
-          d={arcPath(cx, cy, r, rot + seg * step + gap / 2, rot + (seg + 1) * step - gap / 2)}
+          key={`${name}${sIdx}`}
+          d={d}
           // In a delta pair, rings that did not change drop to muted so the ones that did
           // carry their colour alone (§12.4).
-          className={emphasis && !emphasis[name] ? "text-muted-foreground" : RING_TONE[name].text}
+          className={muted ? "text-muted-foreground" : RING_TONE[name].text}
           stroke="currentColor"
-          strokeOpacity={emphasis && !emphasis[name] ? 0.6 : 1}
-          strokeWidth={rw}
-          strokeLinecap="round"
+          strokeOpacity={muted ? 0.45 : 0.9}
+          strokeWidth={sw}
+          strokeLinejoin="round"
           fill="none"
         />,
       );
-    }
+    });
   });
 
   return <>{out}</>;
@@ -475,6 +475,7 @@ export function FingerprintMark({
   reduced,
   emphasis,
   className,
+  placeholder,
 }: {
   insight?: FingerprintData | null;
   size?: number;
@@ -482,8 +483,10 @@ export function FingerprintMark({
   /** Rings mapped false are drawn muted, for a side-by-side delta. */
   emphasis?: Partial<Record<RingName, boolean>>;
   className?: string;
+  /** In a pair, draw four dotted rings for a side with no hashes rather than nothing. */
+  placeholder?: boolean;
 }) {
-  if (!hasFingerprint(insight)) return null;
+  if (!hasFingerprint(insight) && !placeholder) return null;
   const small = reduced ?? size < 24;
 
   return (
@@ -497,9 +500,9 @@ export function FingerprintMark({
       style={{ display: "block", flex: "none" }}
     >
       <Fingerprint
-        hashes={insight!.hashes as Partial<Record<RingName, string>>}
+        hashes={(insight?.hashes ?? {}) as Partial<Record<RingName, string>>}
         size={size}
-        segments={small ? 8 : 24}
+        reduced={small}
         emphasis={emphasis}
       />
     </svg>
