@@ -75,6 +75,11 @@ storage:
 # contract with the front door: changing it is a breaking change for every client and proxy.
 actorHeader: X-Lineage-Actor
 
+# Where people reach the Model API from their own code — typically the Model API ingress URL.
+# The console puts it in its "Use this model" snippets. Empty: the console assumes the host it
+# is served from, on the Model API port.
+publicModelApiUrl: ""
+
 # Evidence survival (§19). Both mechanisms are refusals or attestations — nothing here
 # deletes anything on a timer.
 compliance:
