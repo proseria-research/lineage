@@ -351,6 +351,8 @@ function Fingerprint({
     const h = hashes[name];
     const base = PETAL_ANGLE[i];
     const muted = !!emphasis && !emphasis[name];
+    // In a pair, a changed petal oscillates while the pair is hovered (index.css, .fp-pair).
+    const changed = !!emphasis && !!emphasis[name];
 
     // Absent is a plain dotted petal in the muted tone: present-but-different and
     // absent-entirely must not look alike (§12.4).
@@ -391,7 +393,7 @@ function Fingerprint({
         <polygon
           key={name}
           points={petalPoints(c, len, base, width, wav, depth, 1)}
-          className={tone}
+          className={`${tone}${changed ? " fp-changed" : ""}`}
           fill="currentColor"
           fillOpacity={muted ? 0.28 : 0.8}
           stroke="currentColor"
@@ -466,7 +468,7 @@ function Fingerprint({
       dots.push(dotAt(`${name}i${q}`, t, sc, x, y, 0.55 + unit() * 0.5, 0.35 + unit() * 0.4));
     }
     out.push(
-      <g key={name} opacity={muted ? 0.55 : 1}>
+      <g key={name} opacity={muted ? 0.55 : 1} className={changed ? "fp-changed" : undefined}>
         {dots}
       </g>,
     );

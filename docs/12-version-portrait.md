@@ -173,7 +173,9 @@ Three rules hold the colour honest:
    those.
 
 In a side-by-side delta (§4 table), petals that did not change drop to muted so the ones that
-did carry their colour alone.
+did carry their colour alone. While a pair is hovered, the changed petals also oscillate — a
+small swing and pulse from the flower's centre — and the unchanged ones stay still, so anything
+that moves is a difference. Off under `prefers-reduced-motion`.
 
 This makes the `11.4.1` verdict readable directly off two marks placed side by side:
 

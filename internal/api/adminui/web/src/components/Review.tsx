@@ -83,7 +83,7 @@ function ReviewRow({ it, onReview }: { it: ReviewItem; onReview: (it: ReviewItem
       {/* The marks, side by side. Changed petals keep their colour and matched petals recede,
           so the delta reads before any text does (§12.6.2). */}
       {anyHash ? (
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="fp-pair flex shrink-0 items-center gap-2">
           <FingerprintMark placeholder insight={side("from")} size={52} emphasis={anyChanged ? changed : undefined} />
           <span className="text-xs text-muted-foreground" aria-hidden="true">
             →
