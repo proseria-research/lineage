@@ -408,8 +408,8 @@ function Fingerprint({
     const contours = size < 64 ? 2 : 3 + (next() % 2);
     const perContour = Math.round((size < 64 ? 26 : 80) * Math.max(0.6, width * 1.6));
     const interior = size < 64 ? 18 : 140;
-    const dot = Math.max(0.5, 0.62 * k);
-    const jitter = 1.1 * k;
+    const dot = Math.max(0.55, 0.7 * k);
+    const jitter = 0.55 * k;
     // The gradient. Across the petal, its centre line is the level's own colour and its edges
     // blend toward the neighbouring petals' colours (at most 25%), so the four flow into one
     // flower while each keeps its identity. From tip to centre, dots grow finer and fainter.
@@ -435,7 +435,7 @@ function Fingerprint({
           cy={y}
           r={dot * scale * (0.3 + 1.25 * Math.pow(rho, 1.4))}
           style={{ fill: colourAt(t) }}
-          fillOpacity={alpha * (0.65 + 0.35 * rho)}
+          fillOpacity={Math.min(1, alpha * (0.85 + 0.15 * rho))}
         />
       );
     };
@@ -454,7 +454,7 @@ function Fingerprint({
             x + (unit() - 0.5) * jitter,
             y + (unit() - 0.5) * jitter,
             (ci === 0 ? 1.2 : 0.95) * (0.75 + unit() * 0.5),
-            (ci === 0 ? 1 : 0.8) * (0.75 + unit() * 0.25),
+            (ci === 0 ? 1 : 0.9) * (0.9 + unit() * 0.1),
           ),
         );
       }

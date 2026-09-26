@@ -239,7 +239,7 @@ flowchart TB
 
 | Section | Component | Where | Form |
 |---|---|---|---|
-| Fingerprint | `VersionFingerprint.tsx` | Top row, left, beside Lifecycle in a `19rem / 1fr` grid | Square card; 168px flower, level roll-call beneath |
+| Fingerprint | `VersionFingerprint.tsx` | Top row, left, beside Lifecycle in a `19rem / 1fr` grid | Square card; 208px flower, level roll-call beneath |
 | Portrait | `VersionPortrait.tsx` | Immediately below the top row | Full-width card; `880 × 260` viewBox scaled to the container, legend beneath in two columns |
 
 **Why the fingerprint sits with the lifecycle.** Identity and stage are the two facts a reader

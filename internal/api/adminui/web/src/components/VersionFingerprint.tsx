@@ -51,7 +51,7 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
           <>
             <FingerprintMark
               insight={insight}
-              size={168}
+              size={208}
             />
 
             {/* Clockwise from the top left, matching the drawing. An absent level stays grey and

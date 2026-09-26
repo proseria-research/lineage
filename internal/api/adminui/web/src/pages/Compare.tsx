@@ -109,7 +109,7 @@ export default function Compare() {
                 <div className="flex flex-col items-center gap-2">
                   <FingerprintMark placeholder
                     insight={fingerprint("from")}
-                    size={128}
+                    size={160}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
                   />
                   <Tooltip content={from}>
@@ -120,7 +120,7 @@ export default function Compare() {
                 <div className="flex flex-col items-center gap-2">
                   <FingerprintMark placeholder
                     insight={fingerprint("to")}
-                    size={128}
+                    size={160}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
                   />
                   <Tooltip content={to} align="end">
