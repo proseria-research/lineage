@@ -510,11 +510,56 @@ func (r *Router) recordReview(w http.ResponseWriter, req *http.Request) {
 	api.WriteJSON(w, http.StatusCreated, rev)
 }
 
+// ---- Model risk writes (§20.9) ----
+//
+// Recording a validation and clearing its conditions are human judgements — a validator
+// concluding, a model owner signing off remediation — which is what the Admin surface is for.
+// Both go through the same core operations as /v1, so the rules and audit events are identical.
+
+func (r *Router) recordValidation(w http.ResponseWriter, req *http.Request) {
+	var in core.ValidationInput
+	if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+		api.WriteError(w, domain.Invalid("invalid JSON: "+err.Error()))
+		return
+	}
+	v, err := r.svc.RecordValidation(req.Context(), r.actor(req), req.PathValue("model"), req.PathValue("version"), in)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusCreated, v)
+}
+
+func (r *Router) clearValidationConditions(w http.ResponseWriter, req *http.Request) {
+	v, err := r.svc.ClearValidationConditions(req.Context(), r.actor(req),
+		req.PathValue("model"), req.PathValue("version"), req.PathValue("id"))
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusOK, v)
+}
+
 // ---- Change control plans (§22) ----
 
 // changePlans backs the console's change-control section: the plan register and every
 // conformance row, in one payload. No status filter — the page separates what needs a look
 // (outside_plan, undetermined) from what does not, and shows both, for the reviews reason.
+// declareChangePlan records a plan, or replaces the open one when `supersedes` names it.
+func (r *Router) declareChangePlan(w http.ResponseWriter, req *http.Request) {
+	var in core.ChangePlanInput
+	if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+		api.WriteError(w, domain.Invalid("invalid JSON: "+err.Error()))
+		return
+	}
+	p, err := r.svc.DeclareChangePlan(req.Context(), r.actor(req), req.PathValue("model"), in)
+	if err != nil {
+		api.WriteError(w, err)
+		return
+	}
+	api.WriteJSON(w, http.StatusCreated, p)
+}
+
 func (r *Router) changePlans(w http.ResponseWriter, req *http.Request) {
 	plans, err := r.svc.AllChangePlans(req.Context())
 	if err != nil {
