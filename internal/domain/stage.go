@@ -34,3 +34,18 @@ func IsSingleton(s Stage) bool { return singletonStages[s] }
 // (§00.11.19): what was tested is what ships, so the lock falls on the first entry into
 // staging (or production, should the graph ever allow draft→production directly).
 func LocksArtifacts(s Stage) bool { return s == StageStaging || s == StageProduction }
+
+// RefusedVersionLocked is details.reason on a write refused because the version's artifact
+// set is locked (§00.11.19, §03.9).
+const RefusedVersionLocked = "version_locked"
+
+// Locked reports whether v's artifact set is frozen.
+func (v *ModelVersion) Locked() bool { return v.LockedAt != 0 }
+
+// VersionLocked is the refusal for any write that would change a locked version's artifact
+// set or bytes. The remedy is always the same: a new version.
+func VersionLocked(v *ModelVersion, what string) *Error {
+	return Precondition(
+		"cannot "+what+": "+v.Model+"@"+v.Name+" is locked — its files froze when it first reached staging; publish a new version instead",
+		map[string]any{"reason": RefusedVersionLocked, "lockedAt": v.LockedAt})
+}

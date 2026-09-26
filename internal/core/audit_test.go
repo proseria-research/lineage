@@ -55,14 +55,6 @@ func TestEveryWriteAuditsExactlyOnce(t *testing.T) {
 			_, err := s.PatchVersion(ctx, "me", m, "1", core.PatchVersionInput{Description: &d})
 			return err
 		}, []string{"version.update"}},
-		{"transition", func() error {
-			_, err := s.Transition(ctx, "me", m, "1", domain.StageStaging, "qa")
-			return err
-		}, []string{"version.stage_changed"}},
-		{"transition to the current stage is a no-op", func() error {
-			_, err := s.Transition(ctx, "me", m, "1", domain.StageStaging, "again")
-			return err
-		}, nil},
 		{"register artifact", func() error {
 			_, err := s.RegisterArtifact(ctx, "me", m, "1", core.ArtifactInput{Name: "tokenizer", URI: "s3://b/t1"})
 			return err
@@ -89,6 +81,15 @@ func TestEveryWriteAuditsExactlyOnce(t *testing.T) {
 			_, err := s.FinalizeUpload(ctx, "me", m, "1", uploadID, "", nil)
 			return err
 		}, []string{"artifact.upload"}},
+		// After the artifact writes: entering staging locks the set (§00.11.19).
+		{"transition", func() error {
+			_, err := s.Transition(ctx, "me", m, "1", domain.StageStaging, "qa")
+			return err
+		}, []string{"version.stage_changed"}},
+		{"transition to the current stage is a no-op", func() error {
+			_, err := s.Transition(ctx, "me", m, "1", domain.StageStaging, "again")
+			return err
+		}, nil},
 		{"add lineage", func() error {
 			e, err := s.AddLineage(ctx, "me", m, "2", core.LineageInput{Relation: domain.RelDerivedFrom,
 				To: struct {

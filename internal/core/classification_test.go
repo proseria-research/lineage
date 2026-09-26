@@ -329,8 +329,8 @@ func TestClassificationViewSerialization(t *testing.T) {
 }
 
 // Clause 3 end to end (§16.5, §00.11.18): it fires when the system in service changes — a
-// file added to the production version, or a promotion — and not when the production
-// version's description is edited.
+// promotion (files can no longer be added once a version reaches staging, §00.11.19) — and
+// not when the production version's description is edited.
 func TestClause3FollowsTheSystemInService(t *testing.T) {
 	s, ctx := classifiable(t)
 	if _, _, err := s.PublishVersion(ctx, "me", "m", core.PublishVersionInput{Name: "1.0.0"}); err != nil {
@@ -340,6 +340,11 @@ func TestClause3FollowsTheSystemInService(t *testing.T) {
 		if _, err := s.Transition(ctx, "me", "m", "1.0.0", to, ""); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// The successor exists before the classification, so only its promotion is news.
+	if _, _, err := s.PublishVersion(ctx, "me", "m", core.PublishVersionInput{Name: "2.0.0",
+		Artifacts: []core.ArtifactInput{{Name: "weights-v2.bin", URI: "s3://b/w2"}}}); err != nil {
+		t.Fatal(err)
 	}
 	tick()
 	if _, err := s.SetClassification(ctx, "risk", "m", eu, highRisk()); err != nil {
@@ -364,11 +369,13 @@ func TestClause3FollowsTheSystemInService(t *testing.T) {
 	}
 
 	tick()
-	if _, err := s.RegisterArtifact(ctx, "me", "m", "1.0.0", core.ArtifactInput{Name: "weights-v2.bin", URI: "s3://b/w2"}); err != nil {
-		t.Fatal(err)
+	for _, to := range []domain.Stage{domain.StageStaging, domain.StageProduction} {
+		if _, err := s.Transition(ctx, "me", "m", "2.0.0", to, ""); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if st, rs := state(); st != domain.ClassificationStale || len(rs) != 1 || rs[0] != domain.StaleProductionChanged {
-		t.Fatalf("after a file added to production: %q %v, want stale [%s]", st, rs, domain.StaleProductionChanged)
+		t.Fatalf("after a new version entered production: %q %v, want stale [%s]", st, rs, domain.StaleProductionChanged)
 	}
 
 	// Re-classify, then take the only version out of production. Nothing is in service, so
@@ -381,7 +388,7 @@ func TestClause3FollowsTheSystemInService(t *testing.T) {
 		t.Fatalf("re-classifying did not clear it: %q", st)
 	}
 	tick()
-	if _, err := s.Transition(ctx, "me", "m", "1.0.0", domain.StageArchived, ""); err != nil {
+	if _, err := s.Transition(ctx, "me", "m", "2.0.0", domain.StageArchived, ""); err != nil {
 		t.Fatal(err)
 	}
 	if st, rs := state(); st != domain.ClassificationCurrent {
