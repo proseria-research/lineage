@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
-import { FingerprintMark, RING_HELP, RING_LABEL, type RingName } from "@/components/VersionMark";
+import { BlinkMark, FingerprintMark, RING_HELP, RING_LABEL, type RingName } from "@/components/VersionMark";
 import { TensorInfo } from "@/components/TensorInfo";
 import { PageHeader, Loading, ErrorNote, Empty } from "@/components/State";
 import { VERDICT_LABEL } from "@/components/Review";
@@ -118,14 +118,16 @@ export default function Compare() {
                 </div>
                 <span className="text-muted-foreground" aria-hidden="true">→</span>
                 <div className="flex flex-col items-center gap-2">
-                  <FingerprintMark placeholder
-                    insight={fingerprint("to")}
+                  <BlinkMark
+                    from={fingerprint("from")}
+                    to={fingerprint("to")}
                     size={160}
                     emphasis={hasChangedLevel ? changedLevels : undefined}
                   />
-                  <Tooltip content={to} align="end">
+                  <span className="relative inline-block">
                     <span className="max-w-32 truncate font-mono text-xs">{to}</span>
-                  </Tooltip>
+                    <span className="fp-blink-a absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap bg-card px-1 font-mono text-xs">{from}</span>
+                  </span>
                 </div>
               </div>
             ) : (
@@ -133,7 +135,7 @@ export default function Compare() {
             )}
             {hasFingerprint && (
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                {hasChangedLevel ? "Coloured petals changed; grey petals are the same." : "The reported petals match."} Dotted petals were not reported. Hover the pair: the petals that move are what changed.
+                {hasChangedLevel ? "Coloured petals changed; grey petals are the same." : "The reported petals match."} Dotted petals were not reported. Hover the pair to flip between the two: whatever jumps changed.
               </p>
             )}
           </div>
