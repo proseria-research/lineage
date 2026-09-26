@@ -405,6 +405,12 @@
   animation: fp-blink 1.2s steps(1, end) infinite;
 }
 
+/* The counterpart of an A overlay that has no opaque backing (a label): hidden exactly when
+   A shows. */
+.fp-pair:hover .fp-blink-b {
+  animation: fp-blink 1.2s steps(1, end) infinite reverse;
+}
+
 @keyframes fp-blink {
   0% {
     opacity: 1;
@@ -415,7 +421,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fp-pair:hover .fp-blink-a {
+  .fp-pair:hover .fp-blink-a,
+  .fp-pair:hover .fp-blink-b {
     animation: none;
   }
 }
