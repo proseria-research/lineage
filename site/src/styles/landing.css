@@ -691,29 +691,48 @@ output.is-changed {
 	font-weight: 500;
 }
 
-/* ---- Three steps ---- */
+/* ---- Three steps: a list beside one script ---- */
 
-.steps {
+.flow {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 1.25rem;
+	grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+	gap: clamp(1.5rem, 4vw, 3rem);
+	align-items: start;
 }
 
-/* Subgrid rows line up the number, title, text and code across all three cards, so the
-   code blocks start at the same height whatever the length of the text above them. */
-.step {
+.flow__steps {
 	display: grid;
-	grid-row: span 4;
-	grid-template-rows: subgrid;
-	row-gap: 0;
-	padding: 1.5rem;
-	border: 1px solid var(--border);
+	gap: 0.5rem;
+}
+
+.flow__step {
+	display: flex;
+	gap: 1rem;
+	width: 100%;
+	padding: 1.1rem 1.25rem;
+	border: 1px solid transparent;
 	border-radius: var(--radius-lg);
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.flow__step:hover,
+.flow__step[aria-pressed='true'] {
+	border-color: var(--border);
 	background: var(--card);
 }
 
-.step__num {
+.flow__step[aria-pressed='true'] {
+	border-color: var(--brand);
+}
+
+.flow__num {
 	display: grid;
+	flex: none;
 	width: 1.75rem;
 	height: 1.75rem;
 	place-items: center;
@@ -724,34 +743,128 @@ output.is-changed {
 	font-weight: 600;
 }
 
-.step__title {
-	margin-top: 1rem;
-	font-size: 1.1875rem;
+.flow__title {
+	display: block;
+	font-size: 1.125rem;
 	font-weight: 600;
+	line-height: 1.75rem;
 }
 
-.step__body {
-	margin-top: 0.4rem;
-	margin-bottom: 1.25rem;
-	max-width: 32rem;
+.flow__body {
+	display: block;
+	margin-top: 0.25rem;
 	color: var(--muted-fg);
 	font-size: 0.9375rem;
 }
 
-.code {
-	align-self: start;
-	padding: 0.9rem 1rem;
-	overflow-x: auto;
+.script {
+	overflow: hidden;
 	border: 1px solid var(--border);
-	border-radius: var(--radius);
+	border-radius: var(--radius-lg);
+	background: var(--card);
+	box-shadow: var(--shadow);
+}
+
+.script__bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.5rem 0.6rem;
+	border-bottom: 1px solid var(--border);
 	background: var(--muted);
-	font-size: 0.8rem;
-	line-height: 1.6;
+}
+
+.script__tabs {
+	display: flex;
+	gap: 0.25rem;
+}
+
+.script__tab {
+	min-height: 1.9rem;
+	padding: 0 0.75rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
+	background: none;
+	color: var(--muted-fg);
+	font: 500 0.8125rem/1 var(--sans);
+	cursor: pointer;
+}
+
+.script__tab:hover {
+	color: var(--fg);
+}
+
+.script__tab[aria-selected='true'] {
+	border-color: var(--border);
+	background: var(--card);
+	color: var(--fg);
+}
+
+.script__copy {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 1.9rem;
+	padding: 0 0.6rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--card);
+	color: var(--muted-fg);
+	font: 500 0.8125rem/1 var(--sans);
+	cursor: pointer;
+}
+
+.script__copy:hover {
+	color: var(--fg);
+}
+
+.script__code[hidden] {
+	display: none;
+}
+
+.script__code {
+	padding: 1rem 0;
+	overflow-x: auto;
+	font-size: 0.84rem;
+	line-height: 1.7;
+}
+
+.script__line {
+	display: block;
+	min-height: 1.7em;
+	padding: 0 1.25rem;
+	border-left: 3px solid transparent;
+	white-space: pre;
+	transition: opacity 140ms ease, background-color 140ms ease;
+}
+
+.flow[data-active] .script__line:not(.is-lit) {
+	opacity: 0.35;
+}
+
+.script__line.is-lit {
+	border-left-color: var(--brand);
+	background: var(--brand-soft);
+}
+
+.tok-c {
+	color: var(--muted-fg);
+	font-style: italic;
+}
+
+.tok-s {
+	color: var(--ok);
 }
 
 @media (max-width: 900px) {
-	.steps {
+	.flow {
 		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.script__line {
+		transition: none;
 	}
 }
 
