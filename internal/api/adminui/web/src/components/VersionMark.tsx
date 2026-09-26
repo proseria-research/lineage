@@ -384,15 +384,20 @@ function Fingerprint({
       return [c + rr * Math.cos(a), c + rr * Math.sin(a)];
     };
 
-    if (reduced) {
-      // Under 24px dots are dust: a filled petal.
+    if (reduced || size < 64) {
+      // At thumbnail size a point cloud is dust and a comparison cannot be read off it: a solid
+      // petal, coloured if it changed, grey if not.
       out.push(
         <polygon
           key={name}
           points={petalPoints(c, len, base, width, wav, depth, 1)}
           className={tone}
           fill="currentColor"
-          fillOpacity={muted ? 0.3 : 0.75}
+          fillOpacity={muted ? 0.28 : 0.8}
+          stroke="currentColor"
+          strokeOpacity={muted ? 0.5 : 1}
+          strokeWidth={0.8}
+          strokeLinejoin="round"
         />,
       );
       return;
@@ -406,7 +411,7 @@ function Fingerprint({
     const dot = Math.max(0.5, 0.62 * k);
     const jitter = 1.1 * k;
     // The gradient. Across the petal, its centre line is the level's own colour and its edges
-    // blend toward the neighbouring petals' colours (at most 45%), so the four flow into one
+    // blend toward the neighbouring petals' colours (at most 25%), so the four flow into one
     // flower while each keeps its identity. From tip to centre, dots grow finer and fainter.
     // In a delta pair only the tip-to-centre fade applies: an unchanged petal stays grey, and
     // a changed one keeps its colour unmixed so it cannot borrow a neighbour's.
@@ -418,7 +423,7 @@ function Fingerprint({
     const colourAt = (t: number) => {
       if (emphasis) return own;
       const w = Math.abs(t - Math.PI / 2) / (Math.PI / 2); // 0 on the centre line, 1 at an edge
-      const mix = Math.round(45 * w * w);
+      const mix = Math.round(25 * w * w);
       return mix === 0 ? own : `color-mix(in oklch, ${own} ${100 - mix}%, ${neighbour(t < Math.PI / 2 ? -1 : 1)})`;
     };
     const dotAt = (key: string, t: number, sc: number, x: number, y: number, scale: number, alpha: number) => {
@@ -428,9 +433,9 @@ function Fingerprint({
           key={key}
           cx={x}
           cy={y}
-          r={dot * scale * (0.55 + 0.6 * rho)}
+          r={dot * scale * (0.3 + 1.25 * Math.pow(rho, 1.4))}
           style={{ fill: colourAt(t) }}
-          fillOpacity={alpha * (0.3 + 0.7 * rho)}
+          fillOpacity={alpha * (0.65 + 0.35 * rho)}
         />
       );
     };
@@ -458,7 +463,7 @@ function Fingerprint({
       const t = 0.08 + unit() * (Math.PI - 0.16);
       const sc = 0.1 + Math.pow(unit(), 0.7) * 0.85;
       const [x, y] = at(t, sc);
-      dots.push(dotAt(`${name}i${q}`, t, sc, x, y, 0.5 + unit() * 0.5, 0.25 + unit() * 0.4));
+      dots.push(dotAt(`${name}i${q}`, t, sc, x, y, 0.55 + unit() * 0.5, 0.35 + unit() * 0.4));
     }
     out.push(
       <g key={name} opacity={muted ? 0.55 : 1}>
