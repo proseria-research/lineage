@@ -305,9 +305,55 @@ func RunInventory(t *testing.T, store domain.MetadataStore) {
 	if f.LatestVersionCreatedAt != now+5_000 {
 		t.Fatalf("latestVersionCreatedAt = %d, want %d", f.LatestVersionCreatedAt, now+5_000)
 	}
-	if f.LatestProductionUpdatedAt != now+5_000 {
-		t.Fatalf("latestProductionUpdatedAt = %d, want %d", f.LatestProductionUpdatedAt, now+5_000)
+	if f.ProductionChangedAt != now+5_000 {
+		t.Fatalf("productionChangedAt = %d, want %d (entry into production)", f.ProductionChangedAt, now+5_000)
 	}
+
+	// Clause 3 measures the system in service, not the row (§16.5): a metadata edit on the
+	// production version must not move it; a file added to that version must; a file on a
+	// version that is not in production must not.
+	v.Description, v.UpdatedAt = "typo fixed", now+7_000
+	if err := store.UpdateVersion(ctx, v); err != nil {
+		t.Fatalf("UpdateVersion: %v", err)
+	}
+	if got := rowsByName(domain.ClassificationFilter{})["inv-high"].Facts.ProductionChangedAt; got != now+5_000 {
+		t.Fatalf("a description edit moved productionChangedAt to %d", got)
+	}
+	draft := &domain.ModelVersion{
+		ID: domain.NewID(), ModelID: high.ID, Name: "0.9.0", Stage: domain.StageDraft,
+		CreatedAt: now + 1_000, UpdatedAt: now + 1_000,
+	}
+	if err := store.CreateVersion(ctx, draft); err != nil {
+		t.Fatalf("CreateVersion draft: %v", err)
+	}
+	artifact := func(versionID, name string, at int64) {
+		if err := store.CreateArtifact(ctx, &domain.Artifact{
+			ID: domain.NewID(), VersionID: versionID, Kind: domain.KindModel, Name: name,
+			URI: "fs://x/" + name, CreatedAt: at, UpdatedAt: at,
+		}); err != nil {
+			t.Fatalf("CreateArtifact %s: %v", name, err)
+		}
+	}
+	artifact(draft.ID, "draft.bin", now+8_000)
+	if got := rowsByName(domain.ClassificationFilter{})["inv-high"].Facts.ProductionChangedAt; got != now+5_000 {
+		t.Fatalf("a file on a draft version moved productionChangedAt to %d", got)
+	}
+	artifact(v.ID, "weights-v2.bin", now+9_000)
+	for name, got := range map[string]int64{
+		"ListInventory": rowsByName(domain.ClassificationFilter{})["inv-high"].Facts.ProductionChangedAt,
+		"DriftFactsFor": func() int64 {
+			f, err := store.DriftFactsFor(ctx, high.ID)
+			if err != nil {
+				t.Fatalf("DriftFactsFor: %v", err)
+			}
+			return f.ProductionChangedAt
+		}(),
+	} {
+		if got != now+9_000 {
+			t.Fatalf("%s: a file added to the production version left productionChangedAt at %d, want %d", name, got, now+9_000)
+		}
+	}
+	after = rowsByName(domain.ClassificationFilter{})
 	// One model's versions must not leak into another's facts — the join groups by model.
 	if after["inv-minimal"].Facts.LatestVersionCreatedAt != 0 {
 		t.Fatalf("version facts leaked across models: %+v", after["inv-minimal"].Facts)

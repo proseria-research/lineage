@@ -4273,7 +4273,7 @@
           "unmonitored_in_production",
           "conditions_outstanding"
         ],
-        "description": "Why a classification went out of date. `production_changed_since` reads updated_at, so editing the production version's description trips it — a deliberate false positive, since for a legal field erring toward 'take another look' is the right direction. For `mrm` rows: `validation_expired`, `version_published_since` (a version published after the validation), `unmonitored_in_production` (in production with no evaluation run since it got there), `conditions_outstanding`."
+        "description": "Why a classification went out of date. `production_changed_since`: what is in production changed after the classification — a version entered production (promotion or rollback), or a file was added to the production version. Metadata edits do not trip it. For `mrm` rows: `validation_expired`, `version_published_since` (a version published after the validation), `unmonitored_in_production` (in production with no evaluation run since it got there), `conditions_outstanding`."
       },
       "ClassificationInput": {
         "type": "object",

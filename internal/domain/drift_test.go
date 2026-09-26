@@ -42,7 +42,7 @@ func TestEachDriftClauseFiresIndependently(t *testing.T) {
 		want:  StaleVersionPublishedSince,
 	}, {
 		name:  "clause 3 — the production version changed since",
-		facts: DriftFacts{LatestProductionUpdatedAt: after},
+		facts: DriftFacts{ProductionChangedAt: after},
 		want:  StaleProductionChanged,
 	}, {
 		name:  "clause 4 — a review item was opened since",
@@ -74,7 +74,7 @@ func TestAllFiredReasonsAreReturnedInClauseOrder(t *testing.T) {
 	c.ReviewDueAt = ptr(testNow - 1)
 	state, reasons := ClassificationStateOf(c, DriftFacts{
 		LatestVersionCreatedAt:    after,
-		LatestProductionUpdatedAt: after,
+		ProductionChangedAt:       after,
 		LatestOpenReviewCreatedAt: after,
 	}, testNow)
 
@@ -92,7 +92,7 @@ func TestCurrentWhenNothingChangedSince(t *testing.T) {
 	state, reasons := ClassificationStateOf(classified(), DriftFacts{
 		// All strictly older than classifiedAt — the model existed before it was classified.
 		LatestVersionCreatedAt:    before,
-		LatestProductionUpdatedAt: before,
+		ProductionChangedAt:       before,
 		LatestOpenReviewCreatedAt: before,
 	}, testNow)
 	if state != ClassificationCurrent {
@@ -109,7 +109,7 @@ func TestCurrentWhenNothingChangedSince(t *testing.T) {
 func TestUnclassifiedIsNotStale(t *testing.T) {
 	everythingStale := DriftFacts{
 		LatestVersionCreatedAt:    after,
-		LatestProductionUpdatedAt: after,
+		ProductionChangedAt:       after,
 		LatestOpenReviewCreatedAt: after,
 	}
 
@@ -152,7 +152,7 @@ func TestAbsentFactsDoNotFire(t *testing.T) {
 func TestSimultaneousFactsAreNotSince(t *testing.T) {
 	state, reasons := ClassificationStateOf(classified(), DriftFacts{
 		LatestVersionCreatedAt:    classifiedAt,
-		LatestProductionUpdatedAt: classifiedAt,
+		ProductionChangedAt:       classifiedAt,
 		LatestOpenReviewCreatedAt: classifiedAt,
 	}, testNow)
 	if state != ClassificationCurrent {
@@ -181,21 +181,24 @@ func TestNoReviewDateNeverFiresClauseOne(t *testing.T) {
 	}
 }
 
-// §16.5 keeps one false positive on purpose: clause 3 reads updated_at, so editing the
-// production version's *description* marks the classification stale. This asserts the
-// behaviour is intended, so a later "fix" has to argue with a test rather than a comment.
-func TestProductionEditIsADeliberateFalsePositive(t *testing.T) {
-	// A description edit bumps updated_at without any stage change or new version.
-	state, reasons := ClassificationStateOf(classified(), DriftFacts{
-		LatestVersionCreatedAt:    before, // no new version
-		LatestProductionUpdatedAt: after,  // only the edit
-	}, testNow)
-
-	if state != ClassificationStale {
-		t.Fatalf("state = %q, want stale — the false positive is intended, see §16.5", state)
+// Clause 3 measures the system in service (§16.5, §00.11.18): an edit to the production
+// version's metadata changes neither fact the store reports, so it must not read stale. The
+// store suite checks the facts; this checks that clause 3 fires on them and on nothing else.
+func TestProductionChangeIsTheSystemNotTheRow(t *testing.T) {
+	// A metadata edit: no new version, and production unchanged since classification.
+	if state, reasons := ClassificationStateOf(classified(), DriftFacts{
+		LatestVersionCreatedAt: before,
+		ProductionChangedAt:    before,
+	}, testNow); state != ClassificationCurrent {
+		t.Fatalf("metadata-only edit: state = %q %v, want current", state, reasons)
 	}
-	if len(reasons) != 1 || reasons[0] != StaleProductionChanged {
-		t.Fatalf("reasons = %v, want exactly [%s] so the reader can see what tripped it",
-			reasons, StaleProductionChanged)
+
+	// A promotion, a rollback or a file added to production: the one reason, named.
+	state, reasons := ClassificationStateOf(classified(), DriftFacts{
+		LatestVersionCreatedAt: before,
+		ProductionChangedAt:    after,
+	}, testNow)
+	if state != ClassificationStale || len(reasons) != 1 || reasons[0] != StaleProductionChanged {
+		t.Fatalf("production changed: state = %q reasons = %v, want stale [%s]", state, reasons, StaleProductionChanged)
 	}
 }

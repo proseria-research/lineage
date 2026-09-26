@@ -602,7 +602,8 @@ and the doc now says so.
 - [x] Tests: each drift clause fires on its own; `unclassified` is not `stale`; every
       validation rule; the intentional false positive in clause 3 (`updated_at` on the
       production version) is asserted as expected behaviour rather than fixed; the `CHECK`
-      rejects an `eu_ai_act` row with a null `eu_system_risk_class` on both dialects
+      rejects an `eu_ai_act` row with a null `eu_system_risk_class` on both dialects. Since
+      replaced: clause 3 now follows the system in service, not the row (§00.11.18)
 
 **Regime isolation is tested in M17, not here.** The bug that the per-regime key prevents can
 only occur when a second regime exists, and the second regime, `mrm`, arrives in M17

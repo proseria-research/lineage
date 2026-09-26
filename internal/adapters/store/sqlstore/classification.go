@@ -109,22 +109,27 @@ func nullEnum(v string) any {
 	return v
 }
 
-// DriftFactsFor gathers the §16.5 aggregates in one pass over the model's versions. Both
-// MAXes come from the same scan, which the (model_id, stage) index from §02.6 already
-// supports — §16.5's claim that staleness stays a list query rather than a per-row audit
-// scan rests on this staying one statement.
+// DriftFactsFor gathers the §16.5 aggregates in one statement: the newest version's creation
+// time, when the production version entered production, and the newest artifact on it. The
+// (model_id, stage) index (§02.6) and artifact's (version_id, name) key serve both parts, so
+// staleness stays a list query rather than a per-row audit scan.
 //
 // COALESCE to 0 means "no such row", which the predicate reads as an absent fact.
 func (s *Store) DriftFactsFor(ctx context.Context, modelID string) (domain.DriftFacts, error) {
 	var f domain.DriftFacts
+	var entered, artifact int64
 	err := s.q.QueryRowContext(ctx, s.rb(`
-		SELECT COALESCE(MAX(created_at), 0),
-		       COALESCE(MAX(CASE WHEN stage = 'production' THEN updated_at END), 0)
-		FROM model_version WHERE model_id = ?`), modelID,
-	).Scan(&f.LatestVersionCreatedAt, &f.LatestProductionUpdatedAt)
+		SELECT COALESCE(MAX(v.created_at), 0),
+		       COALESCE(MAX(CASE WHEN v.stage = 'production' THEN v.stage_changed_at END), 0),
+		       COALESCE((SELECT MAX(a.created_at) FROM artifact a
+		                 JOIN model_version pv ON a.version_id = pv.id
+		                 WHERE pv.model_id = ? AND pv.stage = 'production'), 0)
+		FROM model_version v WHERE v.model_id = ?`), modelID, modelID,
+	).Scan(&f.LatestVersionCreatedAt, &entered, &artifact)
 	if err != nil {
 		return domain.DriftFacts{}, err
 	}
+	f.ProductionChangedAt = max(entered, artifact)
 	// LatestOpenReviewCreatedAt stays zero until M16 adds modification_review (`17.4`).
 	// Zero is also the honest answer for an install with no open reviews.
 	return f, nil
@@ -152,15 +157,21 @@ func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domai
 	q := `SELECT ` + prefixCols(modelSel, "m") + `,
 		       c.model_id, c.regime, c.eu_gpai_tier, c.eu_system_risk_class,
 		       c.intended_purpose, c.basis, c.classified_at, c.classified_by, c.review_due_at,
-		       COALESCE(v.latest_created, 0), COALESCE(v.latest_prod_updated, 0)
+		       COALESCE(v.latest_created, 0), COALESCE(v.prod_entered, 0), COALESCE(pa.prod_artifact, 0)
 		FROM model m
 		LEFT JOIN classification c ON c.model_id = m.id AND c.regime = ?
 		LEFT JOIN (
 			SELECT model_id,
 			       MAX(created_at) AS latest_created,
-			       MAX(CASE WHEN stage = 'production' THEN updated_at END) AS latest_prod_updated
+			       MAX(CASE WHEN stage = 'production' THEN stage_changed_at END) AS prod_entered
 			FROM model_version GROUP BY model_id
 		) v ON v.model_id = m.id
+		LEFT JOIN (
+			SELECT pv.model_id, MAX(a.created_at) AS prod_artifact
+			FROM artifact a JOIN model_version pv ON a.version_id = pv.id
+			WHERE pv.stage = 'production'
+			GROUP BY pv.model_id
+		) pa ON pa.model_id = m.id
 		WHERE 1=1` + where
 
 	if f.EUSystemRiskClass != "" {
@@ -197,21 +208,22 @@ func (s *Store) ListInventory(ctx context.Context, o domain.ListOptions, f domai
 
 func scanInventoryRow(rows *sql.Rows) (*domain.Model, *domain.RiskClassification, domain.DriftFacts, error) {
 	var (
-		m                                domain.Model
-		state, labels                    string
-		cp                               sql.NullString
-		heldSince                        sql.NullInt64
-		heldBy                           sql.NullString
-		cModelID, cRegime                sql.NullString
-		tier, class                      sql.NullString
-		purpose, basis, by               sql.NullString
-		classifiedAt, reviewDueAt        sql.NullInt64
-		latestCreated, latestProdUpdated int64
+		m                          domain.Model
+		state, labels              string
+		cp                         sql.NullString
+		heldSince                  sql.NullInt64
+		heldBy                     sql.NullString
+		cModelID, cRegime          sql.NullString
+		tier, class                sql.NullString
+		purpose, basis, by         sql.NullString
+		classifiedAt, reviewDueAt  sql.NullInt64
+		latestCreated, prodEntered int64
+		prodArtifact               int64
 	)
 	if err := rows.Scan(
 		&m.ID, &m.Name, &m.Description, &m.Owner, &state, &labels, &cp, &m.CreatedAt, &m.UpdatedAt, &heldSince, &heldBy,
 		&cModelID, &cRegime, &tier, &class, &purpose, &basis, &classifiedAt, &by, &reviewDueAt,
-		&latestCreated, &latestProdUpdated,
+		&latestCreated, &prodEntered, &prodArtifact,
 	); err != nil {
 		return nil, nil, domain.DriftFacts{}, err
 	}
@@ -221,8 +233,8 @@ func scanInventoryRow(rows *sql.Rows) (*domain.Model, *domain.RiskClassification
 	m.LegalHold = scanHold(heldSince, heldBy)
 
 	facts := domain.DriftFacts{
-		LatestVersionCreatedAt:    latestCreated,
-		LatestProductionUpdatedAt: latestProdUpdated,
+		LatestVersionCreatedAt: latestCreated,
+		ProductionChangedAt:    max(prodEntered, prodArtifact),
 		// LatestOpenReviewCreatedAt stays zero until M16 (`17.4`).
 	}
 	if !cModelID.Valid {
