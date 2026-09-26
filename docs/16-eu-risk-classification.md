@@ -161,7 +161,8 @@ in the production version's description marks the classification stale. Getting 
 right would mean scanning the audit log for `version.stage_changed` on every row, turning a
 list query into a per-row audit scan. For a legal field, erring toward *"take another look at
 this"* is the right direction, and the reason string tells the reader precisely what tripped
-it.
+it. `20.8.3` has since added `model_version.stage_changed_at`, which would make the check exact
+without the scan; switching is a behaviour change to this regime and is deferred (`20.11`).
 
 **We flag it and stop there.** The registry never re-classifies a model, never downgrades it,
 and never blocks a promotion over this. A registry that quietly edited a legal field would be
@@ -215,8 +216,10 @@ migration with no data rewrite (`02.7`).
 | `classified_by` | str? | shared | `X-Lineage-Actor` at time of write |
 | `review_due_at` | ts? | shared | null means no review scheduled — which we surface too |
 
-A per-dialect `CHECK` ties each enum group to the discriminator: `regime = 'eu_ai_act'` requires
-`eu_system_risk_class` non-null and every other regime's group null. Sparsity stays bounded at
+A `CHECK` ties each enum group to the discriminator: `regime = 'eu_ai_act'` requires
+`eu_system_risk_class` non-null and every other regime's group null; `regime = 'mrm'` is the
+mirror (`20.8.1`). One shared migration serves both engines (M14); adding the `mrm` branch
+rebuilt the table, since SQLite cannot alter a CHECK in place. Sparsity stays bounded at
 two or three columns per regime, and each one stays a real enum with a real index.
 
 The **Regime** column is part of the contract, not a note: a future `nist_*` group lands beside

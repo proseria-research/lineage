@@ -69,12 +69,12 @@ repository alongside the code.
 | **Risk classification** | A recorded classification per model and per framework, with the reasoning, the author and the review date attached — and automatic detection when a retrain, a promotion or a lapsed review date leaves it out of date | **Available** |
 | **Retention and legal hold** | Holds on models and versions involved in an active matter, a configurable retention floor, and cryptographic assurance that the audit trail has not been altered | **Available** |
 | **Modification review** | Review routing for significant derivations, presenting the measured architectural change alongside the intent your team declared, and recording what a reviewer concluded | **Available** |
-| **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | In design |
+| **Model risk records** | Model risk tiers, independent validation records, and detection of a tier-1 model that has gone unmonitored in production | **Available** |
 | **Change control plans** | Pre-declared change envelopes, and conformance of what actually shipped against them | In design |
 
 If you are evaluating Lineage against a compliance deadline, please plan on the basis of this
-table. The registry, its audit record, risk classification, retention and legal hold, and
-modification review are production-ready; the rest is specified and not yet built. Every
+table. The registry, its audit record, risk classification, retention and legal hold, modification
+review and model risk records are production-ready; the rest is specified and not yet built. Every
 regulatory fact an install holds is reachable through the public `/v1` API.
 
 ## Two principles behind the design

@@ -325,7 +325,10 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     move it and silently clear an EU staleness raised by a March version. A legal field
     un-flagging itself because another team wrote another regime's column is the failure this
     key prevents. The regime is also in the API path (`16.8`), which is what keeps both
-    regimes' writes full-replace `PUT`s.
+    regimes' writes full-replace `PUT`s. **Collected in M17:** `mrm` arrived as one `mrm_tier` column, one
+    `regime` value and a second CHECK branch on its own row, with no rename and no shared
+    column touched (`20.8.1`); writing it is tested to leave the EU row's anchor and staleness
+    unchanged on all three adapters.
 13. ✅ **Retention floor + legal hold → deletion refuses** (`19.3`, `19.4`). `legal_hold` on
     `model`/`model_version`; `DELETE` on a held subject, or on one younger than the configured
     retention floor, returns **`409 failed_precondition`** with `details.reason`
