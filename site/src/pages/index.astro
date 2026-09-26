@@ -30,17 +30,17 @@ const LEVELS = [
 const levels = LEVELS.map((l) => ({ ...l, changed: before.hashes[l.key] !== after.hashes[l.key] }));
 
 const verdicts = [
-	{ name: 'Identical', plain: 'Byte-for-byte the same files. A repackage.' },
-	{ name: 'Reweighted', plain: 'Same architecture, new weight values. Retraining or fine-tuning.' },
-	{ name: 'Recast', plain: 'Same shapes at a different precision. Usually quantization.' },
-	{ name: 'Rescaled', plain: 'The same design made wider or deeper.' },
-	{ name: 'Rearchitected', plain: 'New kinds of layers or a different backbone.' },
+	{ name: 'Identical', plain: 'Same bytes. A repackage.' },
+	{ name: 'Reweighted', plain: 'New weights. Retraining or fine-tuning.' },
+	{ name: 'Recast', plain: 'New precision. Usually quantization.' },
+	{ name: 'Rescaled', plain: 'Wider or deeper, same design.' },
+	{ name: 'Rearchitected', plain: 'New layers or backbone.' },
 ];
 
 const steps = [
 	{
 		title: 'Publish',
-		body: 'Register a version and its files. Lineage records where the files live, their digest and size, and what produced them.',
+		body: 'Register a version and its files. Location, digest, size and producer are recorded.',
 		code: `from lineage import Client
 
 client = Client(LINEAGE_URL)
@@ -56,7 +56,7 @@ client.publish(
 	},
 	{
 		title: 'Promote',
-		body: 'Move it from draft to staging to production. The old production version is archived in the same step, and files lock at staging, so what you tested is what ships.',
+		body: 'Draft, staging, production. The previous production version is archived in the same transaction. Files lock at staging.',
 		code: `client.transition(
     "fraud-detector", "1.4.0",
     to="production",
@@ -64,8 +64,8 @@ client.publish(
 )`,
 	},
 	{
-		title: 'Use',
-		body: 'Serving code asks for a stage and gets download links, digests and the model format. Promote a new version and it is picked up with no code change.',
+		title: 'Serve',
+		body: 'Serving code requests a stage and receives download links, digests and format. Promotions need no code change.',
 		code: `client.download(
     "fraud-detector",
     stage="production",
@@ -104,22 +104,22 @@ const attention = [
 const programmes = [
 	{
 		title: 'EU AI Act risk category',
-		body: 'Record which risk category each model falls into, and why. When a new version ships, production changes or the review date passes, the record is marked out of date until someone looks again.',
+		body: 'Classify each model and record the basis. Flagged out of date when a version ships, production changes or a review date passes.',
 		source: 'Regulation (EU) 2024/1689',
 	},
 	{
 		title: 'Modification review',
-		body: 'When someone fine-tunes or quantizes a high-risk model, a person judges whether the change was big enough to matter legally. They see the measured change beside what the team said they did.',
+		body: 'Changes to high-risk models go to a reviewer, with the measured change shown beside the declared intent.',
 		source: 'EU AI Act, Articles 3(23) and 25',
 	},
 	{
 		title: 'Model risk',
-		body: 'Set how much harm each model could cause, record independent validations, and see when a live model has stopped being monitored.',
+		body: 'Materiality tiers, independent validations, and alerts when a live model goes unmonitored.',
 		source: 'SR 26-2, PRA SS1/23, OSFI E-23',
 	},
 	{
 		title: 'Change control plans',
-		body: 'Write down which kinds of change a model may make without a fresh review. Every new version is checked against the plan in force when it shipped.',
+		body: 'Declare the changes a model may make without review. Every new version is checked against the plan in force.',
 		source: 'FDA predetermined change control plans',
 	},
 ];
@@ -127,18 +127,18 @@ const programmes = [
 const records = [
 	{
 		Icon: FileLock,
-		title: 'Every change is logged',
-		body: 'Written in the same step as the change itself, with who made it. If the log entry fails, so does the change.',
+		title: 'Transactional audit log',
+		body: 'Written in the same transaction as the change, with the actor. No log entry, no change.',
 	},
 	{
 		Icon: Lock,
-		title: 'Tampering shows',
-		body: 'The log is sealed in batches with a chain of hashes. Edit or delete a past entry and the check fails, pointing at where.',
+		title: 'Tamper-evident',
+		body: 'The log is sealed with a hash chain. Any edit or deletion fails verification and shows where.',
 	},
 	{
 		Icon: Scale,
 		title: 'Legal hold',
-		body: 'Stop a model or version being deleted while a legal matter is open. Everything else keeps working.',
+		body: 'Blocks deletion of a model or version while a matter is open. Nothing else is affected.',
 	},
 ];
 
@@ -146,22 +146,22 @@ const infra = [
 	{
 		Icon: Package,
 		title: 'One binary',
-		body: 'A single Go process serves the console on :8080 and the Model API on :8081. One Deployment, one Helm chart.',
+		body: 'Console on :8080, Model API on :8081. One Deployment, one Helm chart.',
 	},
 	{
 		Icon: Database,
 		title: 'Your database',
-		body: 'SQLite to try it or at the edge; Postgres in production. The same behaviour on both.',
+		body: 'SQLite for evaluation and edge. Postgres for production. Identical behaviour.',
 	},
 	{
 		Icon: HardDrive,
 		title: 'Your storage',
-		body: 'Files stay where you put them: S3-compatible storage (AWS, MinIO, R2, Ceph), an OCI registry or a plain filesystem. Lineage keeps the pointers, digests and sizes.',
+		body: 'S3-compatible storage, an OCI registry or a filesystem. Lineage holds pointers, digests and sizes.',
 	},
 	{
 		Icon: KeyRound,
-		title: 'Your sign-in',
-		body: 'Your ingress or gateway handles authentication. Lineage records the identity it passes on against every change.',
+		title: 'Your identity provider',
+		body: 'Authentication stays with your ingress. Lineage records the forwarded identity on every change.',
 	},
 ];
 
@@ -190,8 +190,8 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 					regulators ask for. Self-hosted, in one Go binary.
 				</p>
 				<div class="hero__actions">
-					<a class="btn btn--solid" href="/start/quickstart/">Start in five minutes</a>
-					<a class="btn" href="/start/what-lineage-is/">What Lineage does</a>
+					<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
+					<a class="btn" href="/start/what-lineage-is/">Documentation</a>
 				</div>
 				<div class="cmd">
 					<code class="cmd__text">{COMMAND}</code>
@@ -200,7 +200,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 						<span data-copy-label>Copy</span>
 					</button>
 				</div>
-				<p class="cmd__note">Runs with SQLite and local storage. Nothing else to install.</p>
+				<p class="cmd__note">SQLite and local storage. No other dependencies.</p>
 			</div>
 			<ReleaseDemo />
 		</div>
@@ -209,11 +209,8 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band" aria-labelledby="how">
 		<div class="shell">
 			<header class="head">
-				<h2 id="how" class="head__title">From training run to production in three calls</h2>
-				<p class="head__lede">
-					The same three steps from Python, the CLI or plain HTTP. The console shows every one of
-					them as it happens.
-				</p>
+				<h2 id="how" class="head__title">Publish. Promote. Serve.</h2>
+				<p class="head__lede">Three calls, from Python, the CLI or HTTP.</p>
 			</header>
 			<ol class="steps">
 				{
@@ -228,8 +225,8 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 				}
 			</ol>
 			<p class="band__foot">
-				Serving on KServe? Set <code>storageUri: lineage://fraud-detector/production</code> and the
-				storage initializer resolves it at pull time. <a href="/delivery/kserve/">KServe guide</a>
+				KServe: <code>storageUri: lineage://fraud-detector/production</code>.
+				<a href="/delivery/kserve/">KServe guide</a>
 			</p>
 		</div>
 	</section>
@@ -237,16 +234,12 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band band--card" aria-labelledby="fp">
 		<div class="shell split">
 			<div class="split__copy">
-				<h2 id="fp" class="head__title">See what actually changed between two versions</h2>
+				<h2 id="fp" class="head__title">Measured change between versions</h2>
 				<p>
-					A version can carry a fingerprint: four hashes, one each for its architecture, layer
-					shapes, numeric precision and weights. Lineage draws them as four petals and compares
-					them level by level, so a change is measured rather than taken on trust.
+					Each version carries four hashes: architecture, layer shapes, precision and weights.
+					Comparing them classifies every change.
 				</p>
-				<p>
-					That is what a reviewer needs to know. A retrain that only moved the weights is routine;
-					one that changed the architecture deserves a closer look.
-				</p>
+				<p>A retrain is routine. A new architecture warrants review.</p>
 				<dl class="verdicts">
 					{
 						verdicts.map((v) => (
@@ -257,7 +250,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 						))
 					}
 				</dl>
-				<p class="split__link"><a href="/guides/version-diff/">How comparing versions works</a></p>
+				<p class="split__link"><a href="/guides/version-diff/">Version comparison</a></p>
 			</div>
 
 			<figure class="compare" tabindex="0" aria-describedby="compare-verdict">
@@ -274,7 +267,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 						<p class="compare__name">1.4.0 <span>candidate</span></p>
 					</div>
 				</div>
-				<p class="compare__hint">Hover or focus to flip 1.4.0 back and forth with 1.3.0. What jumps changed.</p>
+				<p class="compare__hint">Hover to alternate 1.3.0 and 1.4.0. What moves has changed.</p>
 				<ul class="levels">
 					{
 						levels.map((l) => (
@@ -290,7 +283,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 					}
 				</ul>
 				<p class="compare__verdict" id="compare-verdict">
-					<strong>Reweighted.</strong> Same architecture, new weight values: what retraining produces.
+					<strong>Reweighted.</strong> Same architecture, new weights.
 				</p>
 			</figure>
 		</div>
@@ -299,11 +292,10 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band" aria-labelledby="gov">
 		<div class="shell">
 			<header class="head">
-				<h2 id="gov" class="head__title">Governance, in plain words</h2>
+				<h2 id="gov" class="head__title">Compliance records, built in</h2>
 				<p class="head__lede">
-					Lineage keeps the records the EU AI Act, banking supervisors and the FDA ask for, and
-					explains each one where it appears: what it means, why it matters and what to do next.
-					It records and flags. It never blocks a release or makes a legal decision for you.
+					EU AI Act, model risk management, FDA change control. Every term is explained where it
+					appears. Lineage records and flags; it never blocks a release or makes a legal decision.
 				</p>
 			</header>
 
@@ -372,7 +364,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 				}
 			</ul>
 			<p class="band__foot">
-				Guidance on how Lineage works, not legal advice. <a href="/start/compliance/">How Lineage maps to each framework</a>
+				Guidance, not legal advice. <a href="/start/compliance/">Framework mapping</a>
 			</p>
 		</div>
 	</section>
@@ -380,11 +372,10 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band band--card" aria-labelledby="lin">
 		<div class="shell">
 			<header class="head">
-				<h2 id="lin" class="head__title">Where a model came from, and what depends on it</h2>
+				<h2 id="lin" class="head__title">Provenance, upstream and downstream</h2>
 				<p class="head__lede">
-					Record the dataset it was trained on, the run that produced it and the model it was
-					fine-tuned from. Trace back to explain how it was built, or forward from a dataset to find
-					every version and deployment it reached.
+					Datasets, training runs and parent models, recorded as typed links. Trace how a model was
+					built, or everything a dataset reached.
 				</p>
 			</header>
 			<LineageMap />
@@ -397,8 +388,8 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 			<header class="head">
 				<h2 id="infra" class="head__title">Runs on your infrastructure</h2>
 				<p class="head__lede">
-					Self-hosting is the main way to run Lineage, not a cut-down edition. Your models, your
-					records and your audit log never leave your network.
+					Self-hosting is the product, not a reduced tier. Models, records and audit log stay inside
+					your network.
 				</p>
 			</header>
 			<ul class="infra">
@@ -418,7 +409,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band band--card" aria-labelledby="docs">
 		<div class="shell">
 			<header class="head">
-				<h2 id="docs" class="head__title">Guides</h2>
+				<h2 id="docs" class="head__title">Documentation</h2>
 			</header>
 			<ul class="guides">
 				{
@@ -439,10 +430,9 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 
 	<section class="closer">
 		<div class="shell closer__inner">
-			<h2 class="closer__title">Publish your first model today</h2>
+			<h2 class="closer__title">Start with one model</h2>
 			<p class="closer__lede">
-				Run it on your laptop in a minute, or install the Helm chart and point it at your Postgres
-				and your bucket. The record starts with the first version you publish.
+				Run it locally in a minute, or install the Helm chart against your Postgres and object store.
 			</p>
 			<div class="hero__actions">
 				<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
