@@ -20,5 +20,6 @@ func TestSQLiteStore(t *testing.T) {
 	storetest.RunRetention(t, store)
 	storetest.RunReviews(t, store)
 	storetest.RunMRM(t, store)
+	storetest.RunChangePlans(t, store)
 	storetest.RunAttestation(t, store)
 }

@@ -446,6 +446,15 @@ func (s *Store) GetArtifact(ctx context.Context, versionID, name string) (*domai
 	return a, err
 }
 
+func (s *Store) GetArtifactByID(ctx context.Context, id string) (*domain.Artifact, error) {
+	row := s.db.QueryRowContext(ctx, s.rb(`SELECT `+artCols+` FROM artifact WHERE id=?`), id)
+	a, err := scanArtifact(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, domain.NotFound("artifact '" + id + "' not found")
+	}
+	return a, err
+}
+
 func (s *Store) UpdateArtifact(ctx context.Context, a *domain.Artifact) error {
 	res, err := s.db.ExecContext(ctx, s.rb(
 		`UPDATE artifact SET media_type=?,service_account=?,custom_properties=?,updated_at=? WHERE id=?`),

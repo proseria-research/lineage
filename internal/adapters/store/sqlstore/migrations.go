@@ -348,6 +348,34 @@ var migrations = []string{
 	`CREATE INDEX IF NOT EXISTS idx_validation_version ON validation (version_id, validated_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_validation_valid_until ON validation (valid_until)`,
 	`CREATE INDEX IF NOT EXISTS idx_eval_run_at ON evaluation (version_id, run_at)`,
+
+	// ---- Change control plans (§22.6) ----
+	// Append-only, like validation: superseding writes a new row and stamps effective_to on
+	// the old one, the only later write. There is no conformance column anywhere — §22.4 is
+	// computed from this table, lineage_edge and version_insight on read.
+	//
+	// allowed_verdicts and allowed_methods are JSON arrays in TEXT, the portable encoding the
+	// labels column already uses; NULL allowed_methods means unconstrained.
+	//
+	// **protocol_artifact_id carries no foreign key**, for the §17.5.1 reason: a cascade would
+	// erase the plan when its document is deleted, and SET NULL would rewrite what it rested
+	// on. It is checked at write. model_id cascades: with the model gone there is nothing left
+	// for the plan to govern.
+	`CREATE TABLE IF NOT EXISTS change_plan (
+		id TEXT PRIMARY KEY,
+		model_id TEXT NOT NULL REFERENCES model(id) ON DELETE CASCADE,
+		ref TEXT NOT NULL DEFAULT '',
+		summary TEXT NOT NULL,
+		allowed_verdicts TEXT NOT NULL,
+		allowed_methods TEXT,
+		protocol_artifact_id TEXT NOT NULL DEFAULT '',
+		effective_from BIGINT NOT NULL,
+		effective_to BIGINT,
+		declared_by TEXT NOT NULL DEFAULT '',
+		declared_at BIGINT NOT NULL
+	)`,
+	// §22.6.2 — the plan-in-force lookup.
+	`CREATE INDEX IF NOT EXISTS idx_change_plan_window ON change_plan (model_id, effective_from, effective_to)`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.

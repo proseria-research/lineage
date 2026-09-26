@@ -31,6 +31,7 @@ func TestDeepCopyLeavesNothingShared(t *testing.T) {
 		{"Footprint", func() (any, any) { v := filled[domain.Footprint](t); return v, deepCopy(v) }},
 		{"Evaluation", func() (any, any) { v := filled[domain.Evaluation](t); return v, deepCopy(v) }},
 		{"Validation", func() (any, any) { v := filled[domain.Validation](t); return v, deepCopy(v) }},
+		{"ChangePlan", func() (any, any) { v := filled[domain.ChangePlan](t); return v, deepCopy(v) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			orig, cp := tc.make()

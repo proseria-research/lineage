@@ -41,6 +41,10 @@ type Store struct {
 	// Model-risk validations (§20.8.2). Append-only for the same reason as reviews.
 	validations []*domain.Validation
 
+	// Change control plans (§22.6.1). Append-only; the one later write is closing a
+	// superseded plan's window.
+	changePlans []*domain.ChangePlan
+
 	// Sealed audit epochs (§19.6.1), keyed by window index. Append-only: AppendEpoch
 	// refuses an index already present rather than replacing it.
 	epochs map[int64]*domain.AuditEpoch
@@ -154,6 +158,13 @@ func (s *Store) DeleteModel(_ context.Context, id string) error {
 		}
 	}
 	delete(s.classifications, id)
+	kept := s.changePlans[:0]
+	for _, p := range s.changePlans {
+		if p.ModelID != id {
+			kept = append(kept, p)
+		}
+	}
+	s.changePlans = kept
 	delete(s.models, id)
 	delete(s.modelByNm, m.Name)
 	return nil
@@ -409,6 +420,15 @@ func (s *Store) GetArtifact(_ context.Context, versionID, name string) (*domain.
 		}
 	}
 	return nil, domain.NotFound("artifact '" + name + "' not found")
+}
+
+func (s *Store) GetArtifactByID(_ context.Context, id string) (*domain.Artifact, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if a, ok := s.artifacts[id]; ok {
+		return deepCopy(a), nil
+	}
+	return nil, domain.NotFound("artifact '" + id + "' not found")
 }
 
 func (s *Store) ListArtifacts(_ context.Context, versionID string) ([]*domain.Artifact, error) {
