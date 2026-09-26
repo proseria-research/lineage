@@ -40,7 +40,7 @@ export function HoldDialog({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const label = subject.version ? `${subject.model}@${subject.version}` : subject.model;
+  const label = subject.version ? `${subject.model} ${subject.version}` : subject.model;
   const blocked = reason.trim() === "";
 
   async function save() {
@@ -58,24 +58,41 @@ export function HoldDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/20 p-4 backdrop-blur-sm sm:p-10"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-lg border bg-card shadow-lg rounded-lg">
-        <div className="border-b px-5 py-3">
-          <div className="text-sm font-semibold">
+      <div className="w-full max-w-lg rounded-lg border bg-card shadow-xl">
+        <div className="border-b px-5 py-4">
+          <div className="text-base font-semibold">
             {release ? "Release legal hold on" : "Place legal hold on"}{" "}
             <span className="font-mono">{label}</span>
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            Recorded against you and dated now, on the audit trail
+          <div className="mt-0.5 text-sm text-muted-foreground">
+            Recorded under your name and dated now, on the audit trail.
           </div>
         </div>
 
         <div className="space-y-4 px-5 py-4">
+          <div className="rounded-md bg-brand-soft px-3.5 py-3 text-sm leading-relaxed text-brand">
+            {release ? (
+              <>
+                <span className="font-medium">Releasing a hold </span>
+                means it can be deleted again once your retention rules allow. Do this when the
+                matter it was placed for is closed.
+              </>
+            ) : (
+              <>
+                <span className="font-medium">A legal hold </span>
+                keeps records from being deleted while a legal matter is open — a regulator's
+                inquiry, a lawsuit, an audit. Promoting, editing, publishing and archiving all keep
+                working; only deletion is blocked.
+              </>
+            )}
+          </div>
           <label className="flex flex-col gap-1.5">
-            <span className="label-caps">
-              Reason<span className="ml-1 text-destructive">required</span>
+            <span className="text-sm font-medium">
+              {release ? "Why is it being released?" : "What matter is this for?"}
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">required</span>
             </span>
             <Input
               autoFocus
@@ -86,25 +103,23 @@ export function HoldDialog({
               }
             />
             <span className="text-xs text-muted-foreground">
-              Goes on the audit event, not on the record. The next hold would overwrite it
-              there; on the trail it is permanent.
+              Saved permanently on the audit trail, so an auditor can see why.
             </span>
           </label>
 
           {release && current ? (
             <p className="text-xs text-muted-foreground">
               Held since {new Date(current.heldSince).toISOString().slice(0, 10)}
-              {current.heldBy ? ` by ${current.heldBy}` : ""}. Releasing is what an auditor
-              looks for, so it is recorded as its own event.
+              {current.heldBy ? ` by ${current.heldBy}` : ""}. The release is recorded as its own
+              event, because it's exactly what an auditor will ask about.
             </p>
           ) : null}
 
           {!release ? (
             <p className="text-xs text-muted-foreground">
-              Blocks deletion of this{" "}
-              {subject.version ? "version" : "model and every version under it"}, and nothing
-              overrides it. Metadata edits, stage transitions, publishing and archival all
-              keep working — a hold is not a freeze.
+              Covers this{" "}
+              {subject.version ? "version" : "model and every version under it"}. Nothing can
+              override it until someone releases it.
             </p>
           ) : null}
 

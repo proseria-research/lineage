@@ -11,6 +11,7 @@ import { ClassificationCell } from "@/components/Classification";
 import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/components/State";
 import { Button } from "@/components/ui/button";
 import { ChangePlanDialog } from "@/components/GovernanceDialogs";
+import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { VERDICT_LABEL } from "@/components/Review";
 import { fmtTime, relTime } from "@/lib/utils";
 
@@ -98,6 +99,7 @@ export default function ModelDetail() {
 
       {tab === "governance" && (
         <div className="space-y-6">
+          <HowItWorks id="model" guide={GUIDES.model} />
           <MRMPanel c={m.mrm} model={m.name} onChanged={reload} />
 
           <section>

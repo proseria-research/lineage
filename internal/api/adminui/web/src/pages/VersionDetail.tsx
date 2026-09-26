@@ -18,6 +18,7 @@ import { VersionPortrait } from "@/components/VersionPortrait";
 import { VersionFingerprint } from "@/components/VersionFingerprint";
 import { HoldAction, HoldNote } from "@/components/Hold";
 import { EventRow } from "@/components/ActivityFeed";
+import { HowItWorks, GUIDES } from "@/components/HowItWorks";
 import { PageHeader, Loading, ErrorNote, Empty, SectionHeader } from "@/components/State";
 import { humanize } from "@/lib/labels";
 import { fmtBytes, relTime, shortDigest } from "@/lib/utils";
@@ -275,6 +276,7 @@ export default function VersionDetail() {
 
       {tab === "governance" && (
         <div className="space-y-6">
+          <HowItWorks id="version" guide={GUIDES.version} />
           <CompliancePanel c={data.classification} model={data.model} onSaved={reload} />
           <VersionReviews reviews={data.reviews} />
           <MRMPanel c={data.mrm} validations={data.validations} version={v.name} model={model} artifacts={data.artifacts} onChanged={reload} />

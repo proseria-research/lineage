@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, type ReviewItem, type ReviewOutcome } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { VerdictBadge } from "@/components/Review";
+import { VerdictBadge, VERDICT_TEXT } from "@/components/Review";
+import { ClassBadge } from "@/components/Classification";
 
 // Record what a human concluded about one derivation (§17.5.1, §17.6.1). It writes through
 // the BFF to the same core operation the Model API exposes, so the frozen verdict and the
@@ -23,17 +23,17 @@ const OUTCOMES: { value: ReviewOutcome; label: string; hint: string }[] = [
   {
     value: "not_substantial",
     label: "Not substantial",
-    hint: "The change does not affect compliance or intended purpose. Provider duties stay where they were.",
+    hint: "Choose this when the change stays within what was originally assessed — for example a routine retrain on the same kind of data, or a quantization that keeps accuracy. Responsibility stays with the original provider.",
   },
   {
     value: "substantial",
     label: "Substantial",
-    hint: "Art. 25 is in play — whoever made this change may now carry the provider's obligations.",
+    hint: "Choose this when the change affects how the model meets its requirements, or what it is used for — for example retraining it for a new purpose, or a change that materially alters its accuracy. Whoever made the change may now carry the provider's duties (Art. 25), and a new conformity assessment may be needed (Art. 43(4)).",
   },
   {
     value: "undetermined",
     label: "Undetermined",
-    hint: "Looked at it, cannot resolve yet. A real answer, and distinguishable from nobody having opened it.",
+    hint: "Choose this when you can't decide yet — for example because the measurement is incomplete. It records that you looked, which is different from nobody having opened it.",
   },
 ];
 
@@ -60,7 +60,7 @@ export function ReviewDialog({
   }, [onClose]);
 
   const parent = item.derivedFrom
-    ? `${item.derivedFrom.model}@${item.derivedFrom.version}`
+    ? `${item.derivedFrom.model} ${item.derivedFrom.version}`
     : item.derivedFromRef;
 
   async function save() {
@@ -79,63 +79,67 @@ export function ReviewDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/20 p-4 backdrop-blur-sm sm:p-10"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-xl border bg-card shadow-lg rounded-lg">
-        <div className="border-b px-5 py-3">
-          <div className="text-sm font-semibold">
-            Review <span className="font-mono">{item.model}@{item.version}</span>
+      <div className="w-full max-w-xl rounded-lg border bg-card shadow-xl">
+        <div className="border-b px-5 py-4">
+          <div className="text-base font-semibold">
+            Review the change to <span className="font-mono">{item.model} {item.version}</span>
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            Art. 25 · recorded against you and dated now, on the audit trail
+          <div className="mt-0.5 text-sm text-muted-foreground">
+            Recorded under your name and dated now, on the audit trail.
           </div>
         </div>
 
         <div className="space-y-4 px-5 py-4">
           {/* What is being judged, restated: the measurement, the declared intent, and where
               it came from. A reviewer should not have to remember the row they clicked. */}
-          <div className="space-y-1.5 border px-3 py-2.5 text-xs rounded-md">
-            <div className="flex flex-wrap items-center gap-2">
-              <VerdictBadge v={item.verdict} />
-              {item.declaredMethod && (
-                <span className="font-mono text-muted-foreground">
-                  declared {item.declaredMethod}
-                </span>
-              )}
-              {item.euSystemRiskClass && item.euSystemRiskClass !== "unclassified" && (
-                <Badge variant="muted">{item.euSystemRiskClass}</Badge>
-              )}
-              {item.euGpaiTier && item.euGpaiTier !== "none" && (
-                <Badge variant="muted">{item.euGpaiTier}</Badge>
-              )}
-            </div>
-            <div className="text-muted-foreground">
-              derived from <span className="font-mono">{parent}</span>
-            </div>
-            {item.verdict === "unknown" && (
-              <div className="text-muted-foreground">
-                {item.missing?.length ? (
-                  <>
-                    Missing <span className="font-mono">{item.missing.join(", ")}</span>.{" "}
-                  </>
-                ) : null}
-                {item.candidates?.length ? <>Narrowed to {item.candidates.join(" or ")}. </> : null}
-                Nothing here says the model is unchanged — only that the facts do not reach.
-              </div>
-            )}
+          <div className="rounded-md bg-brand-soft px-3.5 py-3 text-sm leading-relaxed text-brand">
+            <span className="font-medium">What you're deciding: </span>
+            whether this change is big enough that whoever made it takes on legal responsibility
+            for the model under the EU AI Act. Lineage measured what changed; you judge what it
+            means. Not legal advice — involve your compliance team if unsure.
           </div>
 
+          <dl className="grid gap-3 rounded-md border px-3.5 py-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">Made from</dt>
+              <dd className="flex flex-wrap items-center gap-2">
+                <span className="font-mono">{parent}</span>
+                {item.euSystemRiskClass && item.euSystemRiskClass !== "unclassified" && (
+                  <ClassBadge cls={item.euSystemRiskClass} />
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">What changed, as measured</dt>
+              <dd className="flex flex-wrap items-center gap-2">
+                <VerdictBadge v={item.verdict} />
+                <span className="text-muted-foreground">{VERDICT_TEXT[item.verdict].replace(/^Measured: /, "")}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">What the team said they did</dt>
+              <dd>{item.declaredMethod ?? <span className="text-muted-foreground">Not stated</span>}</dd>
+            </div>
+            {item.verdict === "unknown" && (
+              <div className="text-xs text-muted-foreground">
+                {item.missing?.length ? <>No {item.missing.join(", ")} hash was reported. </> : null}
+                {item.candidates?.length ? <>It is one of: {item.candidates.join(" or ")}. </> : null}
+                This does not mean nothing changed — only that there isn't enough data to say what did.
+              </div>
+            )}
+          </dl>
+
           <fieldset className="flex flex-col gap-1.5">
-            <legend className="label-caps mb-1.5">
-              Outcome<span className="ml-1 text-destructive">required</span>
-            </legend>
+            <legend className="mb-1.5 text-sm font-medium">Your judgement</legend>
             {OUTCOMES.map((o) => (
               <label
                 key={o.value}
                 className={[
-                  "flex cursor-pointer gap-2.5 border px-3 py-2",
-                  outcome === o.value ? "border-foreground" : "hover:bg-accent",
+                  "flex cursor-pointer gap-2.5 rounded-md border px-3 py-2.5",
+                  outcome === o.value ? "border-brand bg-brand-soft" : "hover:bg-muted",
                 ].join(" ")}
               >
                 <input
@@ -147,7 +151,7 @@ export function ReviewDialog({
                   className="mt-0.5 shrink-0 accent-current"
                 />
                 <span>
-                  <span className="text-sm">{o.label}</span>
+                  <span className="text-sm font-medium">{o.label}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">{o.hint}</span>
                 </span>
               </label>
@@ -155,17 +159,17 @@ export function ReviewDialog({
           </fieldset>
 
           <label className="flex flex-col gap-1.5">
-            <span className="label-caps">Note</span>
+            <span className="text-sm font-medium">Your reasoning</span>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
               placeholder="Quantization only; intended purpose and performance envelope unchanged."
-              className="border bg-transparent px-2 py-1.5 text-sm"
+              className="rounded-md border border-input bg-card px-3 py-2 text-sm"
             />
             <span className="text-xs text-muted-foreground">
-              Optional, and the only place your reasoning is recorded. The verdict the registry
-              witnessed is stored alongside it and cannot be edited later.
+              Optional, but it's the only place your reasoning is kept. The measured change is
+              saved beside it and can't be edited later.
             </span>
           </label>
 
