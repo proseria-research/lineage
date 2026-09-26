@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import rehypeEndpoints from './src/lib/rehype-endpoints.mjs';
 
 // TODO: point this at the real domain before the first production deploy.
 // It is used for canonical URLs, Open Graph tags, and the sitemap.
@@ -13,6 +14,8 @@ export default defineConfig({
 	// Fully static output — the build is a directory of files that Cloudflare
 	// serves directly. No adapter, no server runtime, no cold starts.
 	output: 'static',
+	// Method/Path tables in the guides render as endpoint lists (src/lib/rehype-endpoints.mjs).
+	markdown: { rehypePlugins: [rehypeEndpoints] },
 	integrations: [
 
 

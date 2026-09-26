@@ -76,6 +76,11 @@ h1#_top {
 	text-align: left;
 }
 
+/* Long identifiers in cells wrap instead of pushing the table past the column. */
+.sl-markdown-content td code {
+	overflow-wrap: anywhere;
+}
+
 @media (max-width: 640px) {
 	.sl-markdown-content table {
 		display: block;
@@ -298,4 +303,95 @@ nav.sidebar .top-level > li > details > summary .large {
 	fill: var(--brand);
 	font-family: var(--mono);
 	font-weight: 500;
+}
+
+/* Endpoint lists (from Method/Path tables; src/lib/rehype-endpoints.mjs): one card, one row per
+   endpoint, the method as a coloured badge, the full path in mono with its parameters tinted,
+   and the description underneath at full width. */
+.sl-markdown-content ul.endpoints {
+	margin: 1.25rem 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	overflow: hidden;
+}
+
+.sl-markdown-content .endpoint {
+	margin: 0;
+	padding: 0.8rem 1rem;
+}
+
+.sl-markdown-content .endpoint + .endpoint {
+	border-top: 1px solid var(--border);
+}
+
+.endpoint__line {
+	display: flex;
+	align-items: baseline;
+	gap: 0.65rem;
+	min-width: 0;
+}
+
+.endpoint__method {
+	flex: none;
+	min-width: 3.4rem;
+	padding: 0.1rem 0.45rem;
+	border-radius: 4px;
+	background: var(--muted);
+	color: var(--muted-fg);
+	font: 600 0.72rem/1.5 var(--mono);
+	text-align: center;
+	letter-spacing: 0.02em;
+}
+
+.endpoint__method[data-method='get'] {
+	background: var(--brand-soft);
+	color: var(--brand);
+}
+
+.endpoint__method[data-method='post'] {
+	background: var(--ok-soft);
+	color: var(--ok);
+}
+
+.endpoint__method:is([data-method='put'], [data-method='patch']) {
+	background: var(--warn-soft);
+	color: var(--warn);
+}
+
+.endpoint__method[data-method='delete'] {
+	background: var(--danger-soft);
+	color: var(--danger);
+}
+
+.sl-markdown-content code.endpoint__path {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--sl-color-white);
+	font-size: 0.875rem;
+	font-weight: 500;
+	overflow-wrap: anywhere;
+}
+
+.endpoint__param {
+	color: var(--brand);
+}
+
+.sl-markdown-content .endpoint__desc {
+	margin: 0.3rem 0 0 4.05rem;
+	color: var(--sl-color-gray-3);
+	font-size: 0.9rem;
+	line-height: 1.55;
+}
+
+@media (max-width: 640px) {
+	.endpoint__line {
+		flex-wrap: wrap;
+	}
+
+	.sl-markdown-content .endpoint__desc {
+		margin-left: 0;
+	}
 }
