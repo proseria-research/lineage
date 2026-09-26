@@ -1,584 +1,414 @@
 ---
 import Marketing from '../layouts/Marketing.astro';
-import StageBoard from '../components/StageBoard.astro';
+import ReleaseDemo from '../components/ReleaseDemo.astro';
 import LineageMap from '../components/LineageMap.astro';
+import Fingerprint from '../components/Fingerprint.astro';
+import { byName } from '../lib/demo';
 
+import TriangleAlert from '@lucide/astro/icons/triangle-alert';
+import OctagonAlert from '@lucide/astro/icons/octagon-alert';
+import Lightbulb from '@lucide/astro/icons/lightbulb';
+import Lock from '@lucide/astro/icons/lock';
+import FileLock from '@lucide/astro/icons/file-lock';
+import Scale from '@lucide/astro/icons/scale';
+import Package from '@lucide/astro/icons/package';
+import Database from '@lucide/astro/icons/database';
+import HardDrive from '@lucide/astro/icons/hard-drive';
+import KeyRound from '@lucide/astro/icons/key-round';
+import Copy from '@lucide/astro/icons/copy';
 
-/*
- * The fingerprint disc, ported from the admin console's FingerprintMark (docs/12 §4) so the
- * site draws the same mark the product does: four concentric rings, one per hash level,
- * outermost first. Segment k of a ring is stroked iff bit k of a stream seeded by that
- * hash is set, which makes the pattern a deterministic function of the hash alone — the
- * same facts draw the same pixels here, in the console, and on every machine.
- */
+const before = byName('1.3.0');
+const after = byName('1.4.0');
 
-const RING_ORDER = ['topology', 'shape', 'dtype', 'weights'] as const;
-type RingName = (typeof RING_ORDER)[number];
+const LEVELS = [
+	{ key: 'topology', label: 'Architecture', help: 'Which layers exist and how they connect' },
+	{ key: 'shape', label: 'Layer shapes', help: 'The size of every tensor' },
+	{ key: 'dtype', label: 'Precision', help: 'The numeric type of every tensor' },
+	{ key: 'weights', label: 'Weights', help: 'The exact weight values' },
+] as const;
 
-const RING_R = [44, 34, 24, 14]; // radii in a 96px box
-// The console packs 24 segments into every ring. Here the strokes are heavier and round-
-// capped, so segment counts fall with the radius to keep the arc length — and the gap
-// between arcs — roughly even from the outer ring to the core.
-const RING_SEGMENTS = [24, 19, 14, 9];
-const GAP_DEG = 5;
-const DISC = 168;
+const levels = LEVELS.map((l) => ({ ...l, changed: before.hashes[l.key] !== after.hashes[l.key] }));
 
-const fnv1a32 = (s: string): number => {
-	let h = 0x811c9dc5;
-	const bytes = new TextEncoder().encode(s);
-	for (let i = 0; i < bytes.length; i++) {
-		h ^= bytes[i];
-		h = Math.imul(h, 0x01000193) >>> 0;
-	}
-	return h >>> 0;
-};
+const verdicts = [
+	{ name: 'Identical', plain: 'Byte-for-byte the same files. A repackage.' },
+	{ name: 'Reweighted', plain: 'Same architecture, new weight values. Retraining or fine-tuning.' },
+	{ name: 'Recast', plain: 'Same shapes at a different precision. Usually quantization.' },
+	{ name: 'Rescaled', plain: 'The same design made wider or deeper.' },
+	{ name: 'Rearchitected', plain: 'New kinds of layers or a different backbone.' },
+];
 
-/** Successive xorshift32 words, seeded by fnv1a32 of the source string. */
-const stream = (seed: string): (() => number) => {
-	let x = fnv1a32(seed) || 0x9e3779b9;
-	return () => {
-		x ^= x << 13;
-		x >>>= 0;
-		x ^= x >>> 17;
-		x ^= x << 5;
-		x >>>= 0;
-		return x;
-	};
-};
-
-const arcPath = (cx: number, cy: number, r: number, a0: number, a1: number): string => {
-	const p0x = cx + r * Math.cos(a0);
-	const p0y = cy + r * Math.sin(a0);
-	const p1x = cx + r * Math.cos(a1);
-	const p1y = cy + r * Math.sin(a1);
-	const sweep = a1 - a0 > Math.PI ? 1 : 0;
-	return `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 ${sweep} 1 ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
-};
-
-/** The stroked arcs of one ring. Ring i is rotated 7.5°·i so rings never align into spokes. */
-const ringArcs = (hash: string, index: number): string[] => {
-	const k = DISC / 96;
-	const c = DISC / 2;
-	const r = RING_R[index] * k;
-	const segments = RING_SEGMENTS[index];
-	const next = stream(hash);
-	const rot = (7.5 * index * Math.PI) / 180;
-	const step = (2 * Math.PI) / segments;
-	const gap = (GAP_DEG * Math.PI) / 180;
-
-	const arcs: string[] = [];
-	let word = next();
-	let bit = 0;
-	for (let seg = 0; seg < segments; seg++) {
-		if (bit >= 30) {
-			word = next();
-			bit = 0;
-		}
-		const on = (word >>> bit) & 1;
-		bit++;
-		if (on) arcs.push(arcPath(c, c, r, rot + seg * step + gap / 2, rot + (seg + 1) * step - gap / 2));
-	}
-	return arcs;
-};
-
-const hashes: Record<RingName, string> = {
-	topology: 'sha256:11ab3f7c9d02e4a6b8c1d5f70392ae64bb17c2d9f04e6a8b1c3d5e7f90a2b4c6',
-	shape: 'sha256:4c72e15a83b6d0f29e4c7a1b5d8f0326ae91c4d7b0e3f6a9c2d5e8b1f4a7c0d3',
-	dtype: 'sha256:9e01d4b7a2c5f80e3b6d9a1c4f70e2b5d8a1c3f6b9e2d5a8c1f4b7e0d3a6c9f2',
-	weights: 'sha256:90ef6b3d0a7c4e19f2b5d8a1c4e7f0b3d6a9c2e5f8b1d4a7c0e3f6b9d2a5c8e1',
-};
-
-// Diffed against 1.3.0: the producer rehashed all four levels and only the weights root
-// moved, which is the `reweighted` verdict — a retrain on an untouched architecture.
-const changedLevels: RingName[] = ['weights'];
-
-const rings = RING_ORDER.map((name, index) => ({
-	name,
-	changed: changedLevels.includes(name),
-	arcs: ringArcs(hashes[name], index),
-}));
-
-/*
- * A slice of the audit trail, using the action verbs the binary actually emits
- * (internal/core). Every one of these rows is written in the same transaction as
- * the change it describes, which is the property the whole evidence story rests on.
- */
-const ledger = [
+const steps = [
 	{
-		at: '2026-06-14 09:12:03Z',
-		action: 'version.create',
-		actor: 'release-bot@acme',
-		summary: 'fraud-detector 1.4.0',
-		accent: false,
+		title: 'Publish',
+		body: 'Register a version and its files. Lineage records where the files live, their digest and size, and what produced them.',
+		code: `from lineage import Client
+
+client = Client(LINEAGE_URL)
+client.publish(
+    model="fraud-detector",
+    version="1.4.0",
+    artifacts=[
+        client.model_file(
+            "model.onnx"
+        ),
+    ],
+)`,
 	},
 	{
-		at: '2026-06-14 09:12:41Z',
-		action: 'artifact.register',
-		actor: 'release-bot@acme',
-		summary: 'model.onnx · sha256:9f2c4a10… · 431.7 MB',
-		accent: false,
+		title: 'Promote',
+		body: 'Move it from draft to staging to production. The old production version is archived in the same step, and files lock at staging, so what you tested is what ships.',
+		code: `client.transition(
+    "fraud-detector", "1.4.0",
+    to="production",
+    reason="passed shadow eval",
+)`,
 	},
 	{
-		at: '2026-06-14 09:13:07Z',
-		action: 'lineage.add',
-		actor: 'pipeline@acme',
-		summary: 'trained_on s3://datasets/txn/q2-2026/',
-		accent: false,
-	},
-	{
-		at: '2026-06-16 17:41:55Z',
-		action: 'evaluation.create',
-		actor: 'eval-runner@acme',
-		summary: 'fraud-holdout · auc 0.947 · split q2-2026',
-		accent: false,
-	},
-	{
-		at: '2026-06-18 11:02:19Z',
-		action: 'version.stage_changed',
-		actor: 'risk@acme',
-		summary: 'fraud-detector 1.4.0: staging → production',
-		accent: true,
+		title: 'Use',
+		body: 'Serving code asks for a stage and gets download links, digests and the model format. Promote a new version and it is picked up with no code change.',
+		code: `client.download(
+    "fraud-detector",
+    stage="production",
+    dest="./model",
+)`,
 	},
 ];
 
-/*
- * The regulatory build-out — specced in docs/15–22, shipped as M14–M18. Each item carries its
- * status, matching the compliance page. The internal milestone ids stay out of public copy.
- */
-const buildout = [
+const attention = [
 	{
-		title: 'Risk classification',
-		body: 'Record the risk classification your team has assigned to each model, with the reasoning and the review date attached, and see automatically when a retrain or a promotion has left that assessment out of date.',
-		status: 'Available',
+		tone: 'danger',
+		area: 'Change control',
+		model: 'triage-assist 3.2.0',
+		title: "Shipped a change its plan doesn't allow",
+		detail: 'Measured as "rearchitected". The plan in force allows "reweighted" and "recast".',
+		action: 'See why',
 	},
 	{
-		title: 'Retention and legal hold',
-		body: 'Place a hold on models and versions that form part of an active matter, enforce a configurable retention floor, and provide cryptographic assurance that the audit trail has not been altered.',
-		status: 'Available',
+		tone: 'warn',
+		area: 'EU AI Act',
+		model: 'credit-scorer',
+		title: 'Risk classification may be out of date',
+		detail: 'A new version was published after it was assessed.',
+		action: 'Re-classify',
+	},
+	{
+		tone: 'warn',
+		area: 'Modification review',
+		model: 'credit-scorer-lite 0.4.0',
+		title: 'Modification waiting for review',
+		detail: 'Derived from credit-scorer 2.1.0, a high-risk model. Someone needs to judge whether the change was substantial.',
+		action: 'Review',
+	},
+];
+
+const programmes = [
+	{
+		title: 'EU AI Act risk category',
+		body: 'Record which risk category each model falls into, and why. When a new version ships, production changes or the review date passes, the record is marked out of date until someone looks again.',
+		source: 'Regulation (EU) 2024/1689',
 	},
 	{
 		title: 'Modification review',
-		body: 'Route significant derivations to a reviewer, with the measured architectural change shown alongside the intent your team declared, so that a fine-tune never reaches production unexamined.',
-		status: 'Available',
+		body: 'When someone fine-tunes or quantizes a high-risk model, a person judges whether the change was big enough to matter legally. They see the measured change beside what the team said they did.',
+		source: 'EU AI Act, Articles 3(23) and 25',
 	},
 	{
-		title: 'Model risk records',
-		body: 'Record model risk tiers and independent validation results, and see when a tier-1 model has gone unmonitored in production.',
-		status: 'Available',
+		title: 'Model risk',
+		body: 'Set how much harm each model could cause, record independent validations, and see when a live model has stopped being monitored.',
+		source: 'SR 26-2, PRA SS1/23, OSFI E-23',
 	},
 	{
 		title: 'Change control plans',
-		body: 'Declare the envelope of changes a model may make without re-review, and check what actually shipped against it.',
-		status: 'Available',
+		body: 'Write down which kinds of change a model may make without a fresh review. Every new version is checked against the plan in force when it shipped.',
+		source: 'FDA predetermined change control plans',
 	},
 ];
 
-const ownership = [
+const records = [
 	{
+		Icon: FileLock,
+		title: 'Every change is logged',
+		body: 'Written in the same step as the change itself, with who made it. If the log entry fails, so does the change.',
+	},
+	{
+		Icon: Lock,
+		title: 'Tampering shows',
+		body: 'The log is sealed in batches with a chain of hashes. Edit or delete a past entry and the check fails, pointing at where.',
+	},
+	{
+		Icon: Scale,
+		title: 'Legal hold',
+		body: 'Stop a model or version being deleted while a legal matter is open. Everything else keeps working.',
+	},
+];
+
+const infra = [
+	{
+		Icon: Package,
 		title: 'One binary',
-		body: 'A single Go process serves the admin console on :8080 and the machine API on :8081. There is no separate metadata service to deploy and operate alongside it.',
-		note: 'distroless · non-root · statically linked',
+		body: 'A single Go process serves the console on :8080 and the Model API on :8081. One Deployment, one Helm chart.',
 	},
 	{
+		Icon: Database,
 		title: 'Your database',
-		body: 'SQLite for local development and edge installs; Postgres with row locking and JSONB filtering in production. Per-dialect adapters sit behind one port, so the same image behaves identically on both.',
-		note: 'sqlite · postgres',
+		body: 'SQLite to try it or at the edge; Postgres in production. The same behaviour on both.',
 	},
 	{
-		title: 'Your bucket',
-		body: 'Artifact bytes stay in your object store and move directly between storage and consumer. Lineage records pointers, digests, and sizes, and never handles the payload itself.',
-		note: 'filesystem · s3 · rustfs · r2 · ceph',
+		Icon: HardDrive,
+		title: 'Your storage',
+		body: 'Files stay where you put them: S3-compatible storage (AWS, MinIO, R2, Ceph), an OCI registry or a plain filesystem. Lineage keeps the pointers, digests and sizes.',
 	},
 	{
-		title: 'Your perimeter',
-		body: 'Authentication remains with your ingress, gateway, or mesh. Lineage trusts an already-authenticated request and records the actor header against every change.',
-		note: 'X-Lineage-Actor',
+		Icon: KeyRound,
+		title: 'Your sign-in',
+		body: 'Your ingress or gateway handles authentication. Lineage records the identity it passes on against every change.',
 	},
 ];
 
-const sections = [
-	{
-		title: 'Start here',
-		blurb: 'Get a registry running and publish your first model.',
-		links: [
-			{ label: 'Quickstart', href: '/start/quickstart/' },
-			{ label: 'Core concepts', href: '/start/concepts/' },
-			{ label: 'Compliance & evidence', href: '/start/compliance/' },
-		],
-	},
-	{
-		title: 'Registry',
-		blurb: 'Models, versions, artifacts, stages, and the audit trail.',
-		links: [
-			{ label: 'Publishing versions', href: '/guides/publishing-versions/' },
-			{ label: 'Stages & promotion', href: '/guides/stages-and-promotion/' },
-			{ label: 'Labels & search', href: '/guides/labels-and-search/' },
-		],
-	},
-	{
-		title: 'Delivery',
-		blurb: 'How serving systems locate and fetch the right artifacts.',
-		links: [
-			{ label: 'Resolving a model', href: '/delivery/resolve/' },
-			{ label: 'KServe', href: '/delivery/kserve/' },
-			{ label: 'Custom runtimes', href: '/delivery/custom-runtimes/' },
-		],
-	},
-	{
-		title: 'Evidence',
-		blurb: 'The record of who changed what, when, and on what basis.',
-		links: [
-			{ label: 'The audit trail', href: '/guides/audit-trail/' },
-			{ label: 'Deployments', href: '/guides/deployments/' },
-			{ label: 'Compliance posture', href: '/start/compliance/' },
-		],
-	},
-	{
-		title: 'Provenance',
-		blurb: 'Typed edges, ancestry, impact analysis, and version diff.',
-		links: [
-			{ label: 'The lineage graph', href: '/guides/lineage-graph/' },
-			{ label: 'Model insights', href: '/guides/model-insights/' },
-			{ label: 'Comparing versions', href: '/guides/version-diff/' },
-		],
-	},
-	{
-		title: 'Operations',
-		blurb: 'Configuration, storage, metrics, and routine maintenance.',
-		links: [
-			{ label: 'Configuration', href: '/operate/configuration/' },
-			{ label: 'Storage backends', href: '/operate/storage-backends/' },
-			{ label: 'Observability', href: '/operate/observability/' },
-		],
-	},
-	{
-		title: 'Deployment',
-		blurb: 'From a local machine to a highly available cluster.',
-		links: [
-			{ label: 'Deploy with Helm', href: '/deploy/helm/' },
-			{ label: 'Production checklist', href: '/deploy/production-checklist/' },
-			{ label: 'Local development', href: '/deploy/local-development/' },
-		],
-	},
+const guides = [
+	{ title: 'Start here', links: [['Quickstart', '/start/quickstart/'], ['Core concepts', '/start/concepts/'], ['Your first model', '/start/first-model/']] },
+	{ title: 'Registry', links: [['Publishing versions', '/guides/publishing-versions/'], ['Stages and promotion', '/guides/stages-and-promotion/'], ['Comparing versions', '/guides/version-diff/']] },
+	{ title: 'Delivery', links: [['Resolving a model', '/delivery/resolve/'], ['KServe', '/delivery/kserve/'], ['Custom runtimes', '/delivery/custom-runtimes/']] },
+	{ title: 'Governance', links: [['Compliance and evidence', '/start/compliance/'], ['The audit trail', '/guides/audit-trail/'], ['The lineage graph', '/guides/lineage-graph/']] },
+	{ title: 'Run it', links: [['Deploy with Helm', '/deploy/helm/'], ['Production checklist', '/deploy/production-checklist/'], ['Configuration', '/operate/configuration/']] },
+	{ title: 'Clients', links: [['Python SDK', '/clients/python-sdk/'], ['CLI', '/clients/cli/'], ['API conventions', '/clients/api-conventions/']] },
 ];
+
+const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd lineage && make run';
 ---
 
 <Marketing
-	title="Lineage — the self-hostable model registry"
-	description="Lineage is the system of record for ML/AI models, and the evidence substrate underneath model compliance: immutable versions, an append-only audit trail, typed provenance, and one-call delivery. Self-hosted, in a single Go binary."
+	title="Lineage — a model registry you run yourself"
+	description="Lineage is a self-hosted model registry: it stores every version of your ML and AI models, promotes them to production, serves them to inference systems and records every change. One Go binary, your database, your storage."
 >
-	{/* Runs during parse, before anything below the fold is painted, so a revealed
-	    section never flashes in at full opacity first. */}
-	<script is:inline>
-		if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			document.documentElement.dataset.revealReady = '';
-			addEventListener('DOMContentLoaded', () => {
-				const observer = new IntersectionObserver(
-					(entries) => {
-						for (const entry of entries) {
-							if (!entry.isIntersecting) continue;
-							entry.target.classList.add('is-revealed');
-							observer.unobserve(entry.target);
-						}
-					},
-					{ rootMargin: '0px 0px -10% 0px', threshold: 0.12 },
-				);
-				for (const el of document.querySelectorAll('[data-reveal]')) observer.observe(el);
-			});
-		}
-	</script>
-
 	<section class="hero">
-		<div class="shell hero__inner">
+		<div class="shell hero__grid">
 			<div class="hero__copy">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hostable model registry</p>
-				<h1 class="hero__title">Ship models you can account for.</h1>
+				<h1 class="hero__title">A model registry you run yourself</h1>
 				<p class="hero__lede">
-					Lineage is the registry of record for every model your teams run — versioned, staged,
-					promoted, and fully attributed. It captures the evidence your governance and compliance
-					programmes depend on, on infrastructure you control.
+					Lineage stores every version of your ML and AI models, moves them from staging to
+					production, and hands serving systems whatever is live. Every change is recorded with who
+					made it and why. One Go binary, your database, your storage.
 				</p>
-
 				<div class="hero__actions">
-					<a class="button button--solid" href="/start/quickstart/">Read the quickstart</a>
-					<a class="button" href="/start/compliance/">Compliance &amp; evidence</a>
+					<a class="btn btn--solid" href="/start/quickstart/">Start in five minutes</a>
+					<a class="btn" href="/start/what-lineage-is/">What Lineage does</a>
 				</div>
-
-				<div class="terminal">
-					<button class="terminal__copy" type="button" data-copy aria-label="Copy the commands">
+				<div class="cmd">
+					<code class="cmd__text">{COMMAND}</code>
+					<button class="cmd__copy" type="button" data-copy={COMMAND} aria-label="Copy the command">
+						<Copy size={14} stroke-width={2} />
 						<span data-copy-label>Copy</span>
 					</button>
-					<div class="terminal__body">
-						<span class="terminal__line"
-							><span class="terminal__prompt">$</span> git clone
-							https://github.com/proseria-research/lineage</span
-						>
-						<span class="terminal__line"
-							><span class="terminal__prompt">$</span> cd lineage && make run</span
-						>
-						<span class="terminal__note">SQLite, local filesystem storage, no other dependencies.</span>
-					</div>
 				</div>
+				<p class="cmd__note">Runs with SQLite and local storage. Nothing else to install.</p>
 			</div>
-
-			<StageBoard />
+			<ReleaseDemo />
 		</div>
 	</section>
 
-	<section class="band">
-		<div class="shell split" data-reveal>
-			<div class="split__copy">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>evidence</p>
-				<h2 class="section__title">Compliance rests on facts your registry already holds.</h2>
-				<p>
-					The EU AI Act, ISO/IEC 42001, NIST AI RMF and supervisory model risk guidance differ in
-					structure and vocabulary, but they ask for the same underlying facts about each model you
-					operate: what exists, what changed, who approved it, what produced it, and how it was
-					evaluated.
+	<section class="band" aria-labelledby="how">
+		<div class="shell">
+			<header class="head">
+				<h2 id="how" class="head__title">From training run to production in three calls</h2>
+				<p class="head__lede">
+					The same three steps from Python, the CLI or plain HTTP. The console shows every one of
+					them as it happens.
 				</p>
-				<p>
-					Lineage captures those facts as part of everyday work, not as a separate exercise. Every
-					change writes an audit event in the same transaction as the change itself, attributed to
-					the identity your perimeter supplies. Events are append-only and are retained beyond the
-					life of the model they describe.
-				</p>
-				<p>
-					The result is a complete, continuous record — available the moment it is asked for, rather
-					than reconstructed under deadline.
-				</p>
-				<p class="split__link">
-					<a href="/start/compliance/">How Lineage maps to each framework →</a>
-				</p>
-			</div>
-
-			<figure class="ledger">
-				<figcaption class="ledger__head">
-					<span class="tag tag--verb">GET</span>
-					<code>/v1/models/fraud-detector/audit</code>
-				</figcaption>
-				<ol class="ledger__rows">
-					{
-						ledger.map((row) => (
-							<li class="ledger__row" data-accent={String(row.accent)}>
-								<span class="ledger__top">
-									<span class="ledger__action">{row.action}</span>
-									<span class="ledger__actor">{row.actor}</span>
-								</span>
-								<span class="ledger__summary">{row.summary}</span>
-								<span class="ledger__at">{row.at}</span>
-							</li>
-						))
-					}
-				</ol>
-				<p class="ledger__foot">
-					Every event is written in the same transaction as the change it describes, attributed, and
-					never modified or removed.
-				</p>
-			</figure>
-		</div>
-	</section>
-
-	<section class="band band--sunk">
-		<div class="shell" data-reveal>
-			<div class="section__head">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>provenance</p>
-				<h2 class="section__title">Trace what produced a model, and what depends on it.</h2>
-				<p class="section__lede">
-					Provenance is recorded as typed edges rather than free-text tags. Trace upstream to
-					explain how a model was built — the question every technical file begins with — or
-					downstream from a dataset to identify every version and deployment it reached.
-				</p>
-			</div>
-
-			<LineageMap />
-
-			<p class="map__foot">
-				<a href="/guides/lineage-graph/">Recording and traversing edges →</a>
-			</p>
-		</div>
-	</section>
-
-	<section class="band">
-		<div class="shell split" data-reveal>
-			<div class="split__copy">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>fingerprint</p>
-				<h2 class="section__title">See exactly what changed between two versions.</h2>
-				<p>
-					Every version carries an architecture fingerprint: four separable hashes over a canonical
-					form of the model's structure. Topology covers the ordered op graph, shape adds every
-					tensor shape, dtype adds the precision vector, and weights is a merkle root over
-					per-tensor digests.
-				</p>
-				<p>
-					Because the levels are separable, a diff resolves to a verdict by table lookup rather than
-					by judgement. Producers that submit only the cheap header-derived hashes still get an
-					answer: the diff narrows the candidates and names the level it was missing.
-				</p>
-				<p>
-					This is what a change review needs. Whether a retrain moved only the weights or reshaped
-					the architecture separates a routine release from one that warrants attention, and the
-					distinction is measured rather than asserted.
-				</p>
-				<p class="split__link">
-					<a href="/guides/version-diff/">How version diff works →</a>
-				</p>
-			</div>
-
-			<figure class="fp">
-				<figcaption class="fp__head">
-					<span class="tag tag--verb">FINGERPRINT</span>
-					<code>fraud-detector 1.4.0</code>
-				</figcaption>
-
-				<div class="fp__disc">
-					<svg width={DISC} height={DISC} viewBox={`0 0 ${DISC} ${DISC}`} fill="none" aria-hidden="true">
-						{
-							rings.map((ring, index) => (
-								<g class="fp__ring-group" data-ring={ring.name} style={`--ring-index: ${index}`}>
-									{ring.arcs.map((d) => (
-										<path
-											d={d}
-											class={`fp__ring fp__ring--${ring.name}`}
-											stroke="currentColor"
-											fill="none"
-										/>
-									))}
-								</g>
-							))
-						}
-					</svg>
-				</div>
-
-				<ol class="fp__rollcall">
-					{
-						rings.map((ring) => (
-							<li class="fp__level" data-ring={ring.name} data-changed={String(ring.changed)}>
-								<i class={`fp__swatch fp__swatch--${ring.name}`} aria-hidden="true" />
-								<span class="fp__name">{ring.name}</span>
-								<span class="fp__state">{ring.changed ? 'differs' : 'matches'}</span>
-							</li>
-						))
-					}
-				</ol>
-
-				<p class="fp__verdict">
-					<span class="eyebrow">diff against 1.3.0</span>
-					<span class="fp__value">reweighted</span>
-					<span class="fp__gloss">
-						topology, shape, and dtype all match; only the weights hash moved
-					</span>
-				</p>
-			</figure>
-		</div>
-	</section>
-
-	<section class="band band--sunk">
-		<div class="shell" data-reveal>
-			<div class="section__head">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>roadmap</p>
-				<h2 class="section__title">Compliance, built on the record.</h2>
-				<p class="section__lede">
-					Risk classification, retention and legal hold, modification review, model risk
-					records and change control plans are available today.
-				</p>
-			</div>
-
-			<ol class="roadmap">
+			</header>
+			<ol class="steps">
 				{
-					buildout.map((item) => (
-						<li class="roadmap__item">
-							<p class="roadmap__head">
-								<span class="roadmap__title">{item.title}</span>
-								<span class="roadmap__status">{item.status}</span>
-							</p>
-							<p class="roadmap__body">{item.body}</p>
+					steps.map((s, i) => (
+						<li class="step">
+							<p class="step__num" aria-hidden="true">{i + 1}</p>
+							<h3 class="step__title">{s.title}</h3>
+							<p class="step__body">{s.body}</p>
+							<pre class="code"><code>{s.code}</code></pre>
 						</li>
 					))
 				}
 			</ol>
-
-			<div class="roadmap__notes">
-				<p>
-					<strong>Sequenced against the regulatory calendar.</strong> The EU AI Act's obligations
-					for general-purpose models have applied since August 2025, with the high-risk regime
-					following in December 2027. Support is being built in that order.
-				</p>
-				<p>
-					<strong>Designed in the open.</strong> The full specifications for this work are published
-					in the repository alongside the code, so you can evaluate the approach before it ships.
-				</p>
-			</div>
+			<p class="band__foot">
+				Serving on KServe? Set <code>storageUri: lineage://fraud-detector/production</code> and the
+				storage initializer resolves it at pull time. <a href="/delivery/kserve/">KServe guide</a>
+			</p>
 		</div>
 	</section>
 
-	<section class="band">
-		<div class="shell split" data-reveal>
+	<section class="band band--card" aria-labelledby="fp">
+		<div class="shell split">
 			<div class="split__copy">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>delivery</p>
-				<h2 class="section__title">Serving systems resolve in one call.</h2>
+				<h2 id="fp" class="head__title">See what actually changed between two versions</h2>
 				<p>
-					Serving systems never need to know how your registry is laid out. They ask for a model at
-					a stage and get back everything needed to pull it: a native storage URI, a freshly signed
-					URL, the digest, the size, and the model format.
+					A version can carry a fingerprint: four hashes, one each for its architecture, layer
+					shapes, numeric precision and weights. Lineage draws them as four petals and compares
+					them level by level, so a change is measured rather than taken on trust.
 				</p>
 				<p>
-					Responses carry an <code>ETag</code>, so a client that polls without missing an update
-					receives a <code>304</code>. Cache entries are invalidated when a promotion occurs rather
-					than when a timer expires.
+					That is what a reviewer needs to know. A retrain that only moved the weights is routine;
+					one that changed the architecture deserves a closer look.
 				</p>
-				<p class="split__link">
-					<a href="/delivery/resolve/">How resolution works →</a>
-				</p>
+				<dl class="verdicts">
+					{
+						verdicts.map((v) => (
+							<div class="verdicts__row" data-current={String(v.name === 'Reweighted')}>
+								<dt>{v.name}</dt>
+								<dd>{v.plain}</dd>
+							</div>
+						))
+					}
+				</dl>
+				<p class="split__link"><a href="/guides/version-diff/">How comparing versions works</a></p>
 			</div>
 
-			<div class="exchange">
-				<div class="exchange__request">
-					<span class="tag tag--verb">GET</span>
-					<code>/v1/models/fraud-detector/resolve?stage=production</code>
+			<figure class="compare" tabindex="0" aria-describedby="compare-verdict">
+				<div class="compare__pair">
+					<div class="compare__side">
+						<Fingerprint hashes={before.hashes} size={188} />
+						<p class="compare__name">1.3.0 <span>in production</span></p>
+					</div>
+					<div class="compare__side">
+						<span class="compare__stack">
+							<Fingerprint hashes={after.hashes} size={188} />
+							<span class="compare__blink"><Fingerprint hashes={before.hashes} size={188} /></span>
+						</span>
+						<p class="compare__name">1.4.0 <span>candidate</span></p>
+					</div>
 				</div>
-				<pre class="exchange__response"><code>{`{
-  "model": "fraud-detector",
-  "version": "1.4.0",
-  "stage": "production",
-  "artifacts": [
-    {
-      "name": "model.onnx",
-      "storageUri": "s3://models/fraud-detector/1.4.0/model.onnx",
-      "signedUrl": "https://s3.eu-west-1.amazonaws.com/...",
-      "digest": "sha256:9f2c4a10...",
-      "sizeBytes": 431717888,
-      "modelFormat": { "name": "onnx", "version": "1.16" }
-    }
-  ]
-}`}</code></pre>
-				<p class="exchange__foot">
-					Alternatively, configure KServe with <code>lineage://fraud-detector/production</code> once
-					and let the storage initializer resolve it at pull time.
+				<p class="compare__hint">Hover or focus to flip 1.4.0 back and forth with 1.3.0. What jumps changed.</p>
+				<ul class="levels">
+					{
+						levels.map((l) => (
+							<li class="levels__row" data-changed={String(l.changed)}>
+								<i class={`levels__swatch levels__swatch--${l.key}`} aria-hidden="true" />
+								<span class="levels__name">
+									{l.label}
+									<span class="levels__help">{l.help}</span>
+								</span>
+								<span class="levels__state">{l.changed ? 'Changed' : 'Same'}</span>
+							</li>
+						))
+					}
+				</ul>
+				<p class="compare__verdict" id="compare-verdict">
+					<strong>Reweighted.</strong> Same architecture, new weight values: what retraining produces.
 				</p>
-			</div>
+			</figure>
 		</div>
 	</section>
 
-	<section class="band band--sunk">
-		<div class="shell" data-reveal>
-			<div class="section__head">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>self-hosted</p>
-				<h2 class="section__title">Runs entirely on your own infrastructure.</h2>
-				<p class="section__lede">
-					Self-hosting is the primary way to run Lineage rather than a reduced tier of it. Metadata
-					sits in your database, weights sit in your bucket, and both stay portable: standard
-					relational tables and native object-store URIs. Your audit record stays within your own
-					perimeter.
+	<section class="band" aria-labelledby="gov">
+		<div class="shell">
+			<header class="head">
+				<h2 id="gov" class="head__title">Governance, in plain words</h2>
+				<p class="head__lede">
+					Lineage keeps the records the EU AI Act, banking supervisors and the FDA ask for, and
+					explains each one where it appears: what it means, why it matters and what to do next.
+					It records and flags. It never blocks a release or makes a legal decision for you.
 				</p>
+			</header>
+
+			<div class="gov">
+				<div class="panel attention">
+					<div class="panel__head">
+						<h3 class="panel__title">Needs attention</h3>
+						<span class="panel__meta">3 items</span>
+					</div>
+					<ul class="attention__list">
+						{
+							attention.map((a) => (
+								<li class="attention__item" data-tone={a.tone}>
+									<span class="attention__icon">
+										{a.tone === 'danger' ? <OctagonAlert size={16} stroke-width={2} /> : <TriangleAlert size={16} stroke-width={2} />}
+									</span>
+									<div class="attention__body">
+										<p class="attention__title">{a.title}</p>
+										<p class="attention__detail">{a.detail}</p>
+										<p class="attention__meta">
+											<span>{a.model}</span>
+											<span>{a.area}</span>
+										</p>
+									</div>
+									<span class="attention__action">{a.action}</span>
+								</li>
+							))
+						}
+					</ul>
+					<div class="explain">
+						<p class="explain__term">
+							<Lightbulb size={14} stroke-width={2} /> Out of date
+						</p>
+						<p>Something changed after this model was assessed, so the assessment may no longer be accurate.</p>
+						<p class="explain__next">
+							<strong>What to do:</strong> check whether the category still fits and record the
+							assessment again, even if the answer is unchanged.
+						</p>
+					</div>
+				</div>
+
+				<ul class="programmes">
+					{
+						programmes.map((p) => (
+							<li class="programme">
+								<h3 class="programme__title">{p.title}</h3>
+								<p class="programme__body">{p.body}</p>
+								<p class="programme__source">{p.source}</p>
+							</li>
+						))
+					}
+				</ul>
 			</div>
 
-			<ul class="tiles">
+			<ul class="records">
 				{
-					ownership.map((tile) => (
-						<li class="tile">
-							<h3 class="tile__title">{tile.title}</h3>
-							<p class="tile__body">{tile.body}</p>
-							<p class="tile__note">{tile.note}</p>
+					records.map(({ Icon, title, body }) => (
+						<li class="record">
+							<span class="record__icon"><Icon size={18} stroke-width={2} /></span>
+							<div>
+								<h3 class="record__title">{title}</h3>
+								<p class="record__body">{body}</p>
+							</div>
+						</li>
+					))
+				}
+			</ul>
+			<p class="band__foot">
+				Guidance on how Lineage works, not legal advice. <a href="/start/compliance/">How Lineage maps to each framework</a>
+			</p>
+		</div>
+	</section>
+
+	<section class="band band--card" aria-labelledby="lin">
+		<div class="shell">
+			<header class="head">
+				<h2 id="lin" class="head__title">Where a model came from, and what depends on it</h2>
+				<p class="head__lede">
+					Record the dataset it was trained on, the run that produced it and the model it was
+					fine-tuned from. Trace back to explain how it was built, or forward from a dataset to find
+					every version and deployment it reached.
+				</p>
+			</header>
+			<LineageMap />
+			<p class="band__foot"><a href="/guides/lineage-graph/">Recording lineage</a></p>
+		</div>
+	</section>
+
+	<section class="band" aria-labelledby="infra">
+		<div class="shell">
+			<header class="head">
+				<h2 id="infra" class="head__title">Runs on your infrastructure</h2>
+				<p class="head__lede">
+					Self-hosting is the main way to run Lineage, not a cut-down edition. Your models, your
+					records and your audit log never leave your network.
+				</p>
+			</header>
+			<ul class="infra">
+				{
+					infra.map(({ Icon, title, body }) => (
+						<li class="infra__item">
+							<span class="infra__icon"><Icon size={20} stroke-width={1.75} /></span>
+							<h3 class="infra__title">{title}</h3>
+							<p class="infra__body">{body}</p>
 						</li>
 					))
 				}
@@ -586,24 +416,19 @@ const sections = [
 		</div>
 	</section>
 
-	<section class="band">
-		<div class="shell" data-reveal>
-			<div class="section__head">
-				<p class="eyebrow"><i class="sq" aria-hidden="true"></i>guides</p>
-				<h2 class="section__title">Documentation</h2>
-			</div>
-
-			<ul class="cards">
+	<section class="band band--card" aria-labelledby="docs">
+		<div class="shell">
+			<header class="head">
+				<h2 id="docs" class="head__title">Guides</h2>
+			</header>
+			<ul class="guides">
 				{
-					sections.map((section) => (
-						<li class="card-link">
-							<h3 class="card-link__title">{section.title}</h3>
-							<p class="card-link__blurb">{section.blurb}</p>
-							<ul class="card-link__list">
-								{section.links.map((link) => (
-									<li>
-										<a href={link.href}>{link.label}</a>
-									</li>
+					guides.map((g) => (
+						<li class="guides__group">
+							<h3 class="guides__title">{g.title}</h3>
+							<ul>
+								{g.links.map(([label, href]) => (
+									<li><a href={href}>{label}</a></li>
 								))}
 							</ul>
 						</li>
@@ -614,43 +439,36 @@ const sections = [
 	</section>
 
 	<section class="closer">
-		<div class="shell closer__inner" data-reveal>
-			<h2 class="closer__title">Get started</h2>
+		<div class="shell closer__inner">
+			<h2 class="closer__title">Publish your first model today</h2>
 			<p class="closer__lede">
-				Run Lineage locally in about a minute, or install the Helm chart into a cluster and point it
-				at your Postgres instance and your object store. The record begins with the first version
-				you publish.
+				Run it on your laptop in a minute, or install the Helm chart and point it at your Postgres
+				and your bucket. The record starts with the first version you publish.
 			</p>
 			<div class="hero__actions">
-				<a class="button button--solid" href="/start/quickstart/">Quickstart</a>
-				<a class="button" href="/deploy/helm/">Deploy with Helm</a>
+				<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
+				<a class="btn" href="/deploy/helm/">Deploy with Helm</a>
 			</div>
 		</div>
 	</section>
 </Marketing>
 
 <script>
-	// The two commands the terminal shows, without the prompts.
-	const COMMANDS = 'git clone https://github.com/proseria-research/lineage\ncd lineage && make run';
-
-	const button = document.querySelector<HTMLButtonElement>('[data-copy]');
-	const label = document.querySelector<HTMLElement>('[data-copy-label]');
-	let restore: number | undefined;
-
-	button?.addEventListener('click', async () => {
-		try {
-			await navigator.clipboard.writeText(COMMANDS);
-			button.dataset.state = 'copied';
-			if (label) label.textContent = 'Copied';
-		} catch {
-			// Clipboard access can be refused outright; say so rather than claiming success.
-			button.dataset.state = 'failed';
-			if (label) label.textContent = 'Press \u2318C';
-		}
-		window.clearTimeout(restore);
-		restore = window.setTimeout(() => {
-			delete button.dataset.state;
-			if (label) label.textContent = 'Copy';
-		}, 2000);
-	});
+	for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+		const label = button.querySelector<HTMLElement>('[data-copy-label]');
+		let restore: number | undefined;
+		button.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(button.dataset.copy ?? '');
+				if (label) label.textContent = 'Copied';
+			} catch {
+				// Clipboard access can be refused; say so rather than claiming success.
+				if (label) label.textContent = 'Select and copy';
+			}
+			window.clearTimeout(restore);
+			restore = window.setTimeout(() => {
+				if (label) label.textContent = 'Copy';
+			}, 2000);
+		});
+	}
 </script>

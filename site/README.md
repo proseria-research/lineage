@@ -40,7 +40,8 @@ Search is empty under `site-dev` — Pagefind only indexes at build time, so use
 src/
   pages/index.astro       the landing page
   layouts/Marketing.astro shell for non-docs pages
-  components/             SiteHeader, SiteFooter, Mark, StageBoard
+  components/             SiteHeader, SiteFooter, Mark, ReleaseDemo, Fingerprint, LineageMap
+  lib/demo.ts             the example model the landing page draws
   styles/
     tokens.css            design tokens + the Starlight theme mapping
     landing.css           landing page only
@@ -74,16 +75,20 @@ Diagrams are Mermaid, in fenced ` ```mermaid ` blocks — the same rule the desi
 
 ## Design
 
-The accent palette is the lifecycle stage machine: production green `#1f7a3d`, staging amber
-`#b45309`, slate `#334155` — the same values the roadmap diagram uses, so the site and the
-repository agree on what a stage looks like.
+The site uses the admin console's design system, so the site and the product read as one
+thing: slate paper, white cards with 8–12px corners, the deep-blue brand `#2b4c7e`, and
+status colours (ok, warn, danger) that only ever carry meaning. Type is IBM Plex Sans, with
+Plex Mono for identifiers and code, self-hosted through Fontsource. Icons are Lucide, as in
+the console.
 
-Type is Bricolage Grotesque (display), Public Sans (body), and IBM Plex Mono (data and
-labels), all self-hosted through Fontsource. Square corners throughout, from the mark.
+Copy is plain language, as in the console: say what a thing does for the reader, keep the
+official term beside the explanation, and never imply Lineage makes legal decisions.
 
-The landing page's centrepiece is the registry board: promoting the staging candidate moves
-it into production and archives the incumbent in the same beat, which is what the API
-actually does in one transaction.
+The landing page's centrepiece is the model card: promoting the staging candidate moves it
+into production and archives the incumbent in the same step, which is what the API does in
+one transaction, and the resolve line underneath changes with it. The fingerprint drawing
+(`components/Fingerprint.astro`) is a port of the console's, seeded from the same hashes as
+the example versions in `lib/demo.ts`.
 
 ## Deploying to Cloudflare
 

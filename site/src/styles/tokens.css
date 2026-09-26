@@ -1,104 +1,119 @@
 /*
- * Lineage design tokens.
+ * Lineage design tokens — the admin console's, so the site and the product read as one thing.
  *
- * The accent palette is the lifecycle stage machine: production green,
- * staging amber, draft/archived slate. Those three hex values are the same
- * ones the project's own roadmap diagram uses, so the site, the docs, and
- * the repository agree on what a stage looks like.
+ * Cool slate paper, white surfaces, one deep-blue brand colour taken from the fingerprint's
+ * architecture petal, and three status colours that carry meaning and nothing else:
+ *   --ok      healthy, current, in production
+ *   --warn    needs attention: out of date, waiting for review
+ *   --danger  a problem: outside plan, prohibited, integrity break
+ * Status colour always travels with an icon or a word, never alone.
+ *
+ * IBM Plex Sans for everything; Plex Mono only for identifiers, code and digests.
+ * The theme is chosen by `data-theme` on <html> (shared with Starlight's toggle).
  */
 
-:root {
-	/* Surfaces and ink — light ("paper") */
-	--ln-paper: #f5f5f2;
-	--ln-paper-raised: #fbfbf9;
-	--ln-paper-sunk: #eceae4;
-	--ln-ink: #14171c;
-	--ln-ink-muted: #4d5560;
-	--ln-ink-faint: #78808c;
-	--ln-rule: #d6d5cc;
-	--ln-rule-strong: #14171c;
+:root,
+:root[data-theme='light'] {
+	--bg: #f3f5f8;
+	--fg: #17202e;
+	--card: #ffffff;
+	--muted: #f0f3f7;
+	--muted-fg: #5b6678;
+	--border: #dde2ea;
+	--input: #cfd6e0;
 
-	/* Stages */
-	--ln-production: #1f7a3d;
-	--ln-production-wash: #e2efe6;
-	--ln-staging: #b45309;
-	--ln-staging-wash: #f5eade;
-	--ln-slate: #334155;
-	--ln-slate-wash: #e7e8e6;
+	--brand: #2b4c7e;
+	--brand-strong: #1d3a66;
+	--brand-soft: #e6edf7;
+	--on-brand: #ffffff;
+	--ok: #1f7a4d;
+	--ok-soft: #e3f3ea;
+	--warn: #9a5b00;
+	--warn-soft: #fbf0dc;
+	--danger: #b42318;
+	--danger-soft: #fbe6e3;
 
-	/* Fingerprint rings, outermost to innermost. The same four hues the admin console
-	   uses (docs/12 §4.1), so a disc reads the same on the site and in the product. */
 	--fp-topology: oklch(0.52 0.07 255);
 	--fp-shape: oklch(0.54 0.07 165);
 	--fp-dtype: oklch(0.56 0.075 75);
 	--fp-weights: oklch(0.53 0.08 25);
 
-	/* Type */
-	--ln-display: 'Bricolage Grotesque Variable', 'Public Sans Variable', system-ui, sans-serif;
-	--ln-body: 'Public Sans Variable', system-ui, -apple-system, sans-serif;
-	--ln-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-
-	/* Rhythm */
-	--ln-gutter: clamp(1.25rem, 4vw, 3rem);
-	--ln-measure: 1200px;
-	--ln-frame: 2px;
+	--shadow: 0 1px 2px rgb(23 32 46 / 0.04), 0 8px 24px -12px rgb(23 32 46 / 0.12);
 }
 
 :root[data-theme='dark'] {
-	--ln-paper: #0f1216;
-	--ln-paper-raised: #161a20;
-	--ln-paper-sunk: #0a0c0f;
-	--ln-ink: #eceae4;
-	--ln-ink-muted: #9aa2ae;
-	--ln-ink-faint: #6c7684;
-	--ln-rule: #272c34;
-	--ln-rule-strong: #3d4550;
+	--bg: #0e131b;
+	--fg: #e6ebf2;
+	--card: #151c27;
+	--muted: #1b2330;
+	--muted-fg: #96a2b4;
+	--border: #263142;
+	--input: #324055;
 
-	--ln-production: #4bb572;
-	--ln-production-wash: #14261b;
-	--ln-staging: #dc9038;
-	--ln-staging-wash: #2a1e10;
-	--ln-slate: #8b98ab;
-	--ln-slate-wash: #1a1e24;
+	--brand: #8fb0e0;
+	--brand-strong: #b3cbef;
+	--brand-soft: #1c2a40;
+	--on-brand: #0e131b;
+	--ok: #52c48c;
+	--ok-soft: #14291f;
+	--warn: #f0b34a;
+	--warn-soft: #2e2413;
+	--danger: #f07a6e;
+	--danger-soft: #331a18;
 
 	--fp-topology: oklch(0.72 0.075 255);
 	--fp-shape: oklch(0.74 0.075 165);
 	--fp-dtype: oklch(0.78 0.08 75);
 	--fp-weights: oklch(0.72 0.085 25);
+
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+}
+
+:root {
+	--sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+	--mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+	--radius-sm: 5px;
+	--radius: 8px;
+	--radius-lg: 12px;
+
+	--gutter: clamp(1rem, 4vw, 2.5rem);
+	--measure: 1160px;
 }
 
 /* ---- Starlight theme mapping --------------------------------------------
  *
- * Deliberately narrow: fonts, the accent, and the page surfaces. Starlight's
- * own gray ramp is left alone, because it is what guarantees text contrast in
- * both themes.
+ * Fonts, the accent and the page surfaces. Starlight's own gray ramp is left alone, because
+ * it is what guarantees text contrast in both themes.
  *
- * The selector list matters. Starlight declares its light-theme values under
- * `:root[data-theme='light']`, which outranks a plain `:root` block — so every
- * override is repeated at that specificity for both themes.
+ * Starlight declares its light values under `:root[data-theme='light']`, which outranks a
+ * plain `:root`, so every override is repeated at that specificity.
  */
 
 :root,
 :root[data-theme='light'],
 :root[data-theme='dark'] {
-	--sl-font: var(--ln-body);
-	--sl-font-mono: var(--ln-mono);
+	--sl-font: var(--sans);
+	--sl-font-mono: var(--mono);
 
-	--sl-color-accent: var(--ln-production);
-	--sl-color-accent-low: var(--ln-production-wash);
-	--sl-color-text-accent: var(--ln-production);
+	--sl-color-accent: var(--brand);
+	--sl-color-accent-low: var(--brand-soft);
+	--sl-color-text-accent: var(--brand);
 
-	--sl-color-bg: var(--ln-paper);
-	--sl-color-bg-nav: var(--ln-paper);
-	--sl-color-bg-sidebar: var(--ln-paper);
-	--sl-color-bg-inline-code: var(--ln-paper-sunk);
+	--sl-color-bg: var(--bg);
+	--sl-color-bg-nav: var(--card);
+	--sl-color-bg-sidebar: var(--bg);
+	--sl-color-bg-inline-code: var(--muted);
+	--sl-color-hairline: var(--border);
+	--sl-color-hairline-light: var(--border);
+	--sl-color-hairline-shade: var(--border);
 }
 
 :root,
 :root[data-theme='light'] {
-	--sl-color-accent-high: #14532a;
+	--sl-color-accent-high: var(--brand-strong);
 }
 
 :root[data-theme='dark'] {
-	--sl-color-accent-high: #b6e5c6;
+	--sl-color-accent-high: var(--brand-strong);
 }

@@ -1,0 +1,180 @@
+---
+/**
+ * The hero: one model as the console shows it — the lifecycle track, the versions in it, and
+ * what a serving system gets back when it asks for production. "Promote" moves the staging
+ * candidate into production and archives the incumbent in the same step, which is what the
+ * API does in one transaction; the resolve line underneath changes with it.
+ */
+import PencilLine from '@lucide/astro/icons/pencil-line';
+import FlaskConical from '@lucide/astro/icons/flask-conical';
+import Rocket from '@lucide/astro/icons/rocket';
+import Archive from '@lucide/astro/icons/archive';
+import Lock from '@lucide/astro/icons/lock';
+import Fingerprint from './Fingerprint.astro';
+import { MODEL, STAGE_LABEL, VERSIONS, byName, type Stage } from '../lib/demo';
+
+const ORDER: { stage: Stage; Icon: typeof Rocket }[] = [
+	{ stage: 'draft', Icon: PencilLine },
+	{ stage: 'staging', Icon: FlaskConical },
+	{ stage: 'production', Icon: Rocket },
+	{ stage: 'archived', Icon: Archive },
+];
+
+const count = (s: Stage) => VERSIONS.filter((v) => v.stage === s).length;
+// A version's files lock the first time it reaches staging, and stay locked.
+const locked = (s: Stage) => s !== 'draft';
+const live = byName('1.3.0');
+const resolved = (name: string, digest: string) =>
+	`${name}  sha256:${digest}…\ns3://models/${MODEL}/${name}/model.onnx`;
+const versions = (n: number) => `${n} version${n === 1 ? '' : 's'}`;
+---
+
+<figure class="demo" data-demo data-resolved-next={resolved('1.4.0', byName('1.4.0').digest)}>
+	<header class="demo__head">
+		<div>
+			<p class="demo__kind">Model</p>
+			<p class="demo__model">{MODEL}</p>
+		</div>
+		<p class="demo__owner">Owned by <strong>risk-platform</strong></p>
+	</header>
+
+	<ol class="track" aria-label="Versions in each stage">
+		{
+			ORDER.map(({ stage, Icon }) => (
+				<li class="track__stop" data-stop={stage}>
+					<span class="track__disc">
+						<Icon size={16} stroke-width={2} />
+					</span>
+					<span class="track__label">{STAGE_LABEL[stage]}</span>
+					<span class="track__count" data-count={stage}>
+						{versions(count(stage))}
+					</span>
+				</li>
+			))
+		}
+	</ol>
+
+	<table class="versions">
+		<caption class="sr-only">Versions of {MODEL}</caption>
+		<thead>
+			<tr>
+				<th scope="col"><span class="sr-only">Fingerprint</span></th>
+				<th scope="col">Version</th>
+				<th scope="col">Stage</th>
+				<th scope="col"><span class="sr-only">Actions</span></th>
+			</tr>
+		</thead>
+		<tbody>
+			{
+				VERSIONS.map((v) => (
+					<tr data-version={v.name}>
+						<td class="versions__fp">
+							<Fingerprint hashes={v.hashes} size={26} />
+						</td>
+						<td>
+							<span class="versions__name">{v.name}</span>
+							{locked(v.stage) && (
+								<span class="versions__lock" title="Files locked since it reached staging">
+									<Lock size={12} stroke-width={2.25} />
+									<span>Locked</span>
+								</span>
+							)}
+						</td>
+						<td>
+							<span class="badge" data-stage={v.stage}>
+								{STAGE_LABEL[v.stage]}
+							</span>
+						</td>
+						<td class="versions__act">
+							{v.stage === 'staging' && (
+								<button class="btn btn--sm btn--solid" type="button" data-promote>
+									Promote
+								</button>
+							)}
+						</td>
+					</tr>
+				))
+			}
+		</tbody>
+	</table>
+
+	<div class="demo__use">
+		<p class="demo__use-lead">
+			Your serving code asks for <strong>production</strong>, never a version number:
+		</p>
+		<p class="demo__call">
+			<span class="demo__verb">GET</span>
+			<code>/v1/models/{MODEL}/resolve?stage=production</code>
+		</p>
+		<output class="demo__result" data-resolved>{resolved(live.name, live.digest)}</output>
+	</div>
+
+	<p class="demo__log" data-log aria-live="polite">
+		<span data-log-text>Try it: promote 1.4.0 and watch what the same request returns.</span>
+		<button class="demo__reset" type="button" data-reset hidden>Start over</button>
+	</p>
+</figure>
+
+<script>
+	const demo = document.querySelector<HTMLElement>('[data-demo]');
+	if (demo) {
+		const LABEL: Record<string, string> = {
+			draft: 'Draft',
+			staging: 'Staging',
+			production: 'Production',
+			archived: 'Archived',
+		};
+		const initial = new Map<string, string>();
+		const badge = (v: string) => demo.querySelector<HTMLElement>(`[data-version="${v}"] .badge`)!;
+		demo.querySelectorAll<HTMLElement>('[data-version]').forEach((row) => {
+			initial.set(row.dataset.version!, badge(row.dataset.version!).dataset.stage!);
+		});
+		const promote = demo.querySelector<HTMLButtonElement>('[data-promote]')!;
+		const reset = demo.querySelector<HTMLButtonElement>('[data-reset]')!;
+		const result = demo.querySelector<HTMLOutputElement>('[data-resolved]')!;
+		const logText = demo.querySelector<HTMLElement>('[data-log-text]')!;
+		const firstResult = result.textContent ?? '';
+		const firstLog = logText.textContent ?? '';
+
+		const setStage = (v: string, stage: string) => {
+			const b = badge(v);
+			b.dataset.stage = stage;
+			b.textContent = LABEL[stage];
+		};
+		const recount = () => {
+			for (const stage of Object.keys(LABEL)) {
+				const n = demo.querySelectorAll(`.badge[data-stage="${stage}"]`).length;
+				demo.querySelector(`[data-count="${stage}"]`)!.textContent = `${n} version${n === 1 ? '' : 's'}`;
+			}
+		};
+		const flash = (el: Element) => {
+			el.classList.remove('is-changed');
+			void (el as HTMLElement).offsetWidth;
+			el.classList.add('is-changed');
+		};
+
+		promote.addEventListener('click', () => {
+			setStage('1.4.0', 'production');
+			setStage('1.3.0', 'archived');
+			recount();
+			result.textContent = demo.dataset.resolvedNext ?? '';
+			[badge('1.4.0'), badge('1.3.0'), result].forEach(flash);
+			logText.textContent =
+				'Recorded: you moved 1.4.0 to production; 1.3.0 was archived in the same step. No client changed a line of code.';
+			promote.hidden = true;
+			reset.hidden = false;
+			reset.focus();
+		});
+
+		reset.addEventListener('click', () => {
+			for (const [v, stage] of initial) setStage(v, stage);
+			recount();
+			result.textContent = firstResult;
+			logText.textContent = firstLog;
+			demo.querySelectorAll('.is-changed').forEach((el) => el.classList.remove('is-changed'));
+			reset.hidden = true;
+			promote.hidden = false;
+			promote.focus();
+		});
+	}
+</script>
