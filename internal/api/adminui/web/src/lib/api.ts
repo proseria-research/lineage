@@ -405,6 +405,52 @@ export interface ReviewInput {
   note: string;
 }
 
+// Change control plans (§22) — the FDA PCCP shape. A plan declares, in the verdict
+// vocabulary, which changes are pre-authorised; conformance is derived on read against the
+// plan in force when a version shipped. Reported, never enforced.
+export type PlannableVerdict = Exclude<Verdict, "unknown">;
+
+export type Conformance = "no_plan" | "uncovered" | "undetermined" | "outside_plan" | "within_plan";
+
+export interface ChangePlan {
+  id: string;
+  modelId: string;
+  model: string;
+  ref?: string;
+  summary: string;
+  allowedVerdicts: PlannableVerdict[];
+  // Absent = unconstrained.
+  allowedMethods?: string[];
+  protocolArtifactId?: string;
+  effectiveFrom: number;
+  // Absent while open; set once, when superseded. The window is [from, to).
+  effectiveTo?: number;
+  declaredBy?: string;
+  declaredAt: number;
+}
+
+export interface ConformanceItem {
+  model: string;
+  version: string;
+  versionId: string;
+  edgeId: string;
+  derivedFrom?: { model: string; version: string };
+  derivedFromRef?: string;
+  // Absent for no_plan and uncovered: no plan was in force.
+  plan?: { id: string; ref?: string };
+  conformance: Conformance;
+  reasons?: ("verdict_not_allowed" | "method_not_allowed")[];
+  verdict: Verdict;
+  candidates?: Verdict[];
+  missing?: string[];
+  allowedVerdicts?: PlannableVerdict[];
+  allowedMethods?: string[];
+  declaredMethod?: string;
+  hashes: Record<string, HashCmp>;
+  basis: { fromHashes?: string[]; toHashes?: string[] };
+  publishedAt: number;
+}
+
 export interface VersionDetail {
   model: string;
   version: VersionSummary & { description?: string; labels?: Record<string, string> };
@@ -537,6 +583,10 @@ export const api = {
       `/api/models/${encodeURIComponent(m)}/versions/${encodeURIComponent(v)}/reviews`,
       input,
     ),
+  // Every plan and every conformance row, unfiltered: the page separates what needs a look
+  // from what does not, and shows both.
+  changePlans: () =>
+    getJSON<{ plans: ChangePlan[]; items: ConformanceItem[]; nextPageToken: string }>("/api/change-plans"),
   evidence: () => getJSON<Evidence>("/api/evidence"),
   verifyEvidence: () => postJSON<Evidence>("/api/evidence:verify", {}),
   activity: (token = "") =>

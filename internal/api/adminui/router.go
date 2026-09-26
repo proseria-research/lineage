@@ -35,6 +35,9 @@ func (r *Router) Handler() http.Handler {
 	// and audit event included.
 	mux.HandleFunc("GET /api/reviews", r.reviews)
 	mux.HandleFunc("POST /api/models/{model}/versions/{version}/reviews", r.recordReview)
+	// Change control plans (§22.7). Read-only here: declaring a plan records a regulatory
+	// filing's envelope, which arrives from the RA pipeline over /v1, not from a form.
+	mux.HandleFunc("GET /api/change-plans", r.changePlans)
 	mux.HandleFunc("GET /api/activity", r.activity)
 	// §19.8 — install-level evidence integrity. The status strip is cheap; the recompute is
 	// a separate call because it reads every audit row ever written.
