@@ -376,7 +376,29 @@ var migrations = []string{
 	)`,
 	// §22.6.2 — the plan-in-force lookup.
 	`CREATE INDEX IF NOT EXISTS idx_change_plan_window ON change_plan (model_id, effective_from, effective_to)`,
+
+	// ---- Artifact lock (§00.11.19, §02.4.1) ----
+	// locked_at is when the version first entered staging or production — the moment its
+	// artifact set froze. Nullable, set once by SetStage, never cleared. The backfill locks
+	// every version that ever got that far: the earliest `version.stage_changed` event into
+	// staging/production, else (no history, e.g. an event log that predates the version) the
+	// time it entered its current stage when that stage is itself staging/production.
+	//
+	// The data match is LIKE rather than a JSON operator, so it stays one statement on both
+	// engines: the payload is Go's compact json.Marshal of map[string]string, which writes
+	// `"to":"staging"` with no whitespace, and an unescaped quote cannot occur inside a value.
+	`ALTER TABLE model_version ADD COLUMN locked_at BIGINT`,
+	LockedAtBackfillSQL,
 }
+
+// LockedAtBackfillSQL is the locked_at backfill (see its place in migrations). Exported so
+// the Postgres adapter's tests can run the same statement on a real engine.
+const LockedAtBackfillSQL = `UPDATE model_version SET locked_at = COALESCE(
+		(SELECT MIN(a.at) FROM audit_event a
+		 WHERE a.subject_type = 'model_version' AND a.subject_id = model_version.id
+		   AND a.action = 'version.stage_changed'
+		   AND (a.data LIKE '%"to":"staging"%' OR a.data LIKE '%"to":"production"%')),
+		CASE WHEN stage IN ('staging', 'production') THEN COALESCE(stage_changed_at, updated_at) END)`
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.
 func (s *Store) migrate(ctx context.Context) error {

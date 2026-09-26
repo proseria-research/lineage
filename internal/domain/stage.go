@@ -29,3 +29,8 @@ func AllowedTargets(from Stage) []string {
 
 // IsSingleton reports whether stage s permits only one version per model.
 func IsSingleton(s Stage) bool { return singletonStages[s] }
+
+// LocksArtifacts reports whether entering stage s freezes a version's artifact set
+// (§00.11.19): what was tested is what ships, so the lock falls on the first entry into
+// staging (or production, should the graph ever allow draft→production directly).
+func LocksArtifacts(s Stage) bool { return s == StageStaging || s == StageProduction }

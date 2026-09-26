@@ -50,6 +50,7 @@ func TestPostgresStore(t *testing.T) {
 	storetest.RunRetention(t, s)
 	storetest.RunReviews(t, s)
 	storetest.RunMRM(t, s)
+	storetest.RunArtifactLock(t, s)
 	storetest.RunChangePlans(t, s)
 	storetest.RunAttestation(t, s)
 	storetest.RunUnitOfWork(t, s)
@@ -103,5 +104,53 @@ func TestPostgresJSONFilters(t *testing.T) {
 	}
 	if got := names(domain.ListOptions{CustomProps: map[string]string{"costCenter": "X"}}); len(got) != 0 {
 		t.Fatalf("cp costCenter=X → %v, want none", got)
+	}
+}
+
+// TestPostgresLockedAtBackfill runs the §00.11.19 backfill on a real Postgres: the audit-data
+// match is a plain LIKE so the one shared migration serves both engines, and this is where
+// that claim is checked. (The full upgrade path is exercised on SQLite in sqlstore.)
+func TestPostgresLockedAtBackfill(t *testing.T) {
+	ctx := context.Background()
+	s := pgStore(t)
+	db := s.DB()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%v\n%s", err, q)
+		}
+	}
+	exec(`INSERT INTO model (id,name,state,created_at,updated_at) VALUES ('lm','lock-backfill','ACTIVE',1,1)`)
+	for _, v := range []struct {
+		id, stage string
+		changed   int64
+	}{
+		{"pg-returned", "draft", 700},
+		{"pg-staged", "staging", 400},
+		{"pg-shelved", "archived", 250},
+	} {
+		exec(`INSERT INTO model_version (id,model_id,name,stage,created_at,updated_at,stage_changed_at) VALUES ($1,'lm',$1,$2,100,950,$3)`,
+			v.id, v.stage, v.changed)
+	}
+	for _, e := range []struct {
+		id, subject, data string
+		at                int64
+	}{
+		{"pe1", "pg-returned", `{"from":"draft","reason":"","to":"staging"}`, 300},
+		{"pe2", "pg-returned", `{"from":"staging","reason":"","to":"draft"}`, 700},
+		{"pe3", "pg-shelved", `{"from":"draft","reason":"to staging later","to":"archived"}`, 250},
+	} {
+		exec(`INSERT INTO audit_event (id,at,action,subject_type,subject_id,data) VALUES ($1,$2,'version.stage_changed','model_version',$3,$4)`,
+			e.id, e.at, e.subject, e.data)
+	}
+	exec(sqlstore.LockedAtBackfillSQL)
+	for id, want := range map[string]int64{"pg-returned": 300, "pg-staged": 400, "pg-shelved": 0} {
+		v, err := s.GetVersionByID(ctx, id)
+		if err != nil {
+			t.Fatalf("GetVersionByID %s: %v", id, err)
+		}
+		if v.LockedAt != want {
+			t.Fatalf("%s backfilled locked_at = %d, want %d", id, v.LockedAt, want)
+		}
 	}
 }
