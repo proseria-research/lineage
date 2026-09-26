@@ -115,7 +115,9 @@ stale(m) :=  (c.review_due_at IS NOT NULL AND c.review_due_at < now)            
                     AND v.created_at > c.classified_at)                             → version_published_since
           OR EXISTS(model_version v : v.model_id = m
                     AND v.stage = 'production'
-                    AND v.updated_at > c.classified_at)                             → production_changed_since
+                    AND (v.stage_changed_at > c.classified_at
+                         OR EXISTS(artifact a : a.version_id = v.id
+                                   AND a.created_at > c.classified_at)))            → production_changed_since
           OR EXISTS(open review item d on m (17.4)
                     AND d.created_at > c.classified_at)                             → derivation_since
 ```
@@ -124,7 +126,8 @@ In plain terms, a classification goes stale when any of these is true:
 
 1. its review date has passed,
 2. a new version of the model was published after it was classified,
-3. the production version changed after it was classified, or
+3. what is in production changed after it was classified — a version entered production
+   (a promotion or a rollback), or a file was added to the production version — or
 4. a review item was opened on the model after it was classified (`17.4`).
 
 Each line has a name. `staleReasons[]` returns **all** the reasons that apply, not just the
@@ -138,7 +141,7 @@ flowchart TB
     c["eu_ai_act classification row<br/>classified_at · review_due_at"]
     c --> t{"review date<br/>passed?"}
     c --> v{"new version<br/>published since?"}
-    c --> p{"production version<br/>changed since?"}
+    c --> p{"what is in production<br/>changed since?"}
     c --> d{"review item opened<br/>since? (17)"}
     t -->|yes| s["<b>stale</b> + reason<br/>flagged in console · listed by filter<br/>never auto-corrected"]
     v -->|yes| s
@@ -147,7 +150,7 @@ flowchart TB
 ```
 
 **This stays fast.** Checks 2 and 3 use the `model_version(model_id, stage)` index we already
-have (`02.6`); check 1 uses `classification(regime, review_due_at)` (§7.3); check 4 reuses the
+have (`02.6`), and check 3's file part the `artifact(version_id, name)` key; check 1 uses `classification(regime, review_due_at)` (§7.3); check 4 reuses the
 `17.4` queue join.
 
 **Check 4 is evaluated outside SQL, unlike the other three.** Whether a derivation is an *open*
@@ -156,13 +159,15 @@ writing that table a second time in SQL is how two implementations of a legal pr
 disagree. So the store answers checks 2 and 3 and the core folds check 4 in from the same queue
 computation `17.4` uses. The inventory read does it in one batched query, not one per row.
 
-**One false alarm we're keeping on purpose.** Check 3 looks at `updated_at`, so fixing a typo
-in the production version's description marks the classification stale. Getting that exactly
-right would mean scanning the audit log for `version.stage_changed` on every row, turning a
-list query into a per-row audit scan. For a legal field, erring toward *"take another look at
-this"* is the right direction, and the reason string tells the reader precisely what tripped
-it. `20.8.3` has since added `model_version.stage_changed_at`, which would make the check exact
-without the scan; switching is a behaviour change to this regime and is deferred (`20.11`).
+**Clause 3 measures the system in service, not the row** (§00.11.18). The Act ties a
+classification to intended purpose (Art. 6, Art. 3(12)) and reopens it on a *change to the AI
+system after it was put into service* (Art. 3(23), Art. 43(4)). So the clause fires when a
+version enters production — `stage_changed_at`, which also catches a rollback — or when a file
+is added to the production version, since artifacts can still be registered on a live version
+and consumers resolving `production` fetch them. An edit to the production version's
+description or labels changes neither, so it no longer fires. Both parts are indexed column
+comparisons; nothing scans the audit log. Whether a change was *substantial* stays the
+reviewer's call.
 
 **We flag it and stop there.** The registry never re-classifies a model, never downgrades it,
 and never blocks a promotion over this. A registry that quietly edited a legal field would be

@@ -49,9 +49,10 @@ func (s *Store) ListClassifications(_ context.Context, modelID string) ([]*domai
 	return out, nil
 }
 
-// DriftFactsFor mirrors the sqlstore aggregate: the newest version's creation time, and the
-// production version's last update (production is a singleton stage, §02.4). Zero means no
-// such version, which the §16.5 predicate reads as an absent fact.
+// DriftFactsFor mirrors the sqlstore aggregate: the newest version's creation time, and when
+// the system in service last changed — the production version's entry into production or its
+// newest artifact, whichever is later (§16.5). Zero means no such version, which the
+// predicate reads as an absent fact.
 func (s *Store) DriftFactsFor(_ context.Context, modelID string) (domain.DriftFacts, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -63,8 +64,13 @@ func (s *Store) DriftFactsFor(_ context.Context, modelID string) (domain.DriftFa
 		if v.CreatedAt > f.LatestVersionCreatedAt {
 			f.LatestVersionCreatedAt = v.CreatedAt
 		}
-		if v.Stage == domain.StageProduction && v.UpdatedAt > f.LatestProductionUpdatedAt {
-			f.LatestProductionUpdatedAt = v.UpdatedAt
+		if v.Stage == domain.StageProduction {
+			f.ProductionChangedAt = max(f.ProductionChangedAt, v.StageChangedAt)
+			for _, a := range s.artifacts {
+				if a.VersionID == v.ID {
+					f.ProductionChangedAt = max(f.ProductionChangedAt, a.CreatedAt)
+				}
+			}
 		}
 	}
 	// LatestOpenReviewCreatedAt stays zero until M16 (`17.4`).

@@ -399,7 +399,6 @@ through the same core operation as `/v1`.
 | Model-family (rather than version) validation | If a firm validates at the model level; the table would move, not change shape |
 | Automatic scope inference for the SR 26-2 genAI carve-out | Never. `15.3` — the registry does not decide what a regulation covers |
 | Committee workflow, sign-off routing | Not a registry concern. Registry facts are an input to whatever tool does it |
-| Moving `16.5` clause 3 onto `stage_changed_at` | Now possible, removing its deliberate false positive; a behaviour change to `16`, so its own decision |
 
 ## 12. See Also
 

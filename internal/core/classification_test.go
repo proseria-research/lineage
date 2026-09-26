@@ -327,3 +327,64 @@ func TestClassificationViewSerialization(t *testing.T) {
 		t.Fatalf("staleReasons = %v", got["staleReasons"])
 	}
 }
+
+// Clause 3 end to end (§16.5, §00.11.18): it fires when the system in service changes — a
+// file added to the production version, or a promotion — and not when the production
+// version's description is edited.
+func TestClause3FollowsTheSystemInService(t *testing.T) {
+	s, ctx := classifiable(t)
+	if _, _, err := s.PublishVersion(ctx, "me", "m", core.PublishVersionInput{Name: "1.0.0"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, to := range []domain.Stage{domain.StageStaging, domain.StageProduction} {
+		if _, err := s.Transition(ctx, "me", "m", "1.0.0", to, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tick()
+	if _, err := s.SetClassification(ctx, "risk", "m", eu, highRisk()); err != nil {
+		t.Fatal(err)
+	}
+	state := func() (domain.ClassificationState, []string) {
+		t.Helper()
+		v, err := s.GetClassification(ctx, "m", eu)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.State, v.StaleReasons
+	}
+
+	tick()
+	desc := "typo fixed"
+	if _, err := s.PatchVersion(ctx, "me", "m", "1.0.0", core.PatchVersionInput{Description: &desc}); err != nil {
+		t.Fatal(err)
+	}
+	if st, rs := state(); st != domain.ClassificationCurrent {
+		t.Fatalf("after a description edit: %q %v, want current", st, rs)
+	}
+
+	tick()
+	if _, err := s.RegisterArtifact(ctx, "me", "m", "1.0.0", core.ArtifactInput{Name: "weights-v2.bin", URI: "s3://b/w2"}); err != nil {
+		t.Fatal(err)
+	}
+	if st, rs := state(); st != domain.ClassificationStale || len(rs) != 1 || rs[0] != domain.StaleProductionChanged {
+		t.Fatalf("after a file added to production: %q %v, want stale [%s]", st, rs, domain.StaleProductionChanged)
+	}
+
+	// Re-classify, then take the only version out of production. Nothing is in service, so
+	// nothing in service changed: clause 3 reads the current production version, and there is none.
+	tick()
+	if _, err := s.SetClassification(ctx, "risk", "m", eu, highRisk()); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := state(); st != domain.ClassificationCurrent {
+		t.Fatalf("re-classifying did not clear it: %q", st)
+	}
+	tick()
+	if _, err := s.Transition(ctx, "me", "m", "1.0.0", domain.StageArchived, ""); err != nil {
+		t.Fatal(err)
+	}
+	if st, rs := state(); st != domain.ClassificationCurrent {
+		t.Fatalf("taking a version out of production with nothing replacing it: %q %v, want current", st, rs)
+	}
+}

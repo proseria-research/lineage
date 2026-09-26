@@ -21,9 +21,11 @@ package domain
 type DriftFacts struct {
 	// LatestVersionCreatedAt is the newest version's creation time, for clause 2.
 	LatestVersionCreatedAt int64
-	// LatestProductionUpdatedAt is the production version's last update, for clause 3.
-	// Production is a singleton stage (§02.4), so there is at most one.
-	LatestProductionUpdatedAt int64
+	// ProductionChangedAt is when the system in service last changed, for clause 3: the later
+	// of the moment the current production version entered production (`stage_changed_at`,
+	// so a promotion or a rollback) and the newest artifact added to that version. Metadata
+	// edits move neither. Production is a singleton stage (§02.4), so there is at most one.
+	ProductionChangedAt int64
 	// LatestOpenReviewCreatedAt is the newest *open* modification-review item on the model,
 	// for clause 4. Always zero until M16 populates it (`17.4`); a zero here means "no open
 	// review", which is also the correct answer for an install that has none.
@@ -55,14 +57,12 @@ func ClassificationStateOf(c *RiskClassification, f DriftFacts, now int64) (Clas
 	if f.LatestVersionCreatedAt > c.ClassifiedAt {
 		reasons = append(reasons, StaleVersionPublishedSince)
 	}
-	// 3. The production version changed after the model was classified.
-	//
-	// This reads updated_at, so editing the production version's description trips it. That
-	// false positive is kept on purpose (§16.5): getting it exact would mean scanning the
-	// audit log for `version.stage_changed` on every row, turning a list query into a
-	// per-row audit scan. For a legal field, erring toward "take another look" is the right
-	// direction, and the reason string tells the reader precisely what fired.
-	if f.LatestProductionUpdatedAt > c.ClassifiedAt {
+	// 3. The system in service changed after the model was classified: a version entered
+	// production, or files were added to the production version (§16.5, §00.11.18). This is
+	// the event Art. 3(23) and Art. 43(4) care about — a change to the AI system after it was
+	// put into service. Editing the production version's description is not one, so it does
+	// not fire; judging whether a change was *substantial* stays with the reviewer.
+	if f.ProductionChangedAt > c.ClassifiedAt {
 		reasons = append(reasons, StaleProductionChanged)
 	}
 	// 4. A modification-review item was opened after the model was classified (`17.4`).

@@ -392,6 +392,16 @@ own rationale; resolved is ✅, open is ◻ and resolves before the dependent do
     Rejected: a core-side outbox or `AppendAudit` retry (the change is still visible before
     its record), and per-method `…WithAudit` variants (doubles the port for every new area).
     Side effects outside the store — events, metrics, blob writes — follow commit.
+18. ✅ **EU staleness clause 3 → the system in service, not the production row** (`16.5`).
+    It fired on the production version's `updated_at`, so a description edit read stale
+    while a file added to the live version — which consumers of `production` then fetch —
+    did not move it at all. It now fires when a version enters production (`stage_changed_at`,
+    from `20.8.3`) or a file is added to the production version. Rationale, from the Act's
+    text: classification follows intended purpose (Art. 6, Art. 3(12)); what reopens it is a
+    change to the system after it was put into service (Art. 3(23), Art. 43(4)), which a
+    metadata edit is not. Behaviour change on upgrade: a model stale *only* because of a
+    metadata edit reads current. Rejected: keeping the false alarm — noise trains readers to
+    dismiss the badge, and the old signal still missed the change that matters.
 
 ## 12. Preplanning Done When
 
