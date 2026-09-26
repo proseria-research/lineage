@@ -832,9 +832,6 @@ an invalid one — §03.1. The "live server" is an **in-process `httptest` serve
 real router and store; the client half imports only the standard library, checked with
 `go/build`. The binary-level run stays in `tests/e2e`. **The core has no injectable clock**,
 so determinism is checked by two collections with the wall clock moved between them.
-**Deferred:** resolve signs every artifact with the *default* backend (`signRefs`), not the
-artifact's own, so an install with two backends mints wrong URLs for the non-default one. The
-smoke makes S3 the default and asserts only its artifact's URL.
 
 - [x] **Read-from-outside test.** A test binary talking to a live server over HTTP only
       collects a reference report kept in the test suite. It covers a version-scoped read, an

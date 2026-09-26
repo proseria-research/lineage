@@ -46,9 +46,9 @@ func fakeS3(t *testing.T, key string, payload []byte) *httptest.Server {
 }
 
 // M19 core smoke: the default build (no tags) on Postgres resolves, fetches, signs URLs and
-// seals an audit epoch. Signing needs a backend that signs, so the default backend is S3
-// against an in-process endpoint; a filesystem backend beside it covers stream-through, the
-// path an unsigned backend always takes.
+// seals an audit epoch. The default backend is a filesystem (no signing: stream-through, the
+// path an unsigned backend always takes); S3 beside it, against an in-process endpoint, signs
+// its own artifacts — resolve signs each artifact with the backend it lives on.
 func TestCoreSmokeOnPostgres(t *testing.T) {
 	weights := []byte("smoke-model-weights-0123456789")
 	readme := []byte("# smoke\n")
@@ -67,7 +67,7 @@ func TestCoreSmokeOnPostgres(t *testing.T) {
 	}
 	reg := newRegistry(t, "postgres", registryOpts{
 		backends:   map[string]domain.StorageBackend{sb.Name(): sb, fb.Name(): fb},
-		defBackend: sb.Name(),
+		defBackend: fb.Name(),
 	})
 	c := (&contracttest.Client{Base: reg.ModelAPI.URL}).As("ci@acme.example")
 	must := func(want int, method, path, body string) map[string]any {
@@ -96,15 +96,21 @@ func TestCoreSmokeOnPostgres(t *testing.T) {
 		must(http.StatusOK, "POST", "/v1/models/smoke/versions/1.0.0:transition", `{"to":"`+to+`"}`)
 	}
 
-	// Resolve: the production version, its digest, and a signed URL for the weights.
+	// Resolve: the production version, its digest, and a signed URL for the weights from S3,
+	// the non-default backend; the fs README gets none.
 	res := must(http.StatusOK, "GET", "/v1/models/smoke/resolve", "")
 	if res["version"] != "1.0.0" || res["stage"] != "production" || res["digest"] != digest {
 		t.Fatalf("resolve: %v", res)
 	}
 	var signed string
 	for _, a := range res["artifacts"].([]any) {
-		if a := a.(map[string]any); a["name"] == "model.bin" {
+		switch a := a.(map[string]any); a["name"] {
+		case "model.bin":
 			signed, _ = a["signedUrl"].(string)
+		case "README.md":
+			if a["signedUrl"] != nil {
+				t.Fatalf("fs artifact got a signedUrl: %v", a["signedUrl"])
+			}
 		}
 	}
 	if !strings.HasPrefix(signed, s3srv.URL+"/"+smokeBucket+"/"+key+"?") || !strings.Contains(signed, "X-Amz-Signature=") {
