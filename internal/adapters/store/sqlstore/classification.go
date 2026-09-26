@@ -12,7 +12,7 @@ import (
 // write. The store holds what a person declared and nothing derived from it — staleness is
 // computed on read (§16.5), so there is no state column here to fall out of date.
 
-const classificationCols = `model_id,regime,eu_gpai_tier,eu_system_risk_class,` +
+const classificationCols = `model_id,regime,eu_gpai_tier,eu_system_risk_class,mrm_tier,` +
 	`intended_purpose,basis,classified_at,classified_by,review_due_at`
 
 // PutClassification replaces this model's row for this regime (§16.8: PUT, not PATCH).
@@ -36,8 +36,9 @@ func (s *Store) PutClassification(ctx context.Context, c *domain.RiskClassificat
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, s.rb(
-		`INSERT INTO classification (`+classificationCols+`) VALUES (?,?,?,?,?,?,?,?,?)`),
+		`INSERT INTO classification (`+classificationCols+`) VALUES (?,?,?,?,?,?,?,?,?,?)`),
 		c.ModelID, string(c.Regime), nullEnum(string(c.EUGpaiTier)), nullEnum(string(c.EUSystemRiskClass)),
+		nullEnum(string(c.MRMTier)),
 		c.IntendedPurpose, c.Basis, c.ClassifiedAt, c.ClassifiedBy, c.ReviewDueAt,
 	); err != nil {
 		return err
@@ -79,18 +80,19 @@ func (s *Store) ListClassifications(ctx context.Context, modelID string) ([]*dom
 
 func scanClassification(sc interface{ Scan(...any) error }) (*domain.RiskClassification, error) {
 	var (
-		c           domain.RiskClassification
-		regime      string
-		tier, class sql.NullString
-		reviewDueAt sql.NullInt64
+		c                    domain.RiskClassification
+		regime               string
+		tier, class, mrmTier sql.NullString
+		reviewDueAt          sql.NullInt64
 	)
-	if err := sc.Scan(&c.ModelID, &regime, &tier, &class,
+	if err := sc.Scan(&c.ModelID, &regime, &tier, &class, &mrmTier,
 		&c.IntendedPurpose, &c.Basis, &c.ClassifiedAt, &c.ClassifiedBy, &reviewDueAt); err != nil {
 		return nil, err
 	}
 	c.Regime = domain.Regime(regime)
 	c.EUGpaiTier = domain.EUGpaiTier(tier.String)
 	c.EUSystemRiskClass = domain.EUSystemRiskClass(class.String)
+	c.MRMTier = domain.MRMTier(mrmTier.String)
 	if reviewDueAt.Valid {
 		v := reviewDueAt.Int64
 		c.ReviewDueAt = &v

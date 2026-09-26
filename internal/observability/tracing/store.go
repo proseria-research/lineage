@@ -284,6 +284,30 @@ func (s *tracedStore) ListDerivations(ctx context.Context, regime domain.Regime,
 	})
 }
 
+// ---- Model risk management (§20) ----
+
+func (s *tracedStore) CreateValidation(ctx context.Context, v *domain.Validation) error {
+	return do0(ctx, s.t, "store.CreateValidation", func(c context.Context) error { return s.next.CreateValidation(c, v) })
+}
+
+func (s *tracedStore) ListValidations(ctx context.Context, versionID string) ([]*domain.Validation, error) {
+	return do1(ctx, s.t, "store.ListValidations", func(c context.Context) ([]*domain.Validation, error) {
+		return s.next.ListValidations(c, versionID)
+	})
+}
+
+func (s *tracedStore) ClearValidationConditions(ctx context.Context, versionID, id string, at int64) error {
+	return do0(ctx, s.t, "store.ClearValidationConditions", func(c context.Context) error {
+		return s.next.ClearValidationConditions(c, versionID, id, at)
+	})
+}
+
+func (s *tracedStore) ListMRMInventory(ctx context.Context, o domain.ListOptions, f domain.MRMFilter) ([]*domain.MRMInventoryRow, error) {
+	return do1(ctx, s.t, "store.ListMRMInventory", func(c context.Context) ([]*domain.MRMInventoryRow, error) {
+		return s.next.ListMRMInventory(c, o, f)
+	})
+}
+
 // ---- Retention (§19.3) ----
 
 func (s *tracedStore) SetHold(ctx context.Context, subjectType, subjectID string, h *domain.Hold) error {

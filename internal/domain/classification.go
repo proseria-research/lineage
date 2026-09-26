@@ -9,18 +9,20 @@ import "encoding/json"
 
 // ---- Enums (§16.3, §16.7.1) ----
 
-// Regime is one body of rules. The EU AI Act is one; US model-risk supervision (`20`) will be
-// another. It is the discriminator column of the classification table, so each regime keeps
+// Regime is one body of rules. The EU AI Act is one; financial model-risk supervision (`20`)
+// is another. It is the discriminator column of the classification table, so each regime keeps
 // its own row per model — its own date, author, reason and review cycle (§16.3.2).
 type Regime string
 
 const (
 	RegimeEUAIAct Regime = "eu_ai_act"
+	// RegimeMRM is SR 26-2 / PRA SS1/23 / OSFI E-23 from one field set (§20.3).
+	RegimeMRM Regime = "mrm"
 )
 
 // Regimes lists every regime this build knows, in a stable order. It backs both the
 // `details.allowedValues` of a rejected write and the per-dialect CHECK (§16.7.1).
-var Regimes = []Regime{RegimeEUAIAct}
+var Regimes = []Regime{RegimeEUAIAct, RegimeMRM}
 
 func ValidRegime(r Regime) bool {
 	for _, k := range Regimes {
@@ -96,8 +98,11 @@ func EUGpaiTiers() []string { return stringsOf(euGpaiTiers) }
 
 // ---- State & drift vocabulary (§16.4, §16.5) ----
 
-// ClassificationState is three-valued, per regime. "Nobody classified it" is not a kind of
-// "out of date": a reader filtering for one must not be handed the other (§16.4).
+// ClassificationState is a regime's state ladder, computed per row. The EU ladder is three
+// values (§16.4); the MRM ladder is four (§20.7) and shares `stale` and `current` with it,
+// because those two mean the same thing under both: a claim exists, and something has or has
+// not happened since. "Nobody said yet" is never a kind of "out of date" under either — a
+// reader filtering for one must not be handed the other.
 type ClassificationState string
 
 const (
@@ -135,6 +140,10 @@ type RiskClassification struct {
 	EUGpaiTier        EUGpaiTier        `json:"euGpaiTier,omitempty"`
 	EUSystemRiskClass EUSystemRiskClass `json:"euSystemRiskClass,omitempty"`
 
+	// MRMTier is the `mrm` row's enum group (§20.4). Empty on every other regime's row, which
+	// the store writes as NULL so the §16.7.1 CHECK can tell the groups apart.
+	MRMTier MRMTier `json:"mrmTier,omitempty"`
+
 	IntendedPurpose string `json:"intendedPurpose,omitempty"`
 	Basis           string `json:"basis,omitempty"`
 
@@ -161,10 +170,15 @@ func (c RiskClassification) MarshalJSON() ([]byte, error) {
 	}{alias(c), RiskClassificationSource})
 }
 
-// ApplyDefaults fills the EU row's schema defaults (§16.7.1) so a memory store and a SQL
-// store agree on what an omitted field means. `unclassified` and `none` are answers, not
-// absences, so they are materialized rather than left empty.
+// ApplyDefaults fills a row's schema defaults (§16.7.1, §20.8.1) so a memory store and a SQL
+// store agree on what an omitted field means. `unclassified`, `none` and `untiered` are
+// answers, not absences, so they are materialized rather than left empty. Only the row's own
+// regime group is touched: filling another regime's group would put a claim on the row that
+// nobody made, and the CHECK would refuse it.
 func (c *RiskClassification) ApplyDefaults() {
+	if c.Regime == RegimeMRM && c.MRMTier == "" {
+		c.MRMTier = MRMUntiered
+	}
 	if c.Regime != RegimeEUAIAct {
 		return
 	}
@@ -187,8 +201,13 @@ func ValidateRiskClassification(c RiskClassification, now int64) *Error {
 	if !ValidRegime(c.Regime) {
 		return invalidWithAllowed("unknown regime", "regime", stringsOf(Regimes))
 	}
-	if c.Regime != RegimeEUAIAct {
-		return nil
+	if c.Regime == RegimeMRM {
+		return validateMRM(c, now)
+	}
+	// Another regime's group on this row is a caller writing to the wrong path. Refused
+	// here, before the CHECK would, so the error names the field rather than a constraint.
+	if c.MRMTier != "" {
+		return invalidField("mrmTier belongs to the mrm regime, not "+string(c.Regime), "mrmTier")
 	}
 
 	if !ValidEUSystemRiskClass(c.EUSystemRiskClass) {
@@ -210,6 +229,18 @@ func ValidateRiskClassification(c RiskClassification, now int64) *Error {
 		return Invalid("reviewDueAt must be in the future")
 	}
 	return nil
+}
+
+func invalidField(msg, field string) *Error {
+	e := Invalid(msg)
+	e.Details = map[string]any{"field": field}
+	return e
+}
+
+func unprocessableField(msg, field string) *Error {
+	e := Unprocessable(msg)
+	e.Details = map[string]any{"field": field}
+	return e
 }
 
 func invalidWithAllowed(msg, field string, allowed []string) *Error {
@@ -239,16 +270,24 @@ type ClassificationView struct {
 	RiskClassification
 	State        ClassificationState `json:"state"`
 	StaleReasons []string            `json:"staleReasons,omitempty"`
+
+	// MRM rows only (§20.7). The MRM state is about a *version* — its latest validation —
+	// so the view names which one: the production version if there is one, else the newest
+	// (see MRMFacts). Version is empty when the model has no versions yet.
+	Version          string          `json:"version,omitempty"`
+	LatestValidation *ValidationView `json:"latestValidation,omitempty"`
 }
 
 func (v ClassificationView) MarshalJSON() ([]byte, error) {
 	type inner RiskClassification
 	return json.Marshal(struct {
 		inner
-		Source       FactSource          `json:"source"`
-		State        ClassificationState `json:"state"`
-		StaleReasons []string            `json:"staleReasons,omitempty"`
-	}{inner(v.RiskClassification), RiskClassificationSource, v.State, v.StaleReasons})
+		Source           FactSource          `json:"source"`
+		State            ClassificationState `json:"state"`
+		StaleReasons     []string            `json:"staleReasons,omitempty"`
+		Version          string              `json:"version,omitempty"`
+		LatestValidation *ValidationView     `json:"latestValidation,omitempty"`
+	}{inner(v.RiskClassification), RiskClassificationSource, v.State, v.StaleReasons, v.Version, v.LatestValidation})
 }
 
 // ModelInventoryItem is a model list entry carrying its classification for one regime
@@ -261,4 +300,7 @@ func (v ClassificationView) MarshalJSON() ([]byte, error) {
 type ModelInventoryItem struct {
 	*Model
 	Classification *ClassificationView `json:"classification,omitempty"`
+	// MRM is the model's `mrm` row with its §20.7 state, present when the caller asked for
+	// that lens (§20.9.2). Nil under the same rule as Classification: absence is `untiered`.
+	MRM *ClassificationView `json:"mrm,omitempty"`
 }

@@ -38,6 +38,9 @@ type Store struct {
 	// new row and the whole history is kept.
 	reviews []*domain.ModificationReview
 
+	// Model-risk validations (§20.8.2). Append-only for the same reason as reviews.
+	validations []*domain.Validation
+
 	// Sealed audit epochs (§19.6.1), keyed by window index. Append-only: AppendEpoch
 	// refuses an index already present rather than replacing it.
 	epochs map[int64]*domain.AuditEpoch
@@ -173,6 +176,10 @@ func (s *Store) CreateVersion(_ context.Context, v *domain.ModelVersion) error {
 			v.Model = m.Name
 		}
 	}
+	// A version enters its first stage when it is created (§20.8.3), as in sqlstore.
+	if v.StageChangedAt == 0 {
+		v.StageChangedAt = v.CreatedAt
+	}
 	s.versions[v.ID] = deepCopy(v)
 	return nil
 }
@@ -238,6 +245,8 @@ func (s *Store) UpdateVersion(_ context.Context, v *domain.ModelVersion) error {
 	}
 	stored := deepCopy(v)
 	stored.LegalHold = cur.LegalHold // not writable through an update; see UpdateModel
+	// Only SetStage moves a stage, so only SetStage moves its timestamp (§20.8.3).
+	stored.StageChangedAt = cur.StageChangedAt
 	s.versions[v.ID] = stored
 	return nil
 }
@@ -285,6 +294,14 @@ func (s *Store) deleteVersionLocked(id string) {
 		}
 	}
 	s.reviews = kept
+	// Validations cascade from model_version (§20.8.2).
+	keptVals := s.validations[:0]
+	for _, v := range s.validations {
+		if v.VersionID != id {
+			keptVals = append(keptVals, v)
+		}
+	}
+	s.validations = keptVals
 }
 
 func (s *Store) CountVersionsInStage(_ context.Context, modelID string, stage domain.Stage) (int, error) {
@@ -306,16 +323,17 @@ func (s *Store) SetStage(_ context.Context, versionID string, to domain.Stage, s
 	if !ok {
 		return domain.NotFound("version not found")
 	}
+	now := domain.NowMillis()
 	if singleton {
 		for _, o := range s.versions {
 			if o.ModelID == v.ModelID && o.ID != v.ID && o.Stage == to {
 				o.Stage = domain.StageArchived
-				o.UpdatedAt = domain.NowMillis()
+				o.UpdatedAt, o.StageChangedAt = now, now
 			}
 		}
 	}
 	v.Stage = to
-	v.UpdatedAt = domain.NowMillis()
+	v.UpdatedAt, v.StageChangedAt = now, now
 	return nil
 }
 

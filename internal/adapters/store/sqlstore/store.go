@@ -171,15 +171,21 @@ func (s *Store) UpdateModel(ctx context.Context, m *domain.Model) error {
 // vSel joins the model to fill the denormalized ModelVersion.Model (name) field. It reads
 // the version's own hold (§19.6) and deliberately not the model's: inheritance is resolved by
 // DeleteGuardFor, so a version never reports a hold it does not itself carry.
-const vSel = `SELECT v.id,v.model_id,v.name,v.description,v.author,v.stage,v.labels,v.custom_properties,v.created_at,v.updated_at,m.name,v.held_since,v.held_by ` +
+const vSel = `SELECT v.id,v.model_id,v.name,v.description,v.author,v.stage,v.labels,v.custom_properties,v.created_at,v.updated_at,m.name,v.held_since,v.held_by,v.stage_changed_at ` +
 	`FROM model_version v JOIN model m ON m.id=v.model_id`
 
+// CreateVersion records the version entering its first stage at creation unless the caller
+// says otherwise (§20.8.3) — the same default the migration backfills for a version that has
+// never moved.
 func (s *Store) CreateVersion(ctx context.Context, v *domain.ModelVersion) error {
+	if v.StageChangedAt == 0 {
+		v.StageChangedAt = v.CreatedAt
+	}
 	_, err := s.db.ExecContext(ctx, s.rb(
-		`INSERT INTO model_version (id,model_id,name,description,author,stage,labels,custom_properties,created_at,updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?)`),
+		`INSERT INTO model_version (id,model_id,name,description,author,stage,labels,custom_properties,created_at,updated_at,stage_changed_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`),
 		v.ID, v.ModelID, v.Name, v.Description, v.Author, string(v.Stage),
-		marshalMap(v.Labels), jsonText(v.CustomProperties), v.CreatedAt, v.UpdatedAt)
+		marshalMap(v.Labels), jsonText(v.CustomProperties), v.CreatedAt, v.UpdatedAt, v.StageChangedAt)
 	if s.d.IsUniqueViolation(err) {
 		return domain.Exists("version '" + v.Name + "' already exists")
 	}
@@ -270,15 +276,17 @@ func (s *Store) SetStage(ctx context.Context, versionID string, to domain.Stage,
 				return err
 			}
 		}
+		// The demoted version enters `archived` now too, so its stage_changed_at moves with
+		// it (§20.8.3) — otherwise it would keep claiming it entered production.
 		if _, err := tx.ExecContext(ctx, s.rb(
-			`UPDATE model_version SET stage=?, updated_at=?
+			`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=?
 			 WHERE model_id=(SELECT model_id FROM model_version WHERE id=?) AND stage=? AND id<>?`),
-			string(domain.StageArchived), now, versionID, string(to), versionID); err != nil {
+			string(domain.StageArchived), now, now, versionID, string(to), versionID); err != nil {
 			return err
 		}
 	}
-	res, err := tx.ExecContext(ctx, s.rb(`UPDATE model_version SET stage=?, updated_at=? WHERE id=?`),
-		string(to), now, versionID)
+	res, err := tx.ExecContext(ctx, s.rb(`UPDATE model_version SET stage=?, updated_at=?, stage_changed_at=? WHERE id=?`),
+		string(to), now, now, versionID)
 	if err := affected(res, err, "version"); err != nil {
 		return err
 	}
@@ -565,12 +573,13 @@ func scanVersion(sc scanner) (*domain.ModelVersion, error) {
 	var v domain.ModelVersion
 	var stage, labels string
 	var cp sql.NullString
-	var since sql.NullInt64
+	var since, stageChanged sql.NullInt64
 	var by sql.NullString
 	if err := sc.Scan(&v.ID, &v.ModelID, &v.Name, &v.Description, &v.Author, &stage, &labels, &cp, &v.CreatedAt, &v.UpdatedAt, &v.Model,
-		&since, &by); err != nil {
+		&since, &by, &stageChanged); err != nil {
 		return nil, err
 	}
+	v.StageChangedAt = stageChanged.Int64
 	v.Stage = domain.Stage(stage)
 	v.Labels = unmarshalMap(labels)
 	v.CustomProperties = fromNull(cp)

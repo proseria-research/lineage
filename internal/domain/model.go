@@ -108,6 +108,10 @@ type ModelVersion struct {
 	CustomProperties json.RawMessage   `json:"customProperties,omitempty"`
 	CreatedAt        int64             `json:"createdAt"`
 	UpdatedAt        int64             `json:"updatedAt"`
+	// StageChangedAt is when the version entered its current stage (§20.8.3), set by the
+	// store on create and on every stage move, demotions included. It is what §20.7 clause 3
+	// measures monitoring against; UpdatedAt cannot serve, because a description edit moves it.
+	StageChangedAt int64 `json:"stageChangedAt,omitempty"`
 	// LegalHold is this version's own hold, nil when not held (§19.3). A version under a held
 	// model is *not* marked here — inheritance is resolved at the delete guard, not copied
 	// onto rows, so releasing the model does not leave stale marks behind on its versions.

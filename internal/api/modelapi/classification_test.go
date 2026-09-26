@@ -189,7 +189,7 @@ func TestUnknownRegimeNamesTheAllowedValues(t *testing.T) {
 	}
 	details, _ := body["details"].(map[string]any)
 	allowed, _ := details["allowedValues"].([]any)
-	if len(allowed) != 1 || allowed[0] != "eu_ai_act" {
+	if len(allowed) != 2 || allowed[0] != "eu_ai_act" || allowed[1] != "mrm" {
 		t.Fatalf("allowedValues = %v (body %v)", details["allowedValues"], body)
 	}
 }

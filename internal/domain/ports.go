@@ -49,6 +49,7 @@ type MetadataStore interface {
 	InsightStore
 	ComplianceStore
 	ReviewStore
+	ValidationStore
 	RetentionStore
 	AttestationStore
 }

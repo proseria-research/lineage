@@ -111,8 +111,7 @@ func runClassifications(t *testing.T, cs domain.ComplianceStore, modelID, otherM
 	}
 
 	// The other half of the key — that a write under one regime leaves another regime's
-	// ClassifiedAt anchor alone (§16.3.2) — is asserted in M17, which adds the second regime
-	// there is currently nothing to isolate from.
+	// ClassifiedAt anchor alone (§16.3.2) — is asserted by RunMRM, beside the second regime.
 }
 
 // RunSQLConstraints asserts the schema-level guarantees a SQL engine enforces and the memory
@@ -145,10 +144,24 @@ func RunSQLConstraints(t *testing.T, store domain.MetadataStore) {
 		name: "eu_ai_act row with a null eu_gpai_tier",
 		c:    domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeEUAIAct, EUSystemRiskClass: domain.EUClassMinimal},
 	}, {
-		// Today the CHECK has one branch, so it also refuses a regime this build does not
-		// define. M17 adds the `mrm` branch alongside it (`20.8.1`).
+		// Every branch names its regime, so one this build does not define is still refused.
 		name: "a regime with no branch in the CHECK",
 		c:    domain.RiskClassification{ModelID: m.ID, Regime: "uk_ai_bill", ClassifiedAt: now},
+	}, {
+		// Cross-regime enums (§20.8.1): each branch requires every other group NULL.
+		name: "eu_ai_act row carrying an mrm_tier",
+		c: domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeEUAIAct,
+			EUSystemRiskClass: domain.EUClassMinimal, EUGpaiTier: domain.EUGpaiNone, MRMTier: domain.MRMTier1},
+	}, {
+		name: "mrm row carrying an eu_system_risk_class",
+		c: domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeMRM,
+			MRMTier: domain.MRMTier2, EUSystemRiskClass: domain.EUClassHighAnnexIII},
+	}, {
+		name: "mrm row carrying an eu_gpai_tier",
+		c:    domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeMRM, MRMTier: domain.MRMTier2, EUGpaiTier: domain.EUGpaiNone},
+	}, {
+		name: "mrm row with a null mrm_tier",
+		c:    domain.RiskClassification{ModelID: m.ID, Regime: domain.RegimeMRM},
 	}}
 
 	for _, tc := range cases {

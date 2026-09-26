@@ -72,7 +72,7 @@ func TestValidateRiskClassification(t *testing.T) {
 			name:    "unknown regime is rejected before any EU rule runs",
 			mutate:  func(c *RiskClassification) { c.Regime = "uk_ai_bill"; c.EUSystemRiskClass = "" },
 			code:    CodeInvalidArgument,
-			allowed: []string{string(RegimeEUAIAct)},
+			allowed: []string{string(RegimeEUAIAct), string(RegimeMRM)},
 		},
 		{
 			name:   "future review date accepted",

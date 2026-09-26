@@ -13,5 +13,6 @@ func TestMemoryStore(t *testing.T) {
 	storetest.RunInventory(t, store)
 	storetest.RunRetention(t, store)
 	storetest.RunReviews(t, store)
+	storetest.RunMRM(t, store)
 	storetest.RunAttestation(t, store)
 }

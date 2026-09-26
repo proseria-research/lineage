@@ -176,9 +176,8 @@ var migrations = []string{
 	// would let an MRM write silently clear an EU staleness (§16.3.2).
 	//
 	// The CHECK ties each enum group to the discriminator, which is what keeps a sparse
-	// column set honest rather than merely wide. Today there is one branch, so it also
-	// rejects any regime this build does not define; M17 adds an `mrm` branch that asserts
-	// the EU group is null on those rows, and vice versa (`20.8.1`).
+	// column set honest rather than merely wide. This first shape had one branch; the table
+	// is rebuilt with the `mrm` branch below (`20.8.1`).
 	`CREATE TABLE IF NOT EXISTS classification (
 		model_id TEXT NOT NULL REFERENCES model(id) ON DELETE CASCADE,
 		regime TEXT NOT NULL,
@@ -265,6 +264,90 @@ var migrations = []string{
 	)`,
 	// §17.5.2 — latest-row-per-pair, and the open-queue anti-join.
 	`CREATE INDEX IF NOT EXISTS idx_review_pair ON modification_review (version_id, edge_id, reviewed_at)`,
+
+	// ---- Model risk management (§20.8) ----
+	// stage_changed_at is §20.7 clause 3's anchor: when the version entered its current
+	// stage. Nullable and backfilled, so still forward-only (§02.7). The backfill takes the
+	// version's latest `version.stage_changed` event, and its creation time when it has
+	// never moved — a version enters its first stage when it is published.
+	//
+	// A version *demoted* by another's promotion has no event of its own (the demotion is a
+	// side effect inside SetStage), so its backfilled value is its own last move rather than
+	// the demotion. It is archived either way, and clause 3 only reads production versions.
+	`ALTER TABLE model_version ADD COLUMN stage_changed_at BIGINT`,
+	`UPDATE model_version SET stage_changed_at = COALESCE(
+		(SELECT MAX(a.at) FROM audit_event a
+		 WHERE a.subject_type = 'model_version' AND a.subject_id = model_version.id
+		   AND a.action = 'version.stage_changed'),
+		created_at)`,
+
+	// The `mrm` regime needs a column and a second CHECK branch. SQLite cannot alter a CHECK
+	// in place, so the table is rebuilt — create, copy, drop, rename — which is portable to
+	// both engines and keeps this one shared migration list (§16.7.1, as corrected). Nothing
+	// references classification, so the drop cascades nowhere; its indexes go with it and
+	// are recreated under the same names below.
+	//
+	// Each branch requires its own group populated and every other group NULL, so an EU enum
+	// on an `mrm` row (or the reverse) is refused by the engine as well as by validation. A
+	// regime with no branch is still refused outright.
+	`CREATE TABLE IF NOT EXISTS classification_v2 (
+		model_id TEXT NOT NULL REFERENCES model(id) ON DELETE CASCADE,
+		regime TEXT NOT NULL,
+		eu_gpai_tier TEXT,
+		eu_system_risk_class TEXT,
+		mrm_tier TEXT,
+		intended_purpose TEXT NOT NULL DEFAULT '',
+		basis TEXT NOT NULL DEFAULT '',
+		classified_at BIGINT NOT NULL,
+		classified_by TEXT NOT NULL DEFAULT '',
+		review_due_at BIGINT,
+		PRIMARY KEY (model_id, regime),
+		CHECK (
+			(regime = 'eu_ai_act' AND eu_system_risk_class IS NOT NULL AND eu_gpai_tier IS NOT NULL
+				AND mrm_tier IS NULL)
+			OR
+			(regime = 'mrm' AND mrm_tier IS NOT NULL
+				AND eu_system_risk_class IS NULL AND eu_gpai_tier IS NULL)
+		)
+	)`,
+	`INSERT INTO classification_v2 (model_id, regime, eu_gpai_tier, eu_system_risk_class,
+		intended_purpose, basis, classified_at, classified_by, review_due_at)
+	 SELECT model_id, regime, eu_gpai_tier, eu_system_risk_class,
+		intended_purpose, basis, classified_at, classified_by, review_due_at
+	 FROM classification`,
+	`DROP TABLE classification`,
+	`ALTER TABLE classification_v2 RENAME TO classification`,
+	`CREATE INDEX IF NOT EXISTS idx_classification_eu_class ON classification (regime, eu_system_risk_class)`,
+	`CREATE INDEX IF NOT EXISTS idx_classification_eu_tier ON classification (regime, eu_gpai_tier)`,
+	`CREATE INDEX IF NOT EXISTS idx_classification_review ON classification (regime, review_due_at)`,
+	// §20.8.4 — the inventory query.
+	`CREATE INDEX IF NOT EXISTS idx_classification_mrm_tier ON classification (regime, mrm_tier)`,
+
+	// Append-only, like evaluation and modification_review (§20.5). conditions_cleared_at is
+	// the one later write, set once.
+	//
+	// **evidence_artifact_id carries no foreign key**, for the §17.5.1 edge_id reason: a
+	// cascade would erase the record that a validation happened when its report is deleted,
+	// and SET NULL would rewrite what the record says it rested on. The reference is checked
+	// at write instead. version_id cascades: with the version gone there is nothing left that
+	// was validated.
+	`CREATE TABLE IF NOT EXISTS validation (
+		id TEXT PRIMARY KEY,
+		version_id TEXT NOT NULL REFERENCES model_version(id) ON DELETE CASCADE,
+		outcome TEXT NOT NULL,
+		scope TEXT NOT NULL DEFAULT '',
+		findings TEXT NOT NULL DEFAULT '',
+		conditions TEXT NOT NULL DEFAULT '',
+		conditions_cleared_at BIGINT,
+		valid_until BIGINT,
+		evidence_artifact_id TEXT NOT NULL DEFAULT '',
+		validated_by TEXT NOT NULL DEFAULT '',
+		validated_at BIGINT NOT NULL
+	)`,
+	// §20.8.4 — latest-row-per-version, the clause 1 sweep, and clause 3's anti-join.
+	`CREATE INDEX IF NOT EXISTS idx_validation_version ON validation (version_id, validated_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_validation_valid_until ON validation (valid_until)`,
+	`CREATE INDEX IF NOT EXISTS idx_eval_run_at ON evaluation (version_id, run_at)`,
 }
 
 // migrate applies pending migrations in a forward-only fashion, one per transaction.

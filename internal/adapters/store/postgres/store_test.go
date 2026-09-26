@@ -49,6 +49,7 @@ func TestPostgresStore(t *testing.T) {
 	storetest.RunInventory(t, s)
 	storetest.RunRetention(t, s)
 	storetest.RunReviews(t, s)
+	storetest.RunMRM(t, s)
 	storetest.RunAttestation(t, s)
 }
 
