@@ -4,7 +4,7 @@ import type { LayerBlock, VersionInsight } from "@/lib/api";
 // alternatives — each is drawn from its own input and each is absent on its own terms:
 //
 //   PortraitMark    <- insight.layers   a layered network, structure
-//   FingerprintMark <- insight.hashes   concentric rings, identity
+//   FingerprintMark <- insight.hashes   four petals, identity
 //
 // They are visually distinct kinds of object — a wide slate stack, a square ink disc — so
 // neither can be mistaken for the other, and a version that has hashes but no layers is
@@ -273,14 +273,13 @@ function Portrait({
 export const RING_ORDER = ["topology", "shape", "dtype", "weights"] as const;
 export type RingName = (typeof RING_ORDER)[number];
 
-const RING_R = [44, 34, 24, 14]; // radii in a 96px box
 
 /**
- * One low-chroma hue per level, so a ring can be named without counting inward. Colour is
+ * One low-chroma hue per level, so a petal can be named at a glance. Colour is
  * never the only signal: the radius is fixed and the roll-call under the disc repeats each
  * level as text, so the mark still reads with colour vision loss or in print (§12.7).
  */
-/** Plain names for the four levels, outermost first. */
+/** Plain names for the four levels, in drawing order (clockwise from the top left). */
 export const RING_LABEL: Record<RingName, string> = {
   topology: "Architecture",
   shape: "Layer shapes",
@@ -303,41 +302,25 @@ export const RING_TONE: Record<RingName, { text: string; bg: string; border: str
 };
 
 /**
- * One ring as a guilloche band: two strands weaving around the ring's radius, their waves
- * seeded from the hash. The same hash always draws the same band and a different hash draws
- * a visibly different one, which is all identity needs (§12.4); the shape itself encodes
- * nothing further.
+ * One level as a petal. The four petals sit clockwise from the top left — architecture,
+ * layer shapes, precision, weights — and each petal's outline (its width, the ripple along
+ * its edge, how many nested contours it has) is seeded from that level's hash. The same hash
+ * always draws the same petal and a different hash a visibly different one; the shape encodes
+ * nothing further (§12.4).
  */
-function bandPaths(cx: number, cy: number, r: number, amp: number, hash: string, strands: number): string[] {
-  const next = stream(hash);
-  const unit = () => next() / 0xffffffff;
-  // A classic rosette: `strands` identical waves of n lobes, each shifted by an equal share
-  // of one lobe so they interlace. The hash picks the lobe count, a slow swell of the
-  // amplitude (m bulges around the ring) and the rotation — enough variety that two
-  // different hashes do not draw the same ring side by side.
-  const n = 6 + (next() % 9); // 6..14 lobes
-  const m = 2 + (next() % 4); // 2..5 swells
-  const rot = unit() * 2 * Math.PI;
-  const swellPhase = unit() * 2 * Math.PI;
-  const depth = 0.18 + unit() * 0.22;
-
-  const steps = 360;
-  const out: string[] = [];
-  for (let sIdx = 0; sIdx < strands; sIdx++) {
-    const lag = (sIdx * 2 * Math.PI) / (strands * n);
-    let d = "";
-    for (let k = 0; k <= steps; k++) {
-      const t = (k / steps) * 2 * Math.PI;
-      const a = amp * (1 - depth + depth * Math.cos(m * t + swellPhase));
-      const rr = r + a * Math.sin(n * (t + lag) + rot);
-      const x = cx + rr * Math.cos(t);
-      const y = cy + rr * Math.sin(t);
-      d += `${k === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
-    }
-    out.push(d + "Z");
+function petalPoints(c: number, len: number, base: number, width: number, wav: number, depth: number, scale: number): string {
+  const pts: string[] = [];
+  for (let k = 0; k <= 80; k++) {
+    const t = (k / 80) * Math.PI;
+    const rr = len * scale * Math.sin(t) * (1 + depth * Math.sin(wav * 2 * t));
+    const a = base + (t - Math.PI / 2) * width;
+    pts.push(`${(c + rr * Math.cos(a)).toFixed(2)},${(c + rr * Math.sin(a)).toFixed(2)}`);
   }
-  return out;
+  return pts.join(" ");
 }
+
+/** Petal directions, clockwise from the top left, in RING_ORDER. */
+const PETAL_ANGLE = [-0.75 * Math.PI, -0.25 * Math.PI, 0.25 * Math.PI, 0.75 * Math.PI];
 
 function Fingerprint({
   hashes,
@@ -351,55 +334,104 @@ function Fingerprint({
   emphasis?: Partial<Record<RingName, boolean>>;
 }) {
   const k = size / 96;
-  const cx = size / 2;
-  const cy = size / 2;
-  const sw = Math.min(1.4, Math.max(0.8, 0.75 * k));
-  // Each band stays inside its own lane: rings are 10 units apart.
-  const amp = 3.6 * k;
+  const c = size / 2;
+  const len = c - Math.max(2, 4 * k);
+  const sw = Math.min(1.6, Math.max(0.8, 1.1 * k));
   const out: React.ReactElement[] = [];
 
   RING_ORDER.forEach((name, i) => {
-    const r = RING_R[i] * k;
     const h = hashes[name];
+    const base = PETAL_ANGLE[i];
     const muted = !!emphasis && !emphasis[name];
 
-    // Absent is a dotted plain circle in the muted tone: present-but-different and
+    // Absent is a plain dotted petal in the muted tone: present-but-different and
     // absent-entirely must not look alike (§12.4).
     if (!h) {
       out.push(
-        <circle
+        <polygon
           key={name}
-          cx={cx}
-          cy={cy}
-          r={r}
+          points={petalPoints(c, len, base, 0.5, 1, 0, 1)}
           className="text-muted-foreground"
           stroke="currentColor"
           strokeOpacity={0.75}
-          strokeWidth={Math.max(1.4, sw * 1.6)}
+          strokeWidth={Math.max(1, sw)}
+          strokeDasharray={`${Math.max(1, sw)} ${Math.max(2.5, 3 * sw)}`}
           strokeLinecap="round"
           fill="none"
-          strokeDasharray={`0 ${Math.max(3.5, 4 * sw)}`}
         />,
       );
       return;
     }
 
-    bandPaths(cx, cy, r, reduced ? amp * 0.6 : amp, h, reduced ? 1 : 3).forEach((d, sIdx) => {
+    const next = stream(h);
+    const unit = () => next() / 0xffffffff;
+    const width = 0.35 + unit() * 0.35;
+    const wav = 2 + (next() % 5);
+    const depth = 0.05 + unit() * 0.12;
+    const tone = muted ? "text-muted-foreground" : RING_TONE[name].text;
+    // Polar outline of the petal at contour scale `sc`, for parameter t in (0, π).
+    const at = (t: number, sc: number): [number, number] => {
+      const rr = len * sc * Math.sin(t) * (1 + depth * Math.sin(wav * 2 * t));
+      const a = base + (t - Math.PI / 2) * width;
+      return [c + rr * Math.cos(a), c + rr * Math.sin(a)];
+    };
+
+    if (reduced) {
+      // Under 24px dots are dust: a filled petal.
       out.push(
-        <path
-          key={`${name}${sIdx}`}
-          d={d}
-          // In a delta pair, rings that did not change drop to muted so the ones that did
-          // carry their colour alone (§12.4).
-          className={muted ? "text-muted-foreground" : RING_TONE[name].text}
-          stroke="currentColor"
-          strokeOpacity={muted ? 0.45 : 0.9}
-          strokeWidth={sw}
-          strokeLinejoin="round"
-          fill="none"
+        <polygon
+          key={name}
+          points={petalPoints(c, len, base, width, wav, depth, 1)}
+          className={tone}
+          fill="currentColor"
+          fillOpacity={muted ? 0.3 : 0.75}
         />,
       );
-    });
+      return;
+    }
+
+    // A point cloud: dots gather along a few nested contours and scatter more thinly inside,
+    // each jittered and sized from the stream so the same hash lays the same cloud (§12.5).
+    const contours = size < 64 ? 2 : 3 + (next() % 2);
+    const perContour = Math.round((size < 64 ? 26 : 80) * Math.max(0.6, width * 1.6));
+    const interior = size < 64 ? 18 : 140;
+    const dot = Math.max(0.5, 0.62 * k);
+    const jitter = 1.1 * k;
+    const dots: React.ReactElement[] = [];
+    for (let ci = 0; ci < contours; ci++) {
+      const sc = 1 - ci * 0.2;
+      for (let q = 0; q < perContour; q++) {
+        const t = ((q + 0.5 + (unit() - 0.5) * 0.6) / perContour) * Math.PI;
+        const [x, y] = at(t, sc);
+        dots.push(
+          <circle
+            key={`${name}c${ci}_${q}`}
+            cx={x + (unit() - 0.5) * jitter}
+            cy={y + (unit() - 0.5) * jitter}
+            r={dot * (ci === 0 ? 1.15 : 0.9) * (0.75 + unit() * 0.5)}
+            fillOpacity={(ci === 0 ? 0.95 : 0.7) * (0.7 + unit() * 0.3)}
+          />,
+        );
+      }
+    }
+    for (let q = 0; q < interior; q++) {
+      const t = 0.08 + unit() * (Math.PI - 0.16);
+      const [x, y] = at(t, 0.1 + Math.pow(unit(), 0.7) * 0.85);
+      dots.push(
+        <circle
+          key={`${name}i${q}`}
+          cx={x}
+          cy={y}
+          r={dot * (0.5 + unit() * 0.5)}
+          fillOpacity={0.18 + unit() * 0.32}
+        />,
+      );
+    }
+    out.push(
+      <g key={name} className={tone} fill="currentColor" opacity={muted ? 0.5 : 1}>
+        {dots}
+      </g>,
+    );
   });
 
   return <>{out}</>;
@@ -466,7 +498,7 @@ export function PortraitMark({
 }
 
 /**
- * The identity mark: four concentric rings, one per fingerprint hash. Renders nothing
+ * The identity mark: four petals, one per fingerprint hash. Renders nothing
  * unless at least one hash was reported.
  */
 export function FingerprintMark({
@@ -483,7 +515,7 @@ export function FingerprintMark({
   /** Rings mapped false are drawn muted, for a side-by-side delta. */
   emphasis?: Partial<Record<RingName, boolean>>;
   className?: string;
-  /** In a pair, draw four dotted rings for a side with no hashes rather than nothing. */
+  /** In a pair, draw four dotted petals for a side with no hashes rather than nothing. */
   placeholder?: boolean;
 }) {
   if (!hasFingerprint(insight) && !placeholder) return null;

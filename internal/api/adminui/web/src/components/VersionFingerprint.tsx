@@ -6,12 +6,12 @@ import { Empty } from "@/components/State";
 import { FingerprintMark, RING_HELP, RING_LABEL, RING_ORDER, RING_TONE, hasFingerprint } from "@/components/VersionMark";
 import { NOT_REPORTED } from "@/lib/utils";
 
-// The identity section (§12.4): four concentric rings, one per fingerprint hash, sized to
+// The identity section (§12.4): four petals, one per fingerprint hash, sized to
 // sit square beside Lifecycle at the top of the version page. It is deliberately compact —
 // this is the glance, and the full hashes are in the Composition panel further down.
 //
-// The ring roll-call under the disc is the honest part: a hash nobody reported is a hollow
-// square and a dotted ring, so "present but different" and "absent entirely" never look
+// The roll-call under the flower is the honest part: a hash nobody reported is a hollow
+// marker and a dotted petal, so "present but different" and "absent entirely" never look
 // alike. Two versions of one model can be compared by eye from this card alone.
 
 export function VersionFingerprint({ insight }: { insight: VersionInsight | null }) {
@@ -30,7 +30,7 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
         <div className="flex items-center justify-between gap-2">
           <div>
             <CardTitle>Fingerprint</CardTitle>
-            <p className="text-xs text-muted-foreground">Identity at four depths, outermost first</p>
+            <p className="text-xs text-muted-foreground">One petal per level, clockwise from top left</p>
           </div>
           {present.length > 0 && (
             <Tooltip content={reach} className="shrink-0" align="end">
@@ -54,7 +54,7 @@ export function VersionFingerprint({ insight }: { insight: VersionInsight | null
               size={168}
             />
 
-            {/* Outermost ring first, matching the drawing. An absent level stays grey and
+            {/* Clockwise from the top left, matching the drawing. An absent level stays grey and
                 dashed — colour means "reported", so absence cannot borrow one. */}
             <ul className="w-full space-y-1.5">
               {RING_ORDER.map((ring) => {

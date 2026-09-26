@@ -97,7 +97,7 @@ export default function Compare() {
         </CardContent>
       </Card>
 
-      {/* A visual reading of the hash ladder: changed rings stay coloured; matched rings recede. */}
+      {/* A visual reading of the hash ladder: changed petals stay coloured; matched petals recede. */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Fingerprints side by side</CardTitle>
@@ -133,7 +133,7 @@ export default function Compare() {
             )}
             {hasFingerprint && (
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                {hasChangedLevel ? "Coloured rings changed; grey rings are the same." : "The reported rings match."} Dotted rings were not reported.
+                {hasChangedLevel ? "Coloured petals changed; grey petals are the same." : "The reported petals match."} Dotted petals were not reported.
               </p>
             )}
           </div>
