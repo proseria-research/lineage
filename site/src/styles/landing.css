@@ -565,12 +565,13 @@ output {
 }
 
 .demo__log {
-	display: flex;
-	flex-wrap: wrap;
+	/* Both messages and the reset button always have their room, so promoting and starting
+	   over never move anything. */
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.5rem 1rem;
-	min-height: 3.5rem;
+	gap: 1rem;
+	min-height: calc(2lh + 1.6rem);
 	padding: 0.8rem 1.35rem;
 	color: var(--muted-fg);
 	font-size: 0.8125rem;
@@ -586,9 +587,12 @@ output {
 	text-underline-offset: 3px;
 }
 
-.demo__reset[hidden],
-[data-promote][hidden] {
-	display: none;
+.demo__reset:disabled {
+	visibility: hidden;
+}
+
+[data-promote]:disabled {
+	visibility: hidden;
 }
 
 /* The one orchestrated moment: whatever the promotion changed pulses once. */
@@ -1477,6 +1481,10 @@ output.is-changed {
 }
 
 @media (max-width: 520px) {
+	.demo__log {
+		min-height: calc(3lh + 1.6rem);
+	}
+
 	.demo__call {
 		white-space: normal;
 	}
