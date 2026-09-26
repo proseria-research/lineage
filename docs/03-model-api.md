@@ -147,7 +147,11 @@ POST /v1/models/fraud-detector/versions
 
 ## 6. Artifacts
 
-`kind` is `MODEL` or `DOC` (`02.3`). Two ways to create one:
+`kind` is `MODEL` or `DOC` (`02.3`). Artifacts are added while the version is a draft:
+once it first enters `staging` its set is **locked** (`02.4.1`, `00.11.19`) and every
+write below except the metadata `PATCH` returns `409 failed_precondition`,
+`details.reason: "version_locked"` — publish a new version to change files. The version's
+`lockedAt` says when. Two ways to create one:
 
 **(a) Register by reference** — bytes already live in a backend (CI uploaded them):
 `POST …/artifacts` with `uri` (+ optional `digest`, `sizeBytes`; the backend may `stat`
@@ -173,11 +177,12 @@ sequenceDiagram
     A-->>C: 201 Artifact
 ```
 
-- `PATCH …/artifacts/{a}` — **metadata only**. Content fields (`uri`, `digest`,
+- `PATCH …/artifacts/{a}` — **metadata only** (`mediaType`, `serviceAccount`,
+  `customProperties`), allowed on a locked version too. Content fields (`uri`, `digest`,
   `sizeBytes`) are immutable once set (`02.5`): new content ⇒ new version.
   Attempting to change them ⇒ `409 failed_precondition`.
-- `DELETE …/artifacts/{a}` — removes the metadata row; whether backend bytes are
-  garbage-collected is a storage-policy concern (`05`).
+- `DELETE …/artifacts/{a}` — removes the metadata row; refused on a locked version.
+  Whether backend bytes are garbage-collected is a storage-policy concern (`05`).
 
 ## 7. Lifecycle Transition
 
@@ -221,7 +226,7 @@ POST /v1/models/{m}/versions/{v}:transition
 | `invalid_argument` | 400 | bad name pattern, missing required field, bad enum |
 | `not_found` | 404 | unknown model/version/artifact |
 | `already_exists` | 409 | duplicate name without matching idempotency key |
-| `failed_precondition` | 409 | illegal stage transition; mutate immutable artifact; delete blocked |
+| `failed_precondition` | 409 | illegal stage transition; mutate immutable artifact; artifact write on a locked version; delete blocked |
 | `payload_too_large` | 413 | inline body over limit (use signed upload) |
 | `unprocessable` | 422 | well-formed but semantically invalid (e.g. digest mismatch on finalize) |
 | `rate_limited` | 429 | infra/back-pressure signal |
@@ -229,6 +234,14 @@ POST /v1/models/{m}/versions/{v}:transition
 
 `details` carries machine-readable context (e.g. `allowedTargets` for a bad transition,
 `conflictingVersion` for a singleton demotion conflict).
+
+`details.reason` names a refusal where one code covers several:
+
+| `reason` | Refused | Remedy |
+|---|---|---|
+| `version_locked` | register / upload / finalize / delete an artifact on a version that has reached staging (`lockedAt` in details) | publish a new version |
+| `legal_hold` | delete of a held subject (`19.7.4`) | release the hold |
+| `retention_floor` | delete younger than the floor (`19.7.4`) | wait |
 
 ## 10. Read Completeness
 
