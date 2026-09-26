@@ -22,11 +22,8 @@ retention floor and audit attestation on, matching the Helm chart defaults. With
 `go run ./cmd/lineage`: the Model API is identical, the console is a placeholder, and the
 retention floor is `0`.
 
-| Listener | URL |
-| --- | --- |
-| Model API | `http://localhost:8081/v1` |
-| Admin console | `http://localhost:8080` |
-| Ops | `http://localhost:9090/healthz` |
+The Model API is at `http://localhost:8081/v1`, the admin console at `http://localhost:8080`,
+and the ops health check at `http://localhost:9090/healthz`.
 
 State lands in `./lineage.db` and `./data/artifacts`. To start over, stop the process and run
 `make reset`. Under the retention floor, deleting a model or version is refused.

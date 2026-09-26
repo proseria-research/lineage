@@ -25,10 +25,12 @@ zero or more artifacts; its artifact set stays open until it first enters `stagi
 
 ## Names
 
-| Thing | Pattern | Notes |
-| --- | --- | --- |
-| Model, version | `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$` | Lowercase slug; it is the URL identity |
-| Artifact | `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$` | A filename; `.` and `..` rejected; unique per version |
+Names are the identities you use in every URL.
+
+- Model and version names are lowercase slugs matching `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$`.
+  The name is the URL identity.
+- Artifact names are filenames matching `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$`, unique per
+  version. `.` and `..` are rejected.
 
 A duplicate model, version or artifact name returns `409 already_exists`.
 
@@ -94,7 +96,7 @@ copy or check that the object exists.
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `name` | yes | Filename within the version |
-| `uri` | yes | Native pointer (`s3://`, `oci://`, `file://`, `gs://`, `hf://`, …), returned verbatim as `storageUri` on resolve |
+| `uri` | yes | Native pointer (`s3://`, `oci://`, `file://`, `gs://`, `hf://`, …). Returned verbatim as `storageUri` on resolve |
 | `kind` | no | `MODEL` (default) or `DOC` |
 | `digest`, `sizeBytes` | no | If omitted, filled from a `Stat` on the configured backend when it can read the `uri` |
 | `mediaType` | no | Served as `Content-Type` on streamed content |
@@ -144,11 +146,11 @@ with that name, compared case-insensitively.
 
 Digests are `sha256:<hex>`. Finalize compares your declared `digest` against:
 
-| Mode | Digest Lineage checks against |
-| --- | --- |
-| Stream-through | sha256 computed as the bytes pass through |
-| Signed PUT, ≤ 256 MiB | Object's `x-amz-meta-sha256` if present; else, if you declared a digest, the object is read back once and hashed |
-| Signed PUT > 256 MiB, multipart | Object's `x-amz-meta-sha256` if present; else not recomputed, and your declared digest is recorded |
+- Stream-through: the sha256 computed as the bytes pass through.
+- Signed PUT up to 256 MiB: the object's `x-amz-meta-sha256` if present. Otherwise, if you
+  declared a digest, the object is read back once and hashed.
+- Signed PUT over 256 MiB, and multipart: the object's `x-amz-meta-sha256` if present.
+  Otherwise the digest is not recomputed, and your declared digest is recorded.
 
 A mismatch, a size different from the declared `sizeBytes`, or no object at the target returns
 `422 unprocessable`. Rejected stream-through bytes are deleted. A multipart finalize without
@@ -163,6 +165,8 @@ and `finalizeUpload` calls must reach that replica, and a restart discards open 
 
 ## Labels, description, metadata
 
+Edit metadata with `PATCH`; stage and artifact bytes are not editable here.
+
 `PATCH` changes only the fields you send. `labels` replaces the whole map. Stage is not
 patchable; use [`:transition`](/api/promotion/). On artifacts, `uri`, `digest` and
 `sizeBytes` are immutable: sending a different value returns `409 failed_precondition`.
@@ -172,11 +176,10 @@ patchable; use [`:transition`](/api/promotion/). On artifacts, `uri`, `digest` a
 A version's artifact set freezes the first time it enters `staging` (or `production`).
 `lockedAt` is set then and never cleared, including after a demotion back to `draft`.
 
-| Refused on a locked version | Still allowed |
-| --- | --- |
-| Register, `initiateUpload`, `uploadContent`, `finalizeUpload`, artifact `DELETE` | Artifact `PATCH` of `mediaType`, `serviceAccount`, `customProperties`; version `PATCH` |
-
-An upload started before the lock and finished after it is refused too.
+On a locked version, register, `initiateUpload`, `uploadContent`, `finalizeUpload` and
+artifact `DELETE` are refused. An upload started before the lock and finished after it is
+refused too. Version `PATCH` and artifact `PATCH` of `mediaType`, `serviceAccount` and
+`customProperties` still work.
 
 ```json
 {

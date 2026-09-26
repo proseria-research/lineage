@@ -16,6 +16,8 @@ Lineage records facts. It does not make legal determinations. Nothing here is le
 
 ## What gets recorded, per framework
 
+Each framework maps to a set of records Lineage keeps.
+
 | Framework | What Lineage records |
 | --- | --- |
 | EU AI Act | System risk class, GPAI tier, intended purpose, basis, review date; staleness; Art. 25 modification review of `derived_from` edges |
@@ -41,13 +43,15 @@ One row per model per regime. Regimes: `eu_ai_act`, `mrm`.
 | `GET` | `/v1/models/{model}/classifications` | Every regime's row |
 | `GET` | `/v1/models?include=classification` | Inventory with each model's EU row |
 
+Fields on the `eu_ai_act` row:
+
 | Field | Values |
 | --- | --- |
 | `euSystemRiskClass` | `unclassified` (default), `minimal`, `limited`, `high_annex_iii`, `high_annex_i`, `prohibited` |
 | `euGpaiTier` | `none` (default), `gpai`, `gpai_systemic` |
 | `intendedPurpose` | Required unless the class is `unclassified` (`422`) |
 | `basis` | Required for `high_annex_iii` and `high_annex_i` (`422`) |
-| `reviewDueAt` | Epoch ms, must be in the future. Omit for no scheduled review |
+| `reviewDueAt` | Epoch ms, in the future. Omit for no scheduled review |
 
 ```bash
 curl -X PUT localhost:8081/v1/models/fraud-detector/classifications/eu_ai_act \
@@ -73,19 +77,23 @@ curl -X PUT localhost:8081/v1/models/fraud-detector/classifications/eu_ai_act \
 
 `state` is `unclassified`, `current` or `stale`. `unclassified` (no row, or an explicit
 `unclassified` class) is never a kind of `stale`. A `stale` row lists **every** reason that
-fired, each measured against `classifiedAt`:
+fired in `staleReasons`, each measured against `classifiedAt`:
 
 | `staleReasons` | Fires when |
 | --- | --- |
 | `review_due_passed` | `reviewDueAt` is in the past |
 | `version_published_since` | A version was published after classification |
-| `production_changed_since` | A version entered production (promotion or rollback), or an artifact was added to the production version. Metadata edits do not count |
+| `production_changed_since` | A version entered production (promotion or rollback), or an artifact was added to the production version |
 | `derivation_since` | The `derived_from` edge behind an open modification-review item was created after classification |
+
+Metadata edits do not count toward `production_changed_since`.
 
 Re-`PUT` the assessment to reset the anchor, even if the answer is unchanged. Inventory
 filters: `euSystemRiskClass`, `euGpaiTier`, `classificationState`.
 
 ## Modification review (Art. 25)
+
+A human records whether a derivation of a high-risk or GPAI model is a substantial modification.
 
 A `derived_from` edge on a model classified `high_annex_iii`/`high_annex_i`, or with a GPAI tier
 other than `none`, enters the review queue unless its fingerprint verdict is `identical`.
@@ -133,15 +141,16 @@ and a state computed on read.
 ### Tier
 
 `PUT /v1/models/{model}/classifications/mrm` with `mrmTier`, `basis`, `reviewDueAt`,
-optionally `intendedPurpose`. EU fields on this path are `400`.
+optionally `intendedPurpose`. EU fields on this path are `400`. `mrmTier` values:
 
-| `mrmTier` | Notes |
-| --- | --- |
-| `untiered` | Default. Never read as low risk |
-| `tier_1`, `tier_2`, `tier_3` | Firm-assigned materiality, highest first. `tier_1` requires `basis` |
-| `out_of_scope` | Declared exclusion from the framework. Requires `basis` |
+- `untiered`: the default. Never read as low risk.
+- `tier_1`, `tier_2`, `tier_3`: firm-assigned materiality, highest first. `tier_1` requires
+  `basis`.
+- `out_of_scope`: declared exclusion from the framework. Requires `basis`.
 
 ### Validations
+
+Validators record their outcome per version. History is append-only.
 
 | Method | Path | Notes |
 | --- | --- | --- |
@@ -171,21 +180,19 @@ the version's `author`. `false` is a flag, not a refusal.
 ### State
 
 The model-level state (on the `mrm` row) is about the production version, or the newest
-version if none is in production; the row names it in `version`. The ladder is decided
-top-down:
+version if none is in production; the row names it in `version`. The first match wins:
 
-| `state` | When |
-| --- | --- |
-| `untiered` | No `mrm` row, or tier `untiered` |
-| `unvalidated` | No validation, or the latest is `rejected` or `undetermined` |
-| `stale` | Latest is `approved`/`conditional` and at least one reason below fires |
-| `current` | Otherwise |
+1. `untiered`: no `mrm` row, or tier `untiered`.
+2. `unvalidated`: no validation, or the latest is `rejected` or `undetermined`.
+3. `stale`: the latest is `approved`/`conditional` and at least one `staleReasons` entry below
+   fires.
+4. `current`: otherwise.
 
 | `staleReasons` | Fires when |
 | --- | --- |
 | `validation_expired` | `validUntil` has passed |
 | `version_published_since` | Any version of the model was published after the validation |
-| `unmonitored_in_production` | The version is in production and no evaluation has run since it entered production |
+| `unmonitored_in_production` | In production, and no evaluation has run since it entered production |
 | `conditions_outstanding` | `conditional` and not yet cleared |
 
 Record evaluations with `POST …/evaluations` ([insight](/api/lineage/#version-insight)) to
@@ -223,7 +230,7 @@ curl -X POST localhost:8081/v1/models/fraud-detector/change-plans \
 | `supersedes` | The open plan this one replaces. Without it, overlapping an open plan is `409 plan_overlap` |
 
 Windows are half-open, `[effectiveFrom, effectiveTo)`, so exactly one plan is in force at any
-instant.
+instant. Each edge gets one `conformance` value:
 
 | `conformance` | Meaning |
 | --- | --- |

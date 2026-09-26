@@ -19,16 +19,16 @@ Every stage change goes through one action. There is no other way to set `stage`
 
 ## Transition
 
+`:transition` moves one version to a named stage.
+
 ```bash
 curl -X POST 'localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition' \
   -H 'Content-Type: application/json' -H 'X-Lineage-Actor: release-bot' \
   -d '{"to":"staging","reason":"passed offline eval"}'
 ```
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `to` | yes | `draft`, `staging`, `production` or `archived` |
-| `reason` | no | Free text, stored on the audit event (not on the version) |
+`to` is required: `draft`, `staging`, `production` or `archived`. `reason` is optional free
+text, stored on the audit event (not on the version).
 
 `200` returns the `ModelVersion` with its new `stage`.
 
@@ -38,6 +38,8 @@ before the move. `GET` the version to read the new ones.
 :::
 
 ## Allowed transitions
+
+Moves follow a fixed graph.
 
 <StageMachine />
 
@@ -49,11 +51,12 @@ before the move. `GET` the version to read the new ones.
 | `archived` | `draft` |
 
 Moves go one stage at a time: `draft → production` and `archived → staging` are refused.
+Other requests resolve as follows:
 
 | Request | Result |
 | --- | --- |
 | `to` equals the current stage | `200`, version unchanged, no audit event |
-| Edge not in the table | `409 failed_precondition`, `details.allowedTargets` lists the legal targets |
+| Edge not in the table | `409 failed_precondition`; `details.allowedTargets` lists legal targets |
 | Unknown `to` | `400 invalid_argument` |
 | Unknown model or version | `404 not_found` |
 
@@ -127,11 +130,13 @@ delete are audited as `deployment.create`, `deployment.update` and `deployment.d
 Legal holds do not block transitions; they block deletes. `DELETE` on a version or model
 checks, in order:
 
-| Check | Refusal | Overridden by `?force=true` |
-| --- | --- | --- |
-| Legal hold on the subject or its model | `409`, `details.reason: "legal_hold"`, `heldSince`, `heldBy`, `heldSubject` when inherited | No |
-| Retention floor (youngest record the delete destroys is newer than the floor) | `409`, `details.reason: "retention_floor"`, `floorDays`, `ageDays` | No |
-| Version in `production` (or model with one) | `409 failed_precondition`, `details.hint` | Yes |
+1. Legal hold on the subject or its model: `409`, `details.reason: "legal_hold"`, `heldSince`,
+   `heldBy`, and `heldSubject` when inherited. `?force=true` does not override it.
+2. Retention floor (the youngest record the delete destroys is newer than the floor): `409`,
+   `details.reason: "retention_floor"`, `floorDays`, `ageDays`. `?force=true` does not
+   override it.
+3. Version in `production` (or a model with one): `409 failed_precondition`, `details.hint`.
+   `?force=true` overrides this check.
 
 The binary's retention floor defaults to off; the Helm chart sets 3650 days. Archive instead
 of deleting when you only want a version out of stage-based resolution. See

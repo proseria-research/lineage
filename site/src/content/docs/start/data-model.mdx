@@ -11,6 +11,8 @@ All IDs are 26-character, time-ordered Crockford base32 strings. All timestamps 
 milliseconds. Models and versions are addressed by name in URLs; IDs appear in responses and in
 lineage and audit records.
 
+Each entity belongs to one parent, or to none:
+
 | Entity | Belongs to | Holds |
 | --- | --- | --- |
 | Model | — | Many versions |
@@ -22,12 +24,17 @@ lineage and audit records.
 
 ## Names
 
-| Name | Pattern | Notes |
-| --- | --- | --- |
-| Model, version | `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$` | Lowercase, 1–63 chars. Version names are unique per model |
-| Artifact | `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$`, not `.` or `..` | Filenames: mixed case and a leading dot allowed (`README.md`, `.gitattributes`). Unique per version; uploads also refuse a case-insensitive clash |
+Names are the URL identity of models, versions and artifacts.
+
+- Model and version names match `^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$`: lowercase, 1–63
+  chars. Version names are unique per model.
+- Artifact names are filenames and match `^[A-Za-z0-9_.][A-Za-z0-9._-]{0,254}$`, excluding `.`
+  and `..`. Mixed case and a leading dot are allowed (`README.md`, `.gitattributes`). Names are
+  unique per version; uploads also refuse a case-insensitive clash.
 
 ## Model
+
+A model is a named, long-lived entry that holds versions.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -44,6 +51,8 @@ lineage and audit records.
 `PATCH /v1/models/{model}` accepts `description`, `owner`, `labels`, `customProperties`, `state`.
 
 ## Version
+
+A version is one release of a model, in exactly one stage.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -63,6 +72,8 @@ Stage changes only go through `:transition`.
 
 ## Stages
 
+A version moves between four stages along a fixed graph.
+
 <StageMachine />
 
 - `POST .../versions/{version}:transition` with `{"to": "<stage>", "reason": "..."}`. `reason` is
@@ -80,11 +91,11 @@ Details and rollback patterns: [Promotion](/api/promotion/).
 The first time a version enters `staging` (or `production`), `lockedAt` is set and the artifact
 set freezes. It stays frozen after demotion, return to `draft`, or archival.
 
-| On a locked version | Result |
-| --- | --- |
-| Register, initiate upload, send upload bytes, finalize, delete artifact | `409 failed_precondition`, `details.reason: "version_locked"` |
-| `PATCH` artifact `mediaType`, `serviceAccount`, `customProperties` | Allowed |
-| Version `PATCH`, transitions, lineage, deployments, evaluations | Allowed |
+On a locked version, registering an artifact, initiating an upload, sending upload bytes,
+finalizing and deleting an artifact return `409 failed_precondition` with
+`details.reason: "version_locked"`. Everything else is allowed: artifact `PATCH` of `mediaType`,
+`serviceAccount` and `customProperties`, version `PATCH`, transitions, lineage, deployments and
+evaluations.
 
 To change files, publish a new version. Independently of the lock, an artifact's `uri`,
 `digest` and `sizeBytes` can never be changed by `PATCH`.
@@ -95,6 +106,8 @@ it just set. `GET` the version to read them.
 :::
 
 ## Artifact
+
+An artifact is one stored file of a version.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -139,13 +152,6 @@ Directed from a version (`src`) to another version of the same model or to an ex
 | `dstRef` | string | The URI, for external targets |
 | `properties` | any JSON | How the relation came about, e.g. `{"method":"quantize"}` |
 | `createdAt` | int64 | |
-
-| Relation | Typical target |
-| --- | --- |
-| `derived_from` | Parent version: fine-tune, quantization, distillation |
-| `trained_on` | Dataset URI |
-| `produced_by` | Training run or commit URI |
-| `deployed_as` | Serving endpoint or release URI |
 
 Create with `{"relation": "...", "to": {"version": "1.3.0"}}` or `{"to": {"uri": "s3://..."}}`,
 exactly one of the two. Traversal (upstream, downstream, depth): [Lineage](/api/lineage/).

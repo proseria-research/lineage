@@ -44,6 +44,8 @@ incumbent gets no event of its own.
 
 ## Actions
 
+`action` names the change as `subject.verb`, grouped here by subject type.
+
 | Subject | Actions |
 | --- | --- |
 | `model` | `model.create`, `model.update` (includes archive and unarchive), `model.delete`, `classification.set`, `change_plan.declare`, `change_plan.supersede`, `hold.set`, `hold.release` |
@@ -66,6 +68,8 @@ can write any name into the audit log.
 :::
 
 ## Reading the log
+
+Two feeds, both paginated and pinnable to a point in time.
 
 | Method | Path | Returns |
 | --- | --- | --- |
@@ -91,11 +95,10 @@ Each event is stamped at write with an epoch: `at` divided by the interval in mi
 computes a Merkle root (RFC 6962 hashing) over each closed epoch's events and links it to the
 previous sealed root. Empty epochs are skipped, so gaps in epoch numbers are normal.
 
-| Epoch | State | Root |
-| --- | --- | --- |
-| `29833331` | Sealed | `root₁` = Merkle root of its events |
-| `29833333` | Sealed | `root₂`, recorded with `prevRoot = root₁` |
-| `29833334` | Open | Not sealed until the interval plus grace has passed |
+For example, epoch `29833331` is sealed with `root₁`, the Merkle root of its events. Epoch
+`29833332` had no events and was skipped. Epoch `29833333` is sealed with `root₂`, recorded
+with `prevRoot = root₁`. Epoch `29833334` is open: it is not sealed until the interval plus
+grace has passed.
 
 Because every root carries the one before it, changing any sealed event changes its epoch's
 root and breaks every link after it.
@@ -132,11 +135,9 @@ With attestation disabled the endpoint returns `409 attestation_disabled`.
 }
 ```
 
-| `firstBreak.kind` | Meaning |
-| --- | --- |
-| `leaf_count_mismatch` | A row in the epoch was deleted (or added) |
-| `root_mismatch` | A row in the epoch was edited |
-| `prev_root_mismatch` | A sealed epoch was removed wholesale |
+`firstBreak.kind` is `leaf_count_mismatch` when a row in the epoch was deleted (or added),
+`root_mismatch` when a row was edited, and `prev_root_mismatch` when a sealed epoch was removed
+wholesale.
 
 ### Inclusion proof
 
@@ -154,15 +155,18 @@ running under.
 { "minAuditAgeDays": 3650, "minArchivedVersionDays": 3650 }
 ```
 
-| Field | Env var | Effect |
-| --- | --- | --- |
-| `minArchivedVersionDays` | `LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS` | `DELETE` of a model or version is refused while the youngest record it would destroy is younger than this. For a model, that includes every version in the cascade |
-| `minAuditAgeDays` | `LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS` | Reported only. Nothing deletes audit events |
+- `minArchivedVersionDays` (`LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS`): `DELETE` of a
+  model or version is refused while the youngest record it would destroy is younger than this.
+  For a model, that includes every version in the cascade.
+- `minAuditAgeDays` (`LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS`): reported only. Nothing deletes
+  audit events.
 
 The binary defaults both to `0` (disabled). The Helm chart sets `3650`. Nothing is ever deleted
 on a timer; the floor only refuses deletes.
 
 ## Legal hold
+
+A hold freezes a model or version against deletion, for litigation or a regulator inquiry.
 
 | Method | Path |
 | --- | --- |

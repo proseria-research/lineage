@@ -76,9 +76,14 @@ h1#_top {
 	text-align: left;
 }
 
-/* Long identifiers in cells wrap instead of pushing the table past the column. */
+/* Short codes (ports, enum values) never split; only an identifier longer than its column
+   breaks. `anywhere` would let the browser squeeze columns until `:8081` wraps. */
 .sl-markdown-content td code {
-	overflow-wrap: anywhere;
+	overflow-wrap: break-word;
+}
+
+.sl-markdown-content td:first-child code {
+	white-space: nowrap;
 }
 
 @media (max-width: 640px) {
