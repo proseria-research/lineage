@@ -19,6 +19,17 @@ type ResolvedArtifact struct {
 	Digest           string              `json:"digest,omitempty"`
 	MediaType        string              `json:"mediaType,omitempty"`
 	ServiceAccount   string              `json:"serviceAccount,omitempty"`
+
+	// backend names the storage backend the artifact lives on, so it is signed by that
+	// backend rather than the default. Internal: not part of the wire shape (§04.2).
+	backend string
+}
+
+// cachedResolution is the resolve-cache entry: the unsigned resolution plus each artifact's
+// backend name, which the wire shape does not carry but signing on a hit needs.
+type cachedResolution struct {
+	R        *Resolution `json:"r"`
+	Backends []string    `json:"b"`
 }
 
 // ResolvedInsight is the compact composition block a scheduler needs to pick a device
@@ -80,14 +91,20 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 		key += "|+insight"
 	}
 	if cached, ok := s.cache.Get(key); ok {
-		var r Resolution
-		if json.Unmarshal(cached, &r) == nil {
+		// An entry that does not decode to the current shape (e.g. written by an older
+		// replica into a shared cache) is treated as a miss and overwritten below.
+		var c cachedResolution
+		if json.Unmarshal(cached, &c) == nil && c.R != nil && len(c.Backends) == len(c.R.Artifacts) {
+			r := c.R
+			for i := range r.Artifacts {
+				r.Artifacts[i].backend = c.Backends[i]
+			}
 			s.meter.ResolveServed(true)
 			// The cache decision is the single most useful attribute on this span: it explains
 			// the latency difference between two otherwise identical resolves (§04.4).
 			sp.SetString("lineage.cache", "hit")
-			s.signRefs(ctx, &r) // signed URLs are minted per response, never cached (§04.4)
-			return &r, nil
+			s.signRefs(ctx, r) // signed URLs are minted per response, never cached (§04.4)
+			return r, nil
 		}
 	}
 	sp.SetString("lineage.cache", "miss")
@@ -112,6 +129,7 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 		r.Artifacts = append(r.Artifacts, ResolvedArtifact{
 			Name: a.Name, Kind: a.Kind, StorageURI: a.URI, SizeBytes: a.SizeBytes,
 			Digest: a.Digest, MediaType: a.MediaType, ServiceAccount: a.ServiceAccount,
+			backend: a.StorageBackend,
 		})
 	}
 	r.OCIImage = ociImage(arts)
@@ -119,7 +137,11 @@ func (s *Service) Resolve(ctx context.Context, model string, sel domain.Selector
 		r.Insight = s.compactInsight(ctx, v.ID)
 	}
 	// Cache the selection (without signed URLs), then sign for this response.
-	if b, err := json.Marshal(r); err == nil {
+	c := cachedResolution{R: r, Backends: make([]string, len(r.Artifacts))}
+	for i, a := range r.Artifacts {
+		c.Backends[i] = a.backend
+	}
+	if b, err := json.Marshal(c); err == nil {
 		s.cache.Set(key, b, 60_000_000_000) // 60s backstop TTL
 	}
 	s.signRefs(ctx, r)
@@ -172,14 +194,15 @@ func (s *Service) compactInsight(ctx context.Context, versionID string) *Resolve
 	return ri
 }
 
-// signRefs mints fresh signed URLs where the backend supports signing; otherwise the
-// consumer uses storageUri or the stream-through fetch endpoint (§04.3).
+// signRefs mints fresh signed URLs, each by the backend its artifact lives on (as
+// FetchArtifact selects it), where that backend supports signing; otherwise the consumer
+// uses storageUri or the stream-through fetch endpoint (§04.3).
 func (s *Service) signRefs(ctx context.Context, r *Resolution) {
-	b := s.backend("")
-	if b == nil || !b.Capabilities().Signing {
-		return
-	}
 	for i := range r.Artifacts {
+		b := s.backend(r.Artifacts[i].backend)
+		if b == nil || !b.Capabilities().Signing {
+			continue
+		}
 		if url, err := b.SignGet(ctx, r.Artifacts[i].StorageURI, s.signTTL); err == nil {
 			r.Artifacts[i].SignedURL = url
 			r.Artifacts[i].SignedURLExpires = domain.NowMillis() + s.signTTL.Milliseconds()
