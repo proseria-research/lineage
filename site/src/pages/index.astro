@@ -192,17 +192,17 @@ const records = [
 	{
 		Icon: FileLock,
 		title: 'Complete audit trail',
-		body: 'Every change is written to the log in the same transaction as the change itself, with who made it. A change that cannot be recorded does not happen.',
+		body: 'Every change is written to the log in the same transaction as the change itself, with who made it.',
 	},
 	{
 		Icon: Lock,
 		title: 'Tamper protection',
-		body: 'Log entries are sealed in batches into a hash chain. If anyone edits or deletes a past entry, verification fails and shows exactly where.',
+		body: 'Log entries are sealed in batches into a hash chain to prevent tampering.',
 	},
 	{
 		Icon: Scale,
 		title: 'Legal hold',
-		body: 'Place a model or version on hold while a legal matter is open, and it cannot be deleted. Promotion, edits and archiving keep working.',
+		body: 'Place a model or version on hold to prevent deletion while a legal matter is open.',
 	},
 ];
 
@@ -215,17 +215,17 @@ const infra = [
 	{
 		Icon: Database,
 		title: 'Your database',
-		body: 'SQLite to try it or run at the edge, Postgres in production. It behaves the same on both.',
+		body: 'SQLite to try it or run at the edge, Postgres in production.',
 	},
 	{
 		Icon: HardDrive,
 		title: 'Your storage',
-		body: 'Files stay in your S3-compatible storage, OCI registry or filesystem. Lineage keeps the pointers.',
+		body: 'Lineage maintains pointers to files in your S3-compatible storage, OCI registry or filesystem.',
 	},
 	{
 		Icon: KeyRound,
 		title: 'Your identity provider',
-		body: 'Sign-in stays with your ingress or gateway. Lineage records who made each change.',
+		body: 'Sign-in stays with your ingress or gateway.',
 	},
 ];
 
@@ -238,7 +238,7 @@ const guides = [
 	{ title: 'Clients', links: [['Python SDK and CLI', '/clients/sdk-cli/']] },
 ];
 
-const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd lineage && make run';
+const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd lineage && make run';
 ---
 
 <Marketing
@@ -250,8 +250,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 			<div class="hero__copy">
 				<h1 class="hero__title">The model registry for regulated AI</h1>
 				<p class="hero__lede">
-					Version, promote and serve your models, and keep the records your risk and compliance teams
-					need without anyone filling in a spreadsheet. Self-hosted, in one Go binary.
+					Sometimes you don't want a face hugging you. Sometimes you just want to version, promote and serve your models in peace while keeping your compliance teams happy.
 				</p>
 				<div class="hero__actions">
 					<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
@@ -264,7 +263,6 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 						<span data-copy-label>Copy</span>
 					</button>
 				</div>
-				<p class="cmd__note">SQLite and local storage. No other dependencies.</p>
 			</div>
 			<ReleaseDemo />
 		</div>
@@ -274,10 +272,6 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 		<div class="shell">
 			<header class="head">
 				<h2 id="how" class="head__title">From training run to production in three calls</h2>
-				<p class="head__lede">
-					The same three steps from Python, the CLI or plain HTTP. The console shows every one of
-					them as it happens.
-				</p>
 			</header>
 			<div class="flow" data-flow>
 				<ol class="flow__steps">
@@ -347,12 +341,10 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band band--card" aria-labelledby="fp">
 		<div class="shell split">
 			<div class="split__copy">
-				<h2 id="fp" class="head__title">Know what really changed</h2>
+				<h2 id="fp" class="head__title">Identify changes at a glance</h2>
 				<p>
-					Every version can carry four hashes: architecture, layer shapes, precision and weights.
-					Lineage compares them, so a change is measured rather than taken on trust.
+					Architecture, layer shapes, precision, and weights are visually represented and changes highlighted.
 				</p>
-				<p>A retrain is routine. A new architecture deserves a second look, and your reviewers can see which one they are looking at.</p>
 				<dl class="verdicts">
 					{
 						verdicts.map((v) => (
@@ -405,11 +397,10 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 	<section class="band" aria-labelledby="gov">
 		<div class="shell">
 			<header class="head">
-				<h2 id="gov" class="head__title">Compliance, without the spreadsheet</h2>
+				<h2 id="gov" class="head__title">Compliance free from spreadsheets</h2>
 				<p class="head__lede">
-					The EU AI Act, model risk rules and FDA change control each ask for records. Lineage keeps
-					them as your team works, explains every term in plain words, and tells you when something
-					needs a person. It never blocks a release or makes the legal call for you.
+					Lineage maintains records for compliance with the EU AI Act, model risk rules and FDA change control, and tells you when something
+					needs human involvement.
 				</p>
 			</header>
 
@@ -503,8 +494,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 			<header class="head">
 				<h2 id="infra" class="head__title">Yours to run</h2>
 				<p class="head__lede">
-					Self-hosting is not a lite edition. Your models, your records and your audit log stay
-					inside your network.
+					Keep your models, records, and audit logs under your control with a system that's self-hostable out of the box.
 				</p>
 			</header>
 			<ul class="infra">
@@ -548,7 +538,7 @@ const COMMAND = 'git clone https://github.com/proseria-research/lineage && cd li
 			<h2 class="closer__title">Start with one model</h2>
 			<p class="closer__lede">
 				Run it on your laptop in a minute, or install the Helm chart against your own Postgres and
-				bucket. The record starts with the first version you publish.
+				bucket.
 			</p>
 			<div class="hero__actions">
 				<a class="btn btn--solid" href="/start/quickstart/">Quickstart</a>
