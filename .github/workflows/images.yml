@@ -74,19 +74,23 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Start MinIO and create the test bucket
+      # MinIO no longer publishes images; RustFS is an S3-compatible stand-in.
+      - name: Start S3 (RustFS) and create the test bucket
+        env:
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
+          AWS_DEFAULT_REGION: us-east-1
         run: |
-          docker run -d --name lineage-minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin \
-            -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio server /data
+          docker run -d --name lineage-s3 -p 9000:9000 \
+            -e RUSTFS_ACCESS_KEY=minioadmin \
+            -e RUSTFS_SECRET_KEY=minioadmin \
+            rustfs/rustfs:1.0.0 /data
           for attempt in {1..30}; do
-            curl -fsS http://127.0.0.1:9000/minio/health/ready && break
+            aws --endpoint-url http://127.0.0.1:9000 s3api list-buckets >/dev/null 2>&1 && break
             sleep 1
           done
-          curl -fsS http://127.0.0.1:9000/minio/health/ready
-          docker run --rm --network host --entrypoint /bin/sh minio/mc -c \
-            'mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb --ignore-existing local/lineage-e2e'
+          aws --endpoint-url http://127.0.0.1:9000 s3api create-bucket --bucket lineage-e2e || {
+            docker logs lineage-s3; exit 1; }
       - name: Run Postgres and S3 process E2E
         env:
           LINEAGE_E2E_POSTGRES_DSN: postgres://lineage:lineage@127.0.0.1:5432/lineage?sslmode=disable
