@@ -12,7 +12,7 @@ console, which needs `pnpm`.
 ## Run the registry
 
 ```bash
-git clone https://github.com/proseria-research/lineage
+git clone git@github.com:proseria-research/lineage.git
 cd lineage
 make run
 ```
