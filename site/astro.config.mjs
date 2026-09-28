@@ -22,7 +22,7 @@ export default defineConfig({
 		starlight({
 			title: 'Lineage',
 			description:
-				'A model registry you run yourself: what is live, what changed, where it came from and who approved it. One Go binary.',
+				'The self-hostable system of record and model registry for ML/AI models.',
 			logo: {
 				light: './src/assets/mark-light.svg',
 				dark: './src/assets/mark-dark.svg',
