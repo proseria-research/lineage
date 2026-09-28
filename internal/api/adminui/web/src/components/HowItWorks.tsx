@@ -119,7 +119,7 @@ export const GUIDES: Record<string, Guide> = {
       "An independent validator checks each version and records their conclusion.",
       "Lineage flags missing or expired validations, open conditions, and live models with no recent evaluation.",
     ],
-    labels: ["tier_1", "tier_2", "tier_3", "out_of_scope", "not_validated", "conditional", "unmonitored", "not_independent"],
+    labels: ["tier_1", "tier_2", "tier_3", "untiered", "out_of_scope", "not_validated", "conditional", "unmonitored", "not_independent"],
     source: "SR 26-2, PRA SS1/23, OSFI E-23",
   },
   plans: {
@@ -141,7 +141,7 @@ export const GUIDES: Record<string, Guide> = {
       "Declare a change control plan if a regulator has agreed one.",
       "Lineage checks every version against both and flags what needs a person on Home and the Governance page.",
     ],
-    labels: ["tier_1", "untiered", "change_plan"],
+    labels: ["tier_1", "tier_2", "tier_3", "untiered", "out_of_scope", "change_plan"],
   },
   version: {
     summary:
