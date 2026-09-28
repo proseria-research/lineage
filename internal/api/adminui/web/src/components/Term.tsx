@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { explain, type Explanation } from "@/lib/explain";
 
 // A governance term that explains itself. Hover (or focus) shows a card with what it means in
-// plain words, why it matters, an example and what to do; clicking pins it open. The card is
+// plain words, an example and what to do; clicking pins it open. The card is
 // portalled so no table or overflow-hidden card can clip it. Terms with no explanation render
 // their children unchanged.
 
@@ -20,12 +20,6 @@ function Card({ e, style, onEnter, onLeave }: { e: Explanation; style: React.CSS
     >
       <div className="font-semibold">{e.term}</div>
       <p className="mt-1 leading-relaxed">{e.plain}</p>
-      {e.why && (
-        <p className="mt-2 leading-relaxed">
-          <span className="font-medium">Why it matters: </span>
-          <span className="text-muted-foreground">{e.why}</span>
-        </p>
-      )}
       {e.example && (
         <p className="mt-2 leading-relaxed">
           <span className="font-medium">For example: </span>

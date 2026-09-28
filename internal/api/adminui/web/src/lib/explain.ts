@@ -1,6 +1,6 @@
 // Plain-language explanations for every governance term the console shows. The official
 // vocabulary stays on the badges; this is what a person who is not a lawyer needs beside it.
-// Kept factual and brief — what it means, why it matters, an example, what to do. Not legal
+// Kept factual and brief — what it means, an example, what to do. Not legal
 // advice, and the console says so wherever these appear.
 
 export interface Explanation {
@@ -8,8 +8,6 @@ export interface Explanation {
   term: string;
   /** What it means, in everyday words. */
   plain: string;
-  /** Why anyone should care. */
-  why?: string;
   /** A concrete case. */
   example?: string;
   /** What to do about it, when there is something to do. */
@@ -23,7 +21,6 @@ export const EXPLAIN: Record<string, Explanation> = {
   prohibited: {
     term: "Prohibited",
     plain: "A use of AI the EU has banned outright.",
-    why: "It cannot be placed on the EU market or used there at all.",
     example: "Social scoring of people, AI that manipulates behaviour to cause harm, untargeted scraping of faces to build recognition databases, emotion recognition at work or school.",
     next: "If this is right, the model should not be in service for EU use. Check with your legal team.",
     source: "EU AI Act, Article 5",
@@ -31,7 +28,6 @@ export const EXPLAIN: Record<string, Explanation> = {
   high_annex_iii: {
     term: "High risk (Annex III)",
     plain: "AI used for a purpose the EU lists as able to seriously affect people's lives or rights.",
-    why: "It carries the heaviest duties: risk management, data quality, technical documentation, human oversight, logging, and registration before use.",
     example: "Credit scoring, screening job applicants, deciding access to benefits or education, exam grading, some law-enforcement and border uses.",
     next: "Keep the classification current and its basis written down; reviews and evidence matter most for these models.",
     source: "EU AI Act, Article 6(2) and Annex III",
@@ -39,14 +35,12 @@ export const EXPLAIN: Record<string, Explanation> = {
   high_annex_i: {
     term: "High risk (Annex I)",
     plain: "AI that is a safety part of a product already regulated in the EU, such as a medical device or a machine.",
-    why: "It follows the high-risk rules as part of that product's own safety assessment.",
     example: "AI in a medical imaging device, a component of industrial machinery, a toy, or a vehicle system.",
     source: "EU AI Act, Article 6(1) and Annex I",
   },
   limited: {
     term: "Limited risk",
     plain: "AI whose main duty is to be open about being AI.",
-    why: "People must be told they are dealing with AI, and generated content must be marked.",
     example: "Chatbots, systems that generate images, audio or video, deepfakes.",
     source: "EU AI Act, Article 50",
   },
@@ -59,7 +53,6 @@ export const EXPLAIN: Record<string, Explanation> = {
   unclassified: {
     term: "Not classified",
     plain: "Nobody has said yet which risk category this model falls into.",
-    why: "Lineage never guesses. Until someone decides, the model's obligations are unknown — which is not the same as 'low risk'.",
     next: "Classify it from the Governance page. You record the category and why.",
   },
 
@@ -71,13 +64,11 @@ export const EXPLAIN: Record<string, Explanation> = {
   gpai: {
     term: "General-purpose AI model",
     plain: "A broad model that can do many kinds of tasks and is offered for others to build on, such as a large language model.",
-    why: "Its provider must keep technical documentation, help downstream builders comply, have a copyright policy, and publish a summary of the training data.",
     source: "EU AI Act, Article 53",
   },
   gpai_systemic: {
     term: "General-purpose, with systemic risk",
     plain: "A general-purpose model so capable it could have broad effects — presumed when training used more than 10²⁵ floating-point operations.",
-    why: "On top of the general duties: model evaluations including adversarial testing, serious-incident reporting, and cybersecurity protection.",
     source: "EU AI Act, Articles 51 and 55",
   },
 
@@ -85,7 +76,6 @@ export const EXPLAIN: Record<string, Explanation> = {
   out_of_date: {
     term: "Out of date",
     plain: "Something changed after this model was assessed, so the assessment may no longer be accurate.",
-    why: "An assessment describes the model as it was. A new version, a change in what's live, or a passed review date means nobody has looked at the model as it is now.",
     next: "Open the reason, check whether the category still fits, and record the assessment again — even if the answer is unchanged. Lineage never clears this on its own.",
   },
   current: {
@@ -97,7 +87,6 @@ export const EXPLAIN: Record<string, Explanation> = {
   modification_review: {
     term: "Modification review",
     plain: "Someone changed a high-risk model — for example fine-tuned it — and a person needs to judge whether the change was big enough to matter legally.",
-    why: "Under the EU AI Act, whoever makes a 'substantial modification' to a high-risk system can become its provider, taking on the provider's duties.",
     next: "Look at what was measured to have changed and what the team said they did, then record your judgement: substantial, not substantial, or undetermined.",
     source: "EU AI Act, Articles 3(23) and 25",
   },
@@ -146,13 +135,11 @@ export const EXPLAIN: Record<string, Explanation> = {
   model_risk: {
     term: "Model risk",
     plain: "How much harm a model could cause if it were wrong, and whether it has been independently checked and is being watched in use.",
-    why: "Banking supervisors expect every model to have a risk tier, independent validation, and ongoing monitoring once live.",
     source: "US SR 26-2, UK PRA SS1/23, Canada OSFI E-23",
   },
   tier_1: {
     term: "Tier 1",
     plain: "Highest materiality: errors could cause significant financial, customer or regulatory harm.",
-    why: "Gets the most scrutiny — the deepest validation and the closest monitoring.",
     example: "An automated credit decision or a fraud model that blocks payments.",
   },
   tier_2: { term: "Tier 2", plain: "Material, with standard validation and monitoring." },
@@ -174,7 +161,6 @@ export const EXPLAIN: Record<string, Explanation> = {
   unmonitored: {
     term: "Unmonitored",
     plain: "The model is live, but no evaluation has been recorded since it went live.",
-    why: "Ongoing monitoring is the failure all three supervisory frameworks exist to catch.",
     next: "Record an evaluation of the production version.",
   },
   approved: { term: "Approved", plain: "The validator judged the version fit for its intended use." },
@@ -187,21 +173,18 @@ export const EXPLAIN: Record<string, Explanation> = {
   not_independent: {
     term: "Not independent",
     plain: "The person who validated this version is also the one who built it, or wasn't named.",
-    why: "Supervisors expect validation by someone independent of development. It's recorded, not blocked — small teams sometimes have no choice.",
   },
 
   // ---- Change control plans ----
   change_plan: {
     term: "Change control plan",
     plain: "A written, agreed list of the kinds of change a model may go through without a fresh review.",
-    why: "Regulators such as the US FDA let AI medical devices change within a pre-agreed plan. Lineage checks every new version against the plan in force when it shipped.",
     source: "FDA predetermined change control plan (PCCP)",
   },
   within_plan: { term: "Within plan", plain: "The change this version made is one the plan allows." },
   outside_plan: {
     term: "Outside plan",
     plain: "This version made a kind of change the plan in force does not allow.",
-    why: "It may need a new regulatory submission. Lineage reports this; it never blocks the release.",
     next: "Check with your regulatory team.",
   },
   cant_tell: {
@@ -216,19 +199,16 @@ export const EXPLAIN: Record<string, Explanation> = {
   version_locked: {
     term: "Locked",
     plain: "This version's files can't be changed any more — none added, replaced or removed. It locked the first time it reached staging, and stays locked even if it goes back to draft or is archived.",
-    why: "What was tested is what ships. Validations, reviews and fingerprints describe exactly these files, so they stay true.",
     next: "To change the files, publish a new version. This one's description, labels, stage and holds can still change.",
   },
   legal_hold: {
     term: "Legal hold",
     plain: "The model or version can't be deleted while a legal matter is open.",
-    why: "Evidence must be preserved. Everything else — promoting, editing, archiving — still works.",
     next: "Release the hold when the matter closes.",
   },
   audit_integrity: {
     term: "Audit log integrity",
     plain: "Every change is written to a log that is sealed in batches with a chain of cryptographic hashes.",
-    why: "If anyone edited or deleted a past entry, the check would fail and show where.",
   },
 };
 

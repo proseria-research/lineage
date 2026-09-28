@@ -87,8 +87,8 @@ but the *permission* to do so is enforced by infra, not Lineage (§00 axiom 4).
   `publicModelApiUrl`); unset, the console assumes its own host on the Model API port and says
   so. `LINEAGE_DOCS_URL` points the documentation link.
 - **Governance explained:** every governance label (risk class, tier, validation, verdict, plan
-  check, hold) opens a card on hover or click — what it means, why it matters, an example, what
-  to do, and its source — from one table (`web/src/lib/explain.ts`). Each Governance tab opens
+  check, hold) opens a card on hover or click — what it means, an example, what to
+  do, and its source — from one table (`web/src/lib/explain.ts`). Each Governance tab opens
   with a collapsible "How this works": a summary, three steps, and the meaning of every label on
   the tab. Forms explain each choice. All marked as guidance, not legal advice.
 - **Embedding:** `make web` (pnpm build) emits `web/dist`, embedded under the `console` build
