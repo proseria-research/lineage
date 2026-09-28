@@ -293,47 +293,14 @@ The Helm chart sets production defaults for these, including a 10-year retention
 
 ## Contributing
 
-Issues, discussions, and pull requests are welcome.
-
-### Prerequisites
-
-- **Go 1.25+** for everything.
-- **Node 20+ and pnpm** for the console (`make web`, `make build`) and the website.
-- **Docker and Helm** for image and chart work.
-- **Python 3.10+** for the SDK.
-
-### Build and test
+Issues, discussions, and pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md)
+covers setup, tests, conventions, and the PR process. Everyone taking part agrees to the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ```bash
-make build         # console + binary with the console embedded
-make test          # go test ./...  (SQLite, embedded Postgres, miniredis run in-process)
-make test-console  # the same, with the console embedded
-make test-e2e      # launch the real binary and run publish → resolve end to end
-make fmt vet       # format and static-check
-make sdk-check     # regenerate the SDK's OpenAPI manifest and compile it
-make docker        # build the container image
-make helm-lint     # lint the chart against both profiles
+make build   # console + binary → bin/lineage
+make test    # full suite; no external services needed
 ```
-
-The built console is not committed. A plain `go build` or `go test` compiles a stub and needs
-no Node; the real console is embedded only under the `console` build tag, which `make build`
-sets. The test suite needs no external services.
-
-### Conventions
-
-- **Ports and adapters.** `internal/core` and `internal/domain` depend only on port
-  interfaces, never on adapters.
-- **Docs first.** Design docs in [`docs/`](docs/) are numbered in reading order, diagrams are
-  Mermaid, and prose stays short. Decisions are recorded in
-  [`docs/00-preplanning.md`](docs/00-preplanning.md) §11.
-- **Tests.** New behavior ships with tests. Keep `go test ./...`, `gofmt`, and `go vet`
-  clean.
-
-### Pull requests
-
-1. Keep each change focused and explain why it is needed.
-2. Run `make fmt vet test`.
-3. Link the relevant design doc or milestone.
 
 ## Documentation
 
