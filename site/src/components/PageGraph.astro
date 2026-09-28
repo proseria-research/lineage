@@ -1,0 +1,173 @@
+---
+/**
+ * The page backdrop: a lineage graph — versions as nodes, derivation edges running left to
+ * right — in three depth layers, fixed behind the page. It shows through the plain bands and
+ * is covered by the card bands.
+ *
+ * Every node has one position per keyframe layout, with the same edges throughout, so as the
+ * page scrolls the graph slides from one layout to the next instead of being redrawn. The
+ * layers also drift at different rates, far slowest, for depth. Seeded, so every build draws
+ * the same graph. The server renders the first layout; without JS, or under reduced motion,
+ * that is all there is. Decorative only: aria-hidden, no pointer events.
+ */
+
+const W = 1200;
+const H = 800;
+const STATES = 4;
+
+/** xorshift32 seeded by a fixed word: deterministic, like the product's marks. */
+const rng = (seed: number) => {
+	let x = seed >>> 0 || 0x9e3779b9;
+	return () => {
+		x ^= x << 13;
+		x >>>= 0;
+		x ^= x >>> 17;
+		x ^= x << 5;
+		x >>>= 0;
+		return x / 0x100000000;
+	};
+};
+
+type Pt = [number, number];
+
+/**
+ * A layered DAG: `cols` generations of versions, each deriving from the nearest one or two of
+ * the previous generation's. Each keyframe warps the column spacing and re-jitters every
+ * node, so the same graph takes a different shape in each.
+ */
+const build = (seed: number, cols: number, perCol: [number, number], r: number) => {
+	const rand = rng(seed);
+	const counts = Array.from({ length: cols }, () => perCol[0] + Math.floor(rand() * (perCol[1] - perCol[0] + 1)));
+	const ids: number[][] = [];
+	let next = 0;
+	for (const n of counts) ids.push(Array.from({ length: n }, () => next++));
+
+	const states: Pt[][] = [];
+	for (let s = 0; s < STATES; s++) {
+		// A per-keyframe warp of the columns: bunch them left, right or towards the middle.
+		const bend = (rand() - 0.5) * 0.35;
+		const warp = (u: number) => u + bend * Math.sin(Math.PI * u);
+		const lift = (rand() - 0.5) * 0.2;
+		// Columns never bunch closer than 70% of their even spacing, so edges stay horizontal
+		// S-curves rather than collapsing into near-vertical strokes.
+		const gap = (W / cols) * 0.7;
+		const xs: number[] = [];
+		counts.forEach((_, c) => {
+			const x = warp((c + 0.5) / cols) * W + (rand() - 0.5) * (W / cols) * 0.3;
+			xs.push(c === 0 ? x : Math.max(x, xs[c - 1] + gap));
+		});
+		const pts: Pt[] = [];
+		counts.forEach((n, c) => {
+			for (let k = 0; k < n; k++) {
+				const y = ((k + 0.5 + (rand() - 0.5) * 0.5) / n + lift * Math.sin((c / cols) * Math.PI * 2 + s)) * H;
+				pts.push([xs[c] + (rand() - 0.5) * 16, y]);
+			}
+		});
+		states.push(pts);
+	}
+
+	// Each version derives from the previous generation's nodes that stay closest to it across
+	// every layout, so no edge turns steep partway through the morph.
+	const far = (a: number, b: number) => Math.max(...states.map((st) => Math.abs(st[a][1] - st[b][1])));
+	const edges: [number, number][] = [];
+	for (let c = 1; c < cols; c++) {
+		for (const child of ids[c]) {
+			const prev = [...ids[c - 1]].sort((a, b) => far(a, child) - far(b, child));
+			edges.push([prev[0], child]);
+			if (prev[1] != null && rand() < 0.35) edges.push([prev[1], child]);
+		}
+	}
+	return { states, edges, r };
+};
+
+/** A horizontal S-curve between two nodes, the way the console draws derivation edges. */
+const curve = (a: Pt, b: Pt) => {
+	const mx = (a[0] + b[0]) / 2;
+	return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}C${mx.toFixed(1)} ${a[1].toFixed(1)} ${mx.toFixed(1)} ${b[1].toFixed(1)} ${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+};
+
+const round = (pts: Pt[]) => pts.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+
+const layers = [
+	{ depth: 'far', drift: 0.06, ...build(0x1a2b3c4d, 10, [3, 5], 2.5) },
+	{ depth: 'mid', drift: 0.16, ...build(0x5e6f7081, 7, [2, 3], 3.5) },
+	{ depth: 'near', drift: 0.34, ...build(0x92a3b4c5, 5, [1, 2], 5) },
+];
+
+const data = JSON.stringify(layers.map((l) => ({ states: l.states.map(round), edges: l.edges, drift: l.drift })));
+---
+
+<div class="page-graph" aria-hidden="true" data-page-graph={data}>
+	{
+		layers.map((l) => (
+			<svg class={`page-graph__layer page-graph__layer--${l.depth}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" fill="none">
+				{l.edges.map(([a, b]) => (
+					<path d={curve(l.states[0][a], l.states[0][b])} stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" />
+				))}
+				{l.states[0].map(([x, y]) => (
+					<circle cx={x.toFixed(1)} cy={y.toFixed(1)} r={l.r} fill="var(--bg)" stroke="currentColor" stroke-width="1.25" vector-effect="non-scaling-stroke" />
+				))}
+			</svg>
+		))
+	}
+</div>
+
+<script>
+	type Pt = [number, number];
+	type Layer = { states: Pt[][]; edges: [number, number][]; drift: number };
+
+	const root = document.querySelector<HTMLElement>('[data-page-graph]');
+	const still = window.matchMedia('(prefers-reduced-motion: reduce)');
+	if (root && !still.matches) {
+		const layers: Layer[] = JSON.parse(root.dataset.pageGraph!);
+		const svgs = [...root.querySelectorAll<SVGSVGElement>('svg')];
+		const parts = svgs.map((svg) => ({
+			svg,
+			paths: [...svg.querySelectorAll('path')],
+			circles: [...svg.querySelectorAll('circle')],
+		}));
+
+		// Ease each leg between keyframes, so the graph settles into a layout, then leaves it.
+		const ease = (t: number) => t * t * (3 - 2 * t);
+		const fmt = (n: number) => n.toFixed(1);
+
+		const draw = () => {
+			const max = document.documentElement.scrollHeight - window.innerHeight;
+			const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+			layers.forEach((layer, li) => {
+				const legs = layer.states.length - 1;
+				const at = p * legs;
+				const i = Math.min(legs - 1, Math.floor(at));
+				const t = ease(at - i);
+				const a = layer.states[i];
+				const b = layer.states[i + 1];
+				const pts: Pt[] = a.map(([x, y], k) => [x + (b[k][0] - x) * t, y + (b[k][1] - y) * t]);
+				const { svg, paths, circles } = parts[li];
+				circles.forEach((c, k) => {
+					c.setAttribute('cx', fmt(pts[k][0]));
+					c.setAttribute('cy', fmt(pts[k][1]));
+				});
+				layer.edges.forEach(([from, to], k) => {
+					const [ax, ay] = pts[from];
+					const [bx, by] = pts[to];
+					const mx = fmt((ax + bx) / 2);
+					paths[k].setAttribute('d', `M${fmt(ax)} ${fmt(ay)}C${mx} ${fmt(ay)} ${mx} ${fmt(by)} ${fmt(bx)} ${fmt(by)}`);
+				});
+				svg.style.transform = `translate3d(0, ${(-p * layer.drift * 100).toFixed(2)}vh, 0)`;
+			});
+		};
+
+		let queued = false;
+		const schedule = () => {
+			if (queued) return;
+			queued = true;
+			requestAnimationFrame(() => {
+				queued = false;
+				draw();
+			});
+		};
+		window.addEventListener('scroll', schedule, { passive: true });
+		window.addEventListener('resize', schedule);
+		draw();
+	}
+</script>

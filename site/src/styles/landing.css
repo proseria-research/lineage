@@ -231,6 +231,42 @@ output {
 	padding-block: clamp(2.5rem, 6vw, 5rem) clamp(3rem, 7vw, 6rem);
 }
 
+/* ---- Page backdrop: a lineage graph in three depth layers (PageGraph.astro) ----
+   Fixed behind the page: it shows through the plain bands and sits under the card bands.
+   Faint by design, and fainter on the left where the copy starts. Its script morphs the
+   layout and drifts the layers on scroll; the extra height covers the drift. */
+
+.page-graph {
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	overflow: hidden;
+	pointer-events: none;
+	-webkit-mask-image: linear-gradient(to right, rgb(0 0 0 / 0.3) 0%, rgb(0 0 0 / 0.45) 35%, #000 70%);
+	mask-image: linear-gradient(to right, rgb(0 0 0 / 0.3) 0%, rgb(0 0 0 / 0.45) 35%, #000 70%);
+}
+
+.page-graph__layer {
+	position: absolute;
+	top: -4vh;
+	left: -4%;
+	width: 108%;
+	height: calc(100% + 44vh);
+	will-change: transform;
+}
+
+.page-graph__layer--far {
+	color: var(--border);
+}
+
+.page-graph__layer--mid {
+	color: color-mix(in oklab, var(--brand) 22%, var(--border));
+}
+
+.page-graph__layer--near {
+	color: color-mix(in oklab, var(--brand) 45%, transparent);
+}
+
 .hero__grid {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
@@ -650,6 +686,11 @@ output.is-changed {
 
 .band--card {
 	background: var(--card);
+}
+
+/* A plain band that hides the page graph: for a section whose own drawing is a graph. */
+.band--solid {
+	background: var(--bg);
 }
 
 .head {

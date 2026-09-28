@@ -4,6 +4,7 @@ import ReleaseDemo from '../components/ReleaseDemo.astro';
 import LineageMap from '../components/LineageMap.astro';
 import Fingerprint from '../components/Fingerprint.astro';
 import Portrait from '../components/Portrait.astro';
+import PageGraph from '../components/PageGraph.astro';
 import { byName, LAYERS } from '../lib/demo';
 
 import TriangleAlert from '@lucide/astro/icons/triangle-alert';
@@ -250,6 +251,7 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 	title="Lineage — the model registry for regulated AI"
 	description="Lineage is a self-hosted model registry: it stores every version of your ML and AI models, promotes them to production, serves them to inference systems and records every change. One Go binary, your database, your storage."
 >
+	<PageGraph />
 	<section class="hero">
 		<div class="shell hero__grid">
 			<div class="hero__copy">
@@ -520,7 +522,7 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 		</div>
 	</section>
 
-	<section class="band" aria-labelledby="lin">
+	<section class="band band--solid" aria-labelledby="lin">
 		<div class="shell">
 			<header class="head">
 				<h2 id="lin" class="head__title">Lineage tracing</h2>
