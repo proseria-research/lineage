@@ -7,7 +7,7 @@
 
 # Lineage
 
-**A model registry you run yourself: what is live, what changed, where it came from, and who approved it.**
+**The self-hostable system of record and model registry for ML/AI models.**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](go.mod)
