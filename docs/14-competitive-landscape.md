@@ -141,8 +141,8 @@ formats,"* which *"scales poorly as models and versions multiply"*
 ([Harbor](https://goharbor.io/blog/cloud-native-ai-model-management/)).
 
 **How these tools fit with Lineage:** they are more complementary than competitive.
-Lineage manages lifecycle, governance, and resolution, while OCI can serve as one
-implementation behind the storage interface (decision §11.4).
+Lineage manages lifecycle, governance, and resolution, and OCI is one implementation behind
+the storage interface: the `oci` driver shipped in M13 (decision §11.4, `05.3.1`).
 
 ---
 
@@ -257,7 +257,7 @@ substitute for runtime inference logs.
 
 | Exposure | Detail |
 |---|---|
-| **OCI deferred (§11.4)** | The best-quantified pain in the field — 208× cold start — is answered by OCI node-caching, which v1 does not ship. Blob + signed URL does not close it. Either accept the gap explicitly or reconsider driver ordering. |
+| **OCI node-caching is register-by-reference only** | ✅ The `oci` driver shipped in M13 (§11.4, `05.3.1`); resolve returns an `ociImage`. Residual gap: Lineage pushes an OCI *artifact*, not a runnable image, so KServe modelcars node-caching (the 208× case) needs a CI-built image registered by reference. |
 | **RBAC question (§11.10)** | MLflow's top complaint is "no RBAC". Our answer is "infra owns it" — correct, but it *sounds* like the same gap. Needs a positioned answer in `08`, not silence. |
 | **Kubeflow is a moving target** | Alpha, renamed to Hub, post-MLMD. The §9 parity table needs re-checking against Hub v1, not the 2024 component. |
 
