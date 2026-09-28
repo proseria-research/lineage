@@ -29,11 +29,7 @@ export default defineConfig({
 			},
 			favicon: '/favicon.svg',
 			customCss: [
-				'@fontsource/ibm-plex-sans/400.css',
-				'@fontsource/ibm-plex-sans/500.css',
-				'@fontsource/ibm-plex-sans/600.css',
-				'@fontsource/ibm-plex-mono/400.css',
-				'@fontsource/ibm-plex-mono/500.css',
+				'./src/styles/fonts.css',
 				'./src/styles/tokens.css',
 				'./src/styles/docs.css',
 			],
