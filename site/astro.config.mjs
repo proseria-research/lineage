@@ -5,7 +5,7 @@ import rehypeEndpoints from './src/lib/rehype-endpoints.mjs';
 
 // TODO: point this at the real domain before the first production deploy.
 // It is used for canonical URLs, Open Graph tags, and the sitemap.
-const site = 'https://lineage.proseria.dev';
+const site = 'https://lineage.proseria.ca';
 
 const repo = 'https://github.com/proseria-research/lineage';
 

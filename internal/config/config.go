@@ -155,7 +155,7 @@ func Load() (Config, error) {
 		// with whatever front door sets it; the value is recorded verbatim, never authorized.
 		ActorHeader:       env("LINEAGE_ACTOR_HEADER", "X-Lineage-Actor"),
 		PublicModelAPIURL: strings.TrimRight(env("LINEAGE_PUBLIC_MODEL_API_URL", ""), "/"),
-		DocsURL:           env("LINEAGE_DOCS_URL", "https://lineage.proseria.dev"),
+		DocsURL:           env("LINEAGE_DOCS_URL", "https://lineage.proseria.ca"),
 	}
 	if !validHeaderName(c.ActorHeader) {
 		// A name no client can send would attribute every write to nobody, silently.

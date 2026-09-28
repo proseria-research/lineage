@@ -20,7 +20,7 @@ function load(): Promise<ClientInfo> {
     .catch(() => ({}) as Awaited<ReturnType<typeof api.config>>)
     .then((c) => ({
       modelApi: c.modelApiUrl || `${location.protocol}//${location.hostname}:${c.modelApiPort || "8081"}`,
-      docs: c.docsUrl || "https://lineage.proseria.dev",
+      docs: c.docsUrl || "https://lineage.proseria.ca",
       guessed: !c.modelApiUrl,
     }));
   return cached;

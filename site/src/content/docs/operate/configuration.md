@@ -144,7 +144,7 @@ These configure OpenTelemetry export and the links the console shows.
 | `LINEAGE_SERVICE_NAME` | `lineage` | `service.name` resource attribute |
 | `LINEAGE_TRACE_SAMPLE_RATIO` | `1.0` | Parent-based head sampling ratio, `0`–`1` |
 | `LINEAGE_PUBLIC_MODEL_API_URL` | empty | Model API URL in the console's usage snippets |
-| `LINEAGE_DOCS_URL` | `https://lineage.proseria.dev` | Target of the console's Documentation link |
+| `LINEAGE_DOCS_URL` | `https://lineage.proseria.ca` | Target of the console's Documentation link |
 
 - A `host:port` OTLP endpoint is plaintext; `http://` or `https://` URLs are used as given.
 - The public Model API URL has a trailing `/` trimmed. Empty means the console's own host on
