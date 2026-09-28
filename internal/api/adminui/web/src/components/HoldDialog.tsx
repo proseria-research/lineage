@@ -76,17 +76,11 @@ export function HoldDialog({
           <div className="rounded-md bg-brand-soft px-3.5 py-3 text-sm leading-relaxed text-brand">
             {release ? (
               <>
-                <span className="font-medium">Releasing a hold </span>
-                means it can be deleted again once your retention rules allow. Do this when the
-                matter it was placed for is closed.
+                Releasing a legal hold allows data to be deleted again once the legal process is
+                over.
               </>
             ) : (
-              <>
-                <span className="font-medium">A legal hold </span>
-                keeps records from being deleted while a legal matter is open — a regulator's
-                inquiry, a lawsuit, an audit. Promoting, editing, publishing and archiving all keep
-                working; only deletion is blocked.
-              </>
+              <>A legal hold can be used to prevent data deletion while a legal process is underway.</>
             )}
           </div>
           <label className="flex flex-col gap-1.5">
