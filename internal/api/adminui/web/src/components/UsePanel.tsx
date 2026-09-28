@@ -130,7 +130,7 @@ export function UsePanel({
         )}
       </div>
 
-      <div role="tablist" className="flex gap-1 overflow-x-auto border-b px-3">
+      <div role="tablist" className="flex gap-1 overflow-x-auto overflow-y-hidden px-3 shadow-[inset_0_-1px_0_var(--color-border)]">
         {LANGS.map((l) => (
           <button
             key={l.id}
@@ -138,7 +138,7 @@ export function UsePanel({
             aria-selected={lang === l.id}
             onClick={() => setLang(l.id)}
             className={cn(
-              "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium",
+              "shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium",
               lang === l.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
