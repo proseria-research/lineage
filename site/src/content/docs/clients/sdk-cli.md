@@ -127,13 +127,8 @@ artifacts, and `422 unprocessable` for a downloaded digest mismatch or an unsafe
 `lineage-cli` is a Go client in `cmd/lineage-cli`, standard library only.
 
 ```bash
-go build -o bin/lineage-cli ./cmd/lineage-cli
+make cli    # builds bin/lineage-cli
 ```
-
-:::caution
-`make cli` currently writes the CLI to `bin/lineage`, overwriting the server binary that
-`make build` produces. Build with the command above instead.
-:::
 
 Set `LINEAGE_SERVER` to the Model API origin (default `http://localhost:8081`). Set
 `LINEAGE_ACTOR` to send it as `X-Lineage-Actor` on API requests (unset by default).

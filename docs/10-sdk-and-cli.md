@@ -72,7 +72,7 @@ lineage lineage fraud-detector@1.4.0 --direction upstream            # §07
 
 ```bash
 make sdk-check                 # regenerate and validate the Python SDK manifest
-make cli                       # builds bin/lineage (the Go CLI)
+make cli                       # builds bin/lineage-cli (the Go CLI)
 ```
 
 `sdk/generate.py` emits `lineage/_openapi.py`: `API_VERSION` plus a `PATHS` table mapping

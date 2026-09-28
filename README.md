@@ -174,7 +174,7 @@ lin.transition("fraud-detector", "1.4.0", to="staging")
 paths = lin.download("fraud-detector", stage="staging", dest="./model")
 ```
 
-See [`sdk/python`](sdk/python/README.md). The Go CLI (`go run ./cmd/lineage-cli`) covers the
+See [`sdk/python`](sdk/python/README.md). The Go CLI (`make cli` → `bin/lineage-cli`) covers the
 same publish, promote, resolve, and pull flow from a shell.
 
 ### Deploy with Helm

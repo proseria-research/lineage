@@ -2,6 +2,7 @@
         site site-dev site-preview site-check site-links site-deploy
 
 BIN := bin/lineage
+CLI_BIN := bin/lineage-cli
 WEB := internal/api/adminui/web
 SITE := site
 CHART := deploy/helm/lineage
@@ -96,8 +97,9 @@ sdk:
 sdk-check: sdk
 	python3 -m py_compile sdk/python/lineage/*.py
 
+# cli builds the command-line client next to the server binary, never over it.
 cli:
-	go build -o $(BIN) ./cmd/lineage-cli
+	go build -o $(CLI_BIN) ./cmd/lineage-cli
 
 # ---- Public website & guides (site/) ----------------------------------------
 # Astro + Starlight, deployed to Cloudflare as static assets. Independent of the Go
