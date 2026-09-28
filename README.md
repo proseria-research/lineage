@@ -14,67 +14,80 @@
 [![Deploy](https://img.shields.io/badge/Deploy-Helm-0F1689?logo=helm&logoColor=white)](deploy/helm/lineage)
 [![images](https://github.com/proseria-research/lineage/actions/workflows/images.yml/badge.svg)](https://github.com/proseria-research/lineage/actions/workflows/images.yml)
 
-[Website & guides](https://lineage.proseria.ca) · [Quickstart](#quickstart) · [API](docs/03-model-api.md) · [Design docs](docs/) · [Contributing](#contributing)
+[Website and guides](https://lineage.proseria.ca) · [Quickstart](#quickstart) · [API](docs/03-model-api.md) · [Design docs](docs/) · [Contributions](#contributions)
 
 </div>
 
 ---
 
-Lineage is the system of record for ML/AI models. It sits between experimentation and
-production and tracks which models and versions exist, where their artifacts live, which
-lifecycle stage each is in, who owns them, and how serving systems fetch them. It ships as
-one Go binary and one Helm chart, over your own database and object storage.
+Lineage is a registry for ML and AI models. It keeps a record of each model and each version.
+It records where the artifact files are, the lifecycle stage of each version, and who owns it.
+Serving systems use Lineage to find the correct files for a model.
 
-## Highlights
+Lineage is one Go binary and one Helm chart. It uses your database and your object storage.
 
-**Registry & lifecycle**
-- Models, versions, artifacts, deployments, and a typed **lineage graph** (`derived_from`,
-  `trained_on`, `produced_by`, `deployed_as`) with ancestry and impact traversal.
-- Stages `draft → staging → production → archived` with a singleton `production` invariant:
-  promoting a version transactionally archives the incumbent.
-- REST `/v1` API with a hand-authored **OpenAPI 3.1** spec, `Idempotency-Key` replay, cursor
-  pagination, and write-once artifact content.
+## Features
 
-**Delivery for inference systems**
-- One `resolve` call returns a native `storageUri`, a fresh signed URL, digest, size, and
-  model format, so KServe, Modal, and Baseten pull with near-zero glue.
-- `ETag` / `304` caching with event-driven invalidation, and a `/content` broker that
-  redirects to a signed URL or streams through (Range-capable).
-- A KServe storage-initializer resolves `lineage://model/stage` at pull time, so a promotion
-  takes effect without a redeploy.
+**Registry and lifecycle**
+- Lineage records models, versions, artifacts and deployments.
+- A **lineage graph** records how each version was made. The graph has four types of link:
+  `derived_from`, `trained_on`, `produced_by` and `deployed_as`. You can follow the links in
+  the two directions.
+- Each version has one of four stages: `draft`, `staging`, `production` or `archived`.
+- Only one version of a model can be in `production`. When you promote a version to
+  `production`, Lineage archives the old version in the same transaction.
+- The REST `/v1` API has an **OpenAPI 3.1** specification. The API can replay a request with an
+  `Idempotency-Key`. Lists use cursor pagination.
+- You cannot change the content of an artifact after you write it.
 
-**Governance & evidence**
-- Append-only audit trail on every change, sealed by **Merkle epoch sealing** for tamper evidence.
-- **Retention floors and legal hold**: deletion is refused inside the floor, with no override.
-- **EU AI Act** risk classification with drift detection, and Art. 25 modification review.
-- **Model risk management**: risk tiers, independent validation, and monitoring
-  (SR 26-2, PRA SS1/23, OSFI E-23).
-- **Change control plans** for pre-authorized modifications (FDA PCCP shape).
-- **Model insights**: composition facts, an architecture fingerprint, and version-to-version
-  diffs.
+**Delivery to inference systems**
+- One `resolve` call gives the `storageUri`, a signed URL, the digest, the size and the model
+  format. KServe, Modal and Baseten can use this data directly.
+- Responses have an `ETag`, and Lineage can reply `304`. A change to the registry makes the
+  cached data not valid.
+- The `/content` endpoint sends a redirect to a signed URL. For filesystem storage, it sends the
+  file bytes directly. It can send a part of a file (HTTP Range).
+- A KServe storage-initializer resolves a `lineage://model/stage` URI when the model is pulled.
+  Thus a promotion has an effect without a new deployment.
 
-**Storage & metadata**
-- Artifacts on the **filesystem**, any **S3-compatible** store (AWS, MinIO, R2, Ceph), or an
-  **OCI registry**, with signed GET/PUT, multipart upload, digest verification, and
-  reference-counted garbage collection. SigV4 and the OCI client are hand-rolled; there is
-  no cloud SDK dependency.
-- Metadata in **SQLite** (zero-dependency dev/edge) or **Postgres** (HA/production) behind one
-  `MetadataStore` port; resolution cache in memory or **Redis**.
+**Governance and evidence**
+- Lineage writes an audit event for each change. You cannot change or remove an audit event.
+- Lineage seals the audit log with **Merkle epoch sealing**. Thus you can find changes to the log.
+- **Retention floors and legal hold** prevent the deletion of data. There is no override.
+- Lineage records the **EU AI Act** risk class of a model. It shows when the class is possibly
+  out of date. It also sends derived models to an Art. 25 review.
+- **Model risk management** records risk tiers, independent validation and monitoring. This
+  agrees with SR 26-2, PRA SS1/23 and OSFI E-23.
+- **Change control plans** record the modifications that are approved before they occur. This
+  agrees with the FDA PCCP structure.
+- **Model insights** record the composition of a model and an architecture fingerprint. You can
+  compare two versions.
+
+**Storage and metadata**
+- Lineage keeps artifacts on the **filesystem**, in an **S3-compatible** store (AWS, MinIO, R2,
+  Ceph) or in an **OCI registry**.
+- Storage operations include signed GET and PUT, multipart upload and digest verification. A
+  garbage collector removes files that no version uses.
+- Lineage has its own SigV4 signer and OCI client. It does not use a cloud SDK.
+- Lineage keeps metadata in **SQLite** or **Postgres**. Use SQLite for development and small
+  installations. Use Postgres for high availability and production.
+- The resolve cache is in memory or in **Redis**.
 
 **Operations**
-- Embedded **admin console** (React, compiled into the binary): what needs attention, model
-  and version detail, the lineage graph, governance queues, the audit timeline, and
-  promotion.
-- `/healthz`, `/readyz`, Prometheus `/metrics`, OTLP tracing, and structured JSON access logs
-  with W3C `traceparent` correlation.
-- Distroless, non-root, static image; a Helm chart where one `helm install` gives a working,
-  secure registry.
-- **Python SDK** (standard library only) and a **CLI** for publish, promote, resolve, and pull.
+- The **admin console** is a web interface in the binary. It shows the items that need
+  attention, models, versions, the lineage graph, governance queues and the audit log. You can
+  promote versions from the console.
+- Lineage has `/healthz`, `/readyz` and Prometheus `/metrics` endpoints. It sends OTLP traces
+  and writes access logs in JSON. The logs contain the W3C `traceparent`.
+- The container image is distroless and static. It does not run as root.
+- One `helm install` command gives a registry that operates correctly and is secure.
+- The **Python SDK** uses only the Python standard library. The **CLI** can publish, promote,
+  resolve and pull.
 
-## How Lineage compares
+## Comparison with other registries
 
-Lineage is for teams that want to **own** their model registry. Its closest analog is
-**Kubeflow Model Registry**. We aim for capability parity with it, not wire compatibility.
+Lineage is for teams that operate their own model registry. **Kubeflow Model Registry** is the
+most similar product. Lineage has the same capabilities, but it does not use the same API.
 
 | Capability | Lineage | Kubeflow Model Registry | Hugging Face Hub |
 | --- | --- | --- | --- |
@@ -87,97 +100,109 @@ Lineage is for teams that want to **own** their model registry. Its closest anal
 | **API contract** | REST + OpenAPI 3.1, Python SDK, CLI | REST + Python client | REST + `huggingface_hub` |
 | **Authentication** | Delegated to infrastructure | Cluster identity | Built-in accounts & tokens |
 
-Hugging Face Hub is the right tool for public model sharing. Lineage is deliberately **not** a
-public hub.
+Use Hugging Face Hub to share models with the public. Lineage is not a public hub.
 
 ## Design principles
 
-1. **Self-hosting is the primary distribution model.**
-2. **One binary, two surfaces, two ports.** Admin console on `:8080`, Model API on `:8081`.
-   Publishing is a Model API operation; the console is for humans.
-3. **Storage-agnostic, metadata-authoritative.** Lineage owns metadata and pointers; bytes
-   live in your storage and flow directly to consumers.
-4. **Auditable by default.** Every state transition is a durable, sealed event.
-5. **Authentication is the infrastructure's job.** Your ingress, gateway, or mesh
-   authenticates; Lineage records the identity header it is given.
+1. **You operate Lineage on your own infrastructure.** There is no hosted service.
+2. **One binary has two interfaces on two ports.** The admin console is on `:8080`. The Model
+   API is on `:8081`. Machines publish models through the Model API. People use the console.
+3. **Lineage keeps the metadata, not the files.** The artifact files stay in your storage.
+   Consumers get the files directly from the storage.
+4. **Lineage records each change.** Each state transition is an audit event, and Lineage
+   seals it.
+5. **Your infrastructure does the authentication.** Your ingress, gateway or mesh
+   authenticates each request. Lineage records the identity header that it receives.
 
 ## Quickstart
 
-### Run locally
+### Run Lineage on your computer
 
-Requires Go 1.25+. Node 20+ and pnpm are also needed, because `make run` builds the embedded
-console.
+You must have Go 1.25 or later. `make run` builds the admin console, thus you must also have
+Node 20 or later and pnpm.
 
-```bash
-make run
-```
+1. Start the registry:
 
-`go run ./cmd/lineage` also works without Node; it serves the API with a placeholder console.
+   ```bash
+   make run
+   ```
 
-| Port    | Surface                                                     |
+   If you do not have Node, use `go run ./cmd/lineage`. The API operates, but the console is a
+   placeholder.
+
+The registry opens three ports:
+
+| Port    | Interface                                                   |
 | ------- | ----------------------------------------------------------- |
 | `:8081` | **Model API** (`/v1`): publish, resolve, fetch (machines)   |
-| `:8080` | **Admin console**: web UI + backend-for-frontend (humans)   |
+| `:8080` | **Admin console**: web UI + backend-for-frontend (people)   |
 | `:9090` | **Ops**: `/healthz`, `/readyz`, `/metrics`                  |
 
-`make run` uses the same retention and attestation settings as the Helm chart, including a
-10-year retention floor. Use `make reset` (with the registry stopped) to start over.
+`make run` uses the same retention and attestation settings as the Helm chart. The retention
+floor is 10 years. To start again with no data, stop the registry, then do `make reset`.
 
-Publish a model, promote it, and resolve it:
+2. Publish a model, promote it, and resolve it:
 
-```bash
-curl -XPOST localhost:8081/v1/models -H X-Lineage-Actor:me \
-  -d '{"name":"fraud-detector"}'
+   ```bash
+   curl -XPOST localhost:8081/v1/models -H X-Lineage-Actor:me \
+     -d '{"name":"fraud-detector"}'
 
-curl -XPOST localhost:8081/v1/models/fraud-detector/versions -H X-Lineage-Actor:me \
-  -d '{"name":"1.4.0","artifacts":[{"name":"model.onnx","uri":"s3://m/1.4.0","modelFormat":{"name":"onnx"}}]}'
+   curl -XPOST localhost:8081/v1/models/fraud-detector/versions -H X-Lineage-Actor:me \
+     -d '{"name":"1.4.0","artifacts":[{"name":"model.onnx","uri":"s3://m/1.4.0","modelFormat":{"name":"onnx"}}]}'
 
-curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition -d '{"to":"staging"}'
-curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition -d '{"to":"production"}'
+   curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition -d '{"to":"staging"}'
+   curl -XPOST localhost:8081/v1/models/fraud-detector/versions/1.4.0:transition -d '{"to":"production"}'
 
-curl "localhost:8081/v1/models/fraud-detector/resolve?stage=production"
-```
+   curl "localhost:8081/v1/models/fraud-detector/resolve?stage=production"
+   ```
 
-The console is at <http://localhost:8080> and the OpenAPI document at
-<http://localhost:8081/v1/openapi.json>.
+3. Open the console at <http://localhost:8080>.
+
+The OpenAPI document is at <http://localhost:8081/v1/openapi.json>.
 
 ### Load sample data
 
-With the registry running, load a demo dataset: five models across every stage, with lineage
-edges, deployments, risk classifications, validations, change control plans, and a real
-audit trail.
+The sample data has five models in all stages. It also has lineage links, deployments, risk
+classes, validations, change control plans and an audit log.
 
-```bash
-make seed
-```
+1. Make sure that the registry operates.
+2. Load the data:
 
-Seeding is additive and talks to the Model API like any client. Set `LINEAGE_ENDPOINT` to
-target a remote install.
+   ```bash
+   make seed
+   ```
+
+The loader adds data. It does not remove data. It uses the Model API, as other clients do.
+To load the data into a remote registry, set `LINEAGE_ENDPOINT`.
 
 ### Python SDK
 
-```bash
-pip install ./sdk/python
-```
+1. Install the SDK:
 
-```python
-from lineage import Client
+   ```bash
+   pip install ./sdk/python
+   ```
 
-lin = Client("http://localhost:8081", actor="training-ci")
-lin.publish(
-    model="fraud-detector",
-    version="1.4.0",
-    artifacts=[lin.model_file("model.onnx", format=("onnx", "1.16"))],
-    lineage=[("trained_on", "s3://datasets/fraud-q2")],
-)
-lin.transition("fraud-detector", "1.4.0", to="staging")
-paths = lin.download("fraud-detector", stage="staging", dest="./model")
-```
+2. Use the client:
 
-See [`sdk/python`](sdk/python/README.md). The Go CLI (`make cli` → `bin/lineage-cli`) covers the
-same publish, promote, resolve, and pull flow from a shell.
+   ```python
+   from lineage import Client
 
-### Deploy with Helm
+   lin = Client("http://localhost:8081", actor="training-ci")
+   lin.publish(
+       model="fraud-detector",
+       version="1.4.0",
+       artifacts=[lin.model_file("model.onnx", format=("onnx", "1.16"))],
+       lineage=[("trained_on", "s3://datasets/fraud-q2")],
+   )
+   lin.transition("fraud-detector", "1.4.0", to="staging")
+   paths = lin.download("fraud-detector", stage="staging", dest="./model")
+   ```
+
+For more data, see [`sdk/python`](sdk/python/README.md). The Go CLI does the same operations
+from a shell. To build it, do `make cli`. The result is `bin/lineage-cli`.
+
+### Install with Helm
 
 ```bash
 # dev: SQLite on a PVC, filesystem storage, no external dependencies
@@ -189,15 +214,17 @@ helm install lineage deploy/helm/lineage -f deploy/helm/lineage/values-prod.yaml
   --set ingress.modelApi.host=api.example.com
 ```
 
-Images are published to `ghcr.io/proseria-research/lineage` and
-`ghcr.io/proseria-research/lineage-init`. SQLite is single-writer, so the chart rejects a
-multi-replica SQLite install.
+The images are at `ghcr.io/proseria-research/lineage` and
+`ghcr.io/proseria-research/lineage-init`.
+
+SQLite lets only one process write at a time. Thus the chart does not let you install more than
+one replica with SQLite.
 
 ## Architecture
 
-One binary serves two surfaces over a shared domain core (ports and adapters). The core
-depends only on port interfaces. Adapters are wired at startup and never imported by the
-core.
+One binary has two interfaces. The two interfaces use one domain core. The design uses ports
+and adapters: the core uses only port interfaces. Lineage connects the adapters at startup. The
+core does not import an adapter.
 
 ```mermaid
 flowchart LR
@@ -238,23 +265,23 @@ flowchart LR
 | `site/` | Website and guides ([lineage.proseria.ca](https://lineage.proseria.ca)) |
 | `docs/` | Numbered design documents |
 
-**Runtime dependencies** are few: `modernc.org/sqlite` (cgo-free), `jackc/pgx/v5`, and
-`redis/go-redis`. The S3 signer, OCI client, Prometheus registry, and OpenAPI document are
-standard library or hand-written.
+Lineage has three **runtime dependencies**: `modernc.org/sqlite` (no cgo), `jackc/pgx/v5` and
+`redis/go-redis`. The S3 signer, the OCI client, the Prometheus registry and the OpenAPI
+document use only the Go standard library.
 
 ## Configuration
 
-All configuration comes from environment variables.
+You configure Lineage with environment variables.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| **Listeners** | | |
+| **Ports** | | |
 | `LINEAGE_MODEL_API_ADDR` | `:8081` | Model API listen address |
 | `LINEAGE_ADMIN_ADDR` | `:8080` | Admin console listen address |
 | `LINEAGE_METRICS_ADDR` | `:9090` | Ops (health / metrics) listen address |
-| `LINEAGE_PUBLIC_MODEL_API_URL` | — | Model API URL the console shows to users; guessed if unset |
-| `LINEAGE_DOCS_URL` | `https://lineage.proseria.ca` | Docs link target in the console |
-| `LINEAGE_ACTOR_HEADER` | `X-Lineage-Actor` | Trusted identity header recorded on audit events |
+| `LINEAGE_PUBLIC_MODEL_API_URL` | — | Model API URL that the console shows. If it is not set, Lineage calculates a value |
+| `LINEAGE_DOCS_URL` | `https://lineage.proseria.ca` | Documentation URL for links in the console |
+| `LINEAGE_ACTOR_HEADER` | `X-Lineage-Actor` | Identity header that Lineage records on audit events |
 | **Metadata & cache** | | |
 | `LINEAGE_DB_ENGINE` | `sqlite` | `sqlite` \| `postgres` \| `memory` |
 | `LINEAGE_DB_PATH` | `lineage.db` | SQLite file path, or Postgres DSN |
@@ -268,38 +295,38 @@ All configuration comes from environment variables.
 | `LINEAGE_S3_BUCKET` | — | S3 bucket |
 | `LINEAGE_S3_REGION` | — | S3 region |
 | `LINEAGE_S3_ENDPOINT` | — | Endpoint override (MinIO / R2 / Ceph) |
-| `LINEAGE_S3_ACCESS_KEY` / `_SECRET_KEY` / `_SESSION_TOKEN` | — | Static credentials; omit to use the IRSA / ECS / IMDS chain |
+| `LINEAGE_S3_ACCESS_KEY` / `_SECRET_KEY` / `_SESSION_TOKEN` | — | Static credentials. If they are not set, Lineage uses the IRSA / ECS / IMDS chain |
 | `LINEAGE_S3_PATH_STYLE` | `false` | `true` for MinIO / Ceph |
-| `LINEAGE_OCI_REGISTRY` | — | Registry host\[:port\], e.g. `ghcr.io` |
+| `LINEAGE_OCI_REGISTRY` | — | Registry host\[:port\], for example `ghcr.io` |
 | `LINEAGE_OCI_REPOSITORY` | — | Repository prefix; a model's repo is `<prefix>/<model>` |
-| `LINEAGE_OCI_USERNAME` / `_PASSWORD` | — | Registry credentials; omit for anonymous pull |
+| `LINEAGE_OCI_USERNAME` / `_PASSWORD` | — | Registry credentials. If they are not set, Lineage pulls without credentials |
 | `LINEAGE_OCI_PLAIN_HTTP` | `false` | `true` for in-cluster / dev registries |
-| `LINEAGE_STORAGE_GC` | `retain` | `sweep` enables reference-counted garbage collection |
-| `LINEAGE_GC_GRACE` | `24h` | Minimum object age before GC |
-| `LINEAGE_GC_INTERVAL` | `1h` | GC sweep period |
-| `LINEAGE_GC_PREFIX` | — | Storage prefix the sweeper is scoped to |
+| `LINEAGE_STORAGE_GC` | `retain` | `sweep` starts the garbage collector |
+| `LINEAGE_GC_GRACE` | `24h` | Minimum age of an object before the garbage collector can remove it |
+| `LINEAGE_GC_INTERVAL` | `1h` | Time between two garbage collector runs |
+| `LINEAGE_GC_PREFIX` | — | Storage prefix that the garbage collector examines |
 | **Retention & audit** | | |
-| `LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS` | `0` | Audit events younger than this cannot be deleted |
-| `LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS` | `0` | Archived versions younger than this cannot be deleted |
-| `LINEAGE_AUDIT_ATTESTATION` | `on` | `off` disables Merkle sealing of the audit log |
-| `LINEAGE_SEAL_INTERVAL_SECONDS` | `60` | Seal period |
-| `LINEAGE_SEAL_GRACE_SECONDS` | `5` | Delay before sealing, for late-committing writes |
+| `LINEAGE_RETENTION_MIN_AUDIT_AGE_DAYS` | `0` | You cannot delete an audit event that is newer than this |
+| `LINEAGE_RETENTION_MIN_ARCHIVED_VERSION_DAYS` | `0` | You cannot delete an archived version that is newer than this |
+| `LINEAGE_AUDIT_ATTESTATION` | `on` | `off` stops the Merkle sealing of the audit log |
+| `LINEAGE_SEAL_INTERVAL_SECONDS` | `60` | Time between two seals |
+| `LINEAGE_SEAL_GRACE_SECONDS` | `5` | Time to wait before a seal, for writes that commit late |
 | **Tracing** | | |
-| `LINEAGE_OTLP_ENDPOINT` | `$OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP/HTTP collector; empty disables tracing |
-| `LINEAGE_SERVICE_NAME` | `lineage` | Service name on spans |
-| `LINEAGE_TRACE_SAMPLE_RATIO` | `1.0` | Trace sampling ratio |
+| `LINEAGE_OTLP_ENDPOINT` | `$OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP/HTTP collector. If it is empty, Lineage sends no traces |
+| `LINEAGE_SERVICE_NAME` | `lineage` | Service name on the spans |
+| `LINEAGE_TRACE_SAMPLE_RATIO` | `1.0` | Ratio of traces that Lineage sends |
 
-The Helm chart sets production defaults for these, including a 10-year retention floor.
+The Helm chart sets production values for these variables. The chart sets a retention floor of 10 years.
 
-## Contributing
+## Contributions
 
-Issues, discussions, and pull requests are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md)
-covers setup, tests, conventions, and the PR process. Everyone taking part agrees to the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+You can send issues, discussions and pull requests. [`CONTRIBUTING.md`](CONTRIBUTING.md) gives
+the setup, the tests, the conventions and the pull request procedure. All contributors must
+obey the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ```bash
 make build   # console + binary → bin/lineage
-make test    # full suite; no external services needed
+make test    # all tests; no external services necessary
 ```
 
 ## Documentation
@@ -324,9 +351,9 @@ make test    # full suite; no external services needed
 
 ## Project status
 
-All tracked milestones (M0–M19) have shipped, including the core registry, delivery,
-console, lineage graph, observability, Helm chart, SDK and CLI, OCI storage, and the
-governance features above. See [`MILESTONES.md`](MILESTONES.md).
+All milestones (M0 to M19) are complete. They include the registry, delivery, the console, the
+lineage graph, observability, the Helm chart, the SDK and CLI, OCI storage and governance. For
+more data, see [`MILESTONES.md`](MILESTONES.md).
 
 ## License
 
