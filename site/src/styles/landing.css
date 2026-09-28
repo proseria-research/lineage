@@ -1087,6 +1087,178 @@ output.is-changed {
 	}
 }
 
+/* ---- Layer portrait ---- */
+
+.layers {
+	padding: clamp(1.25rem, 3vw, 2rem);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	background: var(--card);
+}
+
+.layers__canvas {
+	padding: 1rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.portrait {
+	display: block;
+	width: 100%;
+	height: auto;
+	color: var(--portrait);
+}
+
+.portrait__tone-1 {
+	color: var(--portrait-block-1);
+}
+.portrait__tone-2 {
+	color: var(--portrait-block-2);
+}
+.portrait__tone-3 {
+	color: var(--portrait-block-3);
+}
+.portrait__tone-4 {
+	color: var(--portrait-block-4);
+}
+
+.portrait__col {
+	cursor: pointer;
+	transition: opacity 120ms ease;
+}
+
+.portrait__edge {
+	transition: stroke-opacity 120ms ease;
+}
+
+.has-selection .portrait__col:not(.is-selected) {
+	opacity: 0.28;
+}
+
+.has-selection .portrait__edge {
+	stroke-opacity: 0.05;
+}
+
+.has-selection .portrait__edge.is-selected {
+	stroke-opacity: 0.6;
+}
+
+.layers__stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.5rem;
+	margin-top: 1rem;
+	color: var(--muted-fg);
+	font-size: 0.875rem;
+}
+
+.layers__stats strong {
+	color: var(--fg);
+	font-family: var(--mono);
+	font-weight: 500;
+}
+
+.blocks {
+	margin-top: 1rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	overflow: hidden;
+}
+
+.blocks__row {
+	display: grid;
+	grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.7fr) minmax(0, 0.9fr);
+	gap: 1rem;
+	align-items: center;
+	width: 100%;
+	padding: 0.6rem 0.9rem;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 0.875rem;
+	text-align: left;
+}
+
+button.blocks__row {
+	cursor: pointer;
+}
+
+.blocks__row + .blocks__row {
+	border-top: 1px solid var(--border);
+}
+
+.blocks__row--head {
+	background: var(--muted);
+	color: var(--muted-fg);
+	font-size: 0.75rem;
+	font-weight: 500;
+}
+
+button.blocks__row:hover,
+button.blocks__row.is-selected {
+	background: var(--muted);
+}
+
+button.blocks__row:focus-visible {
+	outline: 2px solid var(--brand);
+	outline-offset: -2px;
+}
+
+.blocks__path {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-family: var(--mono);
+	font-size: 0.8125rem;
+}
+
+.blocks__swatch {
+	flex: none;
+	width: 0.7rem;
+	height: 0.7rem;
+	border-radius: 999px;
+	background: currentColor;
+}
+
+.blocks__mono {
+	font-family: var(--mono);
+	font-size: 0.8125rem;
+}
+
+.layers__hint {
+	margin-top: 1rem;
+	color: var(--muted-fg);
+	font-size: 0.8125rem;
+	text-align: center;
+}
+
+@media (max-width: 640px) {
+	.blocks__row {
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 0.2rem 1rem;
+	}
+	.blocks__row--head {
+		display: none;
+	}
+	.blocks__path {
+		grid-column: 1 / -1;
+	}
+	.blocks__row > span:nth-child(3),
+	.blocks__row > span:nth-child(4) {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.portrait__col,
+	.portrait__edge {
+		transition: none;
+	}
+}
+
 /* ---- Governance ---- */
 
 .gov {

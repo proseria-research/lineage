@@ -38,6 +38,12 @@
 	--fp-dtype: oklch(0.56 0.075 75);
 	--fp-weights: oklch(0.53 0.08 25);
 
+	--portrait: oklch(0.53 0.045 245);
+	--portrait-block-1: oklch(0.52 0.07 255);
+	--portrait-block-2: oklch(0.54 0.07 165);
+	--portrait-block-3: oklch(0.56 0.075 75);
+	--portrait-block-4: oklch(0.53 0.08 25);
+
 	--shadow: 0 1px 2px rgb(23 32 46 / 0.04), 0 8px 24px -12px rgb(23 32 46 / 0.12);
 }
 
@@ -65,6 +71,12 @@
 	--fp-shape: oklch(0.74 0.075 165);
 	--fp-dtype: oklch(0.78 0.08 75);
 	--fp-weights: oklch(0.72 0.085 25);
+
+	--portrait: oklch(0.72 0.05 245);
+	--portrait-block-1: oklch(0.72 0.075 255);
+	--portrait-block-2: oklch(0.74 0.075 165);
+	--portrait-block-3: oklch(0.78 0.08 75);
+	--portrait-block-4: oklch(0.72 0.085 25);
 
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -16px rgb(0 0 0 / 0.6);
 }

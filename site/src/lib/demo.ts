@@ -44,3 +44,21 @@ export const VERSIONS: DemoVersion[] = [
 ];
 
 export const byName = (name: string) => VERSIONS.find((x) => x.name === name)!;
+
+/** One block of a version's layer breakdown, as a producer reports it (`insight.layers`). */
+export interface DemoLayer {
+	ordinal: number;
+	path: string;
+	opType: string;
+	repeatCount: number;
+	shapeSignature: string;
+	paramCount: number;
+}
+
+/** fraud-detector's layer breakdown: a small transformer over transaction sequences. */
+export const LAYERS: DemoLayer[] = [
+	{ ordinal: 0, path: 'embeddings.merchant', opType: 'Embedding', repeatCount: 1, shapeSignature: '[50000,256]', paramCount: 12_800_000 },
+	{ ordinal: 1, path: 'encoder.layer.*.attention.q_proj', opType: 'Linear', repeatCount: 4, shapeSignature: '[256,256]', paramCount: 65_792 },
+	{ ordinal: 2, path: 'encoder.layer.*.ffn.up', opType: 'Linear', repeatCount: 4, shapeSignature: '[256,1024]', paramCount: 263_168 },
+	{ ordinal: 3, path: 'classifier', opType: 'Linear', repeatCount: 1, shapeSignature: '[256,2]', paramCount: 514 },
+];

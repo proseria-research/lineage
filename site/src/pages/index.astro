@@ -3,7 +3,8 @@ import Marketing from '../layouts/Marketing.astro';
 import ReleaseDemo from '../components/ReleaseDemo.astro';
 import LineageMap from '../components/LineageMap.astro';
 import Fingerprint from '../components/Fingerprint.astro';
-import { byName } from '../lib/demo';
+import Portrait from '../components/Portrait.astro';
+import { byName, LAYERS } from '../lib/demo';
 
 import TriangleAlert from '@lucide/astro/icons/triangle-alert';
 import OctagonAlert from '@lucide/astro/icons/octagon-alert';
@@ -26,6 +27,10 @@ const LEVELS = [
 	{ key: 'dtype', label: 'Precision', help: 'The numeric type of every tensor' },
 	{ key: 'weights', label: 'Weights', help: 'The exact weight values' },
 ] as const;
+
+const fmtCount = (n: number) =>
+	n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n);
+const layerCount = LAYERS.reduce((sum, l) => sum + l.repeatCount, 0);
 
 const levels = LEVELS.map((l) => ({ ...l, changed: before.hashes[l.key] !== after.hashes[l.key] }));
 
@@ -394,7 +399,51 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 		</div>
 	</section>
 
-	<section class="band" aria-labelledby="gov">
+	<section class="band" aria-labelledby="layers">
+		<div class="shell">
+			<header class="head">
+				<h2 id="layers" class="head__title">See what a version is made of</h2>
+				<p class="head__lede">
+					Each version's layer stack is drawn from the breakdown your pipeline reports: one column
+					per layer, repeated blocks drawn out, the classifier narrowing to its two outputs.
+				</p>
+			</header>
+			<figure class="layers" data-layers>
+				<div class="layers__canvas"><Portrait layers={LAYERS} /></div>
+				<p class="layers__stats">
+					<span><strong>{layerCount}</strong> layers</span>
+					<span><strong>{LAYERS.length}</strong> blocks</span>
+					<span><strong>×{Math.max(...LAYERS.map((l) => l.repeatCount))}</strong> max repeat</span>
+				</p>
+				<div class="blocks">
+					<div class="blocks__row blocks__row--head" aria-hidden="true">
+						<span>Block</span><span>Type</span><span>Output</span><span>Repeats</span><span>Parameters</span>
+					</div>
+					{
+						LAYERS.map((l, i) => (
+							<button type="button" class="blocks__row" data-block={i} aria-pressed="false">
+								<span class="blocks__path">
+									<i class={`blocks__swatch portrait__tone-${(i % 4) + 1}`} aria-hidden="true" />
+									{l.path}
+								</span>
+								<span>{l.opType}</span>
+								<span class="blocks__mono">{l.shapeSignature}</span>
+								<span class="blocks__mono">×{l.repeatCount}</span>
+								<span class="blocks__mono">{fmtCount(l.paramCount)}</span>
+							</button>
+						))
+					}
+				</div>
+				<figcaption class="layers__hint">Choose a block to highlight its layers.</figcaption>
+			</figure>
+			<p class="band__foot">
+				Lines show which layers are adjacent, not how they are wired.
+				<a href="/api/lineage/#version-insight">Reporting version insight</a>
+			</p>
+		</div>
+	</section>
+
+	<section class="band band--card" aria-labelledby="gov">
 		<div class="shell">
 			<header class="head">
 				<h2 id="gov" class="head__title">Compliance free from spreadsheets</h2>
@@ -474,7 +523,7 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 		</div>
 	</section>
 
-	<section class="band band--card" aria-labelledby="lin">
+	<section class="band" aria-labelledby="lin">
 		<div class="shell">
 			<header class="head">
 				<h2 id="lin" class="head__title">Trace every model's history</h2>
@@ -489,7 +538,7 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 		</div>
 	</section>
 
-	<section class="band" aria-labelledby="infra">
+	<section class="band band--card" aria-labelledby="infra">
 		<div class="shell">
 			<header class="head">
 				<h2 id="infra" class="head__title">Yours to run</h2>
@@ -511,7 +560,7 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 		</div>
 	</section>
 
-	<section class="band band--card" aria-labelledby="docs">
+	<section class="band" aria-labelledby="docs">
 		<div class="shell">
 			<header class="head">
 				<h2 id="docs" class="head__title">Documentation</h2>
@@ -549,6 +598,34 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 </Marketing>
 
 <script>
+	// Layer portrait: hovering a block or its columns previews it; click or keyboard pins.
+	const layers = document.querySelector<HTMLElement>('[data-layers]');
+	if (layers) {
+		let pinned = '';
+		const rows = [...layers.querySelectorAll<HTMLButtonElement>('button[data-block]')];
+		const cols = [...layers.querySelectorAll<SVGGElement>('.portrait__col')];
+		const edges = [...layers.querySelectorAll<SVGLineElement>('.portrait__edge')];
+		const show = (block: string) => {
+			layers.classList.toggle('has-selection', block !== '');
+			for (const row of rows) {
+				row.classList.toggle('is-selected', row.dataset.block === block);
+				row.setAttribute('aria-pressed', String(row.dataset.block === pinned));
+			}
+			for (const col of cols) col.classList.toggle('is-selected', col.dataset.block === block);
+			for (const e of edges) e.classList.toggle('is-selected', e.dataset.a === block || e.dataset.b === block);
+		};
+		const bind = (el: Element, block: string) => {
+			el.addEventListener('mouseenter', () => show(block));
+			el.addEventListener('mouseleave', () => show(pinned));
+			el.addEventListener('click', () => {
+				pinned = pinned === block ? '' : block;
+				show(pinned);
+			});
+		};
+		for (const row of rows) bind(row, row.dataset.block!);
+		for (const col of cols) bind(col, col.dataset.block!);
+	}
+
 	// Choosing a step lights its lines in the script. Hover previews; click or keyboard pins.
 	const flow = document.querySelector<HTMLElement>('[data-flow]');
 	if (flow) {

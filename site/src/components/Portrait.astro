@@ -1,0 +1,101 @@
+---
+/**
+ * The layer portrait, ported from the admin console's PortraitMark (components/VersionMark.tsx)
+ * so the site draws the same stack the product does: one column per layer with repeats
+ * expanded, node count from each block's output width, edges between adjacent columns only.
+ * Rendered at build time; the page's script adds block selection.
+ */
+import type { DemoLayer } from '../lib/demo';
+
+interface Props {
+	layers: DemoLayer[];
+	width?: number;
+	height?: number;
+}
+
+const { layers, width = 880, height = 260 } = Astro.props;
+
+const MAX_NODES = 6;
+const MAX_COLUMNS = 20;
+
+/** Output width of a block: the last dim of "[768,3072]". Null when unparseable. */
+const outWidth = (sig?: string): number | null => {
+	const nums = sig?.match(/\d+/g);
+	return nums?.length ? Number(nums[nums.length - 1]) : null;
+};
+
+type Column = { nodes: number; block: number; dashed: boolean };
+
+const outs = layers.map((l) => outWidth(l.shapeSignature));
+const outMax = Math.max(2, ...outs.filter((o): o is number => o != null));
+const cols: Column[] = [];
+layers.forEach((l, i) => {
+	const o = outs[i];
+	let nodes: number;
+	if (o == null) nodes = 2;
+	else if (o <= MAX_NODES) nodes = Math.max(1, o);
+	else nodes = Math.max(2, Math.min(MAX_NODES, Math.round(2 + (MAX_NODES - 2) * (Math.log(o) / Math.log(outMax)))));
+	const dashed = o == null || l.paramCount == null;
+	for (let k = 0; k < Math.max(l.repeatCount || 1, 1) && cols.length < MAX_COLUMNS; k++) cols.push({ nodes, block: i, dashed });
+});
+
+const padX = Math.max(2, width * 0.045);
+const padY = Math.max(2, height * 0.12);
+const W = width - padX * 2;
+const H = height - padY * 2;
+const maxNodes = Math.max(...cols.map((c) => c.nodes));
+const dx = cols.length > 1 ? W / (cols.length - 1) : 0;
+const cx = (i: number) => padX + (cols.length > 1 ? i * dx : W / 2);
+const ys = cols.map((c) => {
+	const extent = H * (c.nodes / maxNodes);
+	const top = padY + (H - extent) / 2;
+	if (c.nodes === 1) return [padY + H / 2];
+	return Array.from({ length: c.nodes }, (_, k) => top + (extent * k) / (c.nodes - 1));
+});
+const r = Math.max(1, Math.min(4.5, height / 46));
+const tone = (block: number) => `portrait__tone-${(block % 4) + 1}`;
+
+const edges = cols.slice(0, -1).flatMap((c, i) =>
+	ys[i].flatMap((y1) =>
+		ys[i + 1].map((y2) => ({ x1: cx(i), y1, x2: cx(i + 1), y2, a: c.block, b: cols[i + 1].block, dashed: c.dashed || cols[i + 1].dashed })),
+	),
+);
+---
+
+<svg class="portrait" viewBox={`0 0 ${width} ${height}`} fill="none" role="img" aria-label={`Layer portrait: ${cols.length} layers from ${layers.length} blocks`}>
+	{
+		edges.map((e) => (
+			<line
+				class="portrait__edge"
+				data-a={e.a}
+				data-b={e.b}
+				x1={e.x1}
+				y1={e.y1}
+				x2={e.x2}
+				y2={e.y2}
+				stroke="currentColor"
+				stroke-width="1"
+				stroke-opacity={e.dashed ? 0.14 : 0.3}
+			/>
+		))
+	}
+	{
+		cols.map((c, i) => (
+			<g class:list={['portrait__col', tone(c.block)]} data-block={c.block}>
+				<rect class="portrait__hit" x={cx(i) - Math.max(10, Math.min(24, dx / 2 || 24))} y={padY} width={Math.max(20, Math.min(48, dx || 48))} height={H} fill="transparent" />
+				{ys[i].map((y) => (
+					<circle
+						cx={cx(i)}
+						cy={y}
+						r={r}
+						stroke="currentColor"
+						stroke-width="1.5"
+						stroke-dasharray={c.dashed ? '1.5 1.5' : undefined}
+						fill={c.dashed ? 'var(--card)' : 'currentColor'}
+						fill-opacity={c.dashed ? 1 : 0.35}
+					/>
+				))}
+			</g>
+		))
+	}
+</svg>
