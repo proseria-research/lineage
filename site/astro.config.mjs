@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 import rehypeEndpoints from './src/lib/rehype-endpoints.mjs';
 
 // TODO: point this at the real domain before the first production deploy.
@@ -17,7 +18,7 @@ export default defineConfig({
 	// Method/Path tables in the guides render as endpoint lists (src/lib/rehype-endpoints.mjs).
 	markdown: { rehypePlugins: [rehypeEndpoints] },
 	integrations: [
-
+		sitemap(),
 
 		starlight({
 			title: 'Lineage',
