@@ -1,7 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
-import sitemap from '@astrojs/sitemap';
 import rehypeEndpoints from './src/lib/rehype-endpoints.mjs';
 
 // Used for canonical URLs, Open Graph tags, and the sitemap.
@@ -17,8 +16,6 @@ export default defineConfig({
 	// Method/Path tables in the guides render as endpoint lists (src/lib/rehype-endpoints.mjs).
 	markdown: { rehypePlugins: [rehypeEndpoints] },
 	integrations: [
-		sitemap(),
-
 		starlight({
 			title: 'Lineage',
 			description:
