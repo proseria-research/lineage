@@ -4,8 +4,7 @@ import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 import rehypeEndpoints from './src/lib/rehype-endpoints.mjs';
 
-// TODO: point this at the real domain before the first production deploy.
-// It is used for canonical URLs, Open Graph tags, and the sitemap.
+// Used for canonical URLs, Open Graph tags, and the sitemap.
 const site = 'https://lineage.proseria.ca';
 
 const repo = 'https://github.com/proseria-research/lineage';
@@ -29,6 +28,13 @@ export default defineConfig({
 				dark: './src/assets/mark-dark.svg',
 			},
 			favicon: '/favicon.svg',
+			// Social preview card for every guide page (Starlight sets the other OG tags).
+			head: [
+				{ tag: 'meta', attrs: { property: 'og:image', content: `${site}/og.png` } },
+				{ tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+				{ tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+				{ tag: 'meta', attrs: { name: 'twitter:image', content: `${site}/og.png` } },
+			],
 			customCss: [
 				'./src/styles/fonts.css',
 				'./src/styles/tokens.css',
