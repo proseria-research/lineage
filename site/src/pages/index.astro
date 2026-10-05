@@ -277,9 +277,9 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 
 	<section class="band" aria-labelledby="how">
 		<div class="shell">
-			<header class="head">
+			<div class="head">
 				<h2 id="how" class="head__title">From training run to production in three calls</h2>
-			</header>
+			</div>
 			<div class="flow" data-flow>
 				<ol class="flow__steps">
 					{
@@ -288,7 +288,7 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 								<button class="flow__step" type="button" data-step={i + 1} aria-pressed="false">
 									<span class="flow__num" aria-hidden="true">{i + 1}</span>
 									<span class="flow__text">
-										<span class="flow__title">{st.title}</span>
+										<strong class="flow__title">{st.title}</strong>{' '}
 										<span class="flow__body">{st.body}</span>
 									</span>
 								</button>
@@ -329,10 +329,11 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 								id={`panel-${sc.id}`}
 								aria-labelledby={`tab-${sc.id}`}
 								data-panel={sc.id}
+								data-language={sc.id === 'python' ? 'python' : 'bash'}
 								data-text={textOf(sc.lines)}
 								hidden={k !== 0}
 							><code>{sc.lines.map(([step, line]) => (
-								<span class="script__line" data-line-step={step} set:html={highlight(line)} />
+								<span class="script__line line" data-line-step={step} set:html={highlight(line)} />
 							))}</code></pre>
 						))
 					}
@@ -403,10 +404,10 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 
 	<section class="band" aria-labelledby="layers">
 		<div class="shell">
-			<header class="head">
+			<div class="head">
 				<h2 id="layers" class="head__title">Model visualization</h2>
 				<p class="head__lede">Layers, shapes, and parameter counts from your pipeline, drawn as a stack.</p>
-			</header>
+			</div>
 			<figure class="layers" data-layers>
 				<div class="layers__canvas"><Portrait layers={LAYERS} /></div>
 				<p class="layers__stats">
@@ -444,13 +445,13 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 
 	<section class="band band--card" aria-labelledby="gov">
 		<div class="shell">
-			<header class="head">
+			<div class="head">
 				<h2 id="gov" class="head__title">Governance</h2>
 				<p class="head__lede">
 					Lineage maintains records for compliance with the EU AI Act, model risk rules and FDA change control, and tells you when something
 					needs human involvement.
 				</p>
-			</header>
+			</div>
 
 			<div class="gov">
 				<div class="panel attention">
@@ -524,14 +525,14 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 
 	<section class="band band--solid" aria-labelledby="lin">
 		<div class="shell">
-			<header class="head">
+			<div class="head">
 				<h2 id="lin" class="head__title">Lineage tracing</h2>
 				<p class="head__lede">
 					Record the data a model was trained on, the run that built it and the model it came from.
 					When an auditor asks how it was made, or a dataset turns out to be bad, follow the trail
 					either way.
 				</p>
-			</header>
+			</div>
 			<LineageMap />
 			<p class="band__foot"><a href="/api/lineage/">Recording lineage</a></p>
 		</div>
@@ -539,12 +540,12 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 
 	<section class="band band--card" aria-labelledby="infra">
 		<div class="shell">
-			<header class="head">
+			<div class="head">
 				<h2 id="infra" class="head__title">Self-hostable</h2>
 				<p class="head__lede">
 					Keep your models, records, and audit logs under your control.
 				</p>
-			</header>
+			</div>
 			<ul class="infra">
 				{
 					infra.map(({ Icon, title, body }) => (
@@ -561,9 +562,9 @@ const COMMAND = 'git clone git@github.com:proseria-research/lineage.git && cd li
 
 	<section class="band" aria-labelledby="docs">
 		<div class="shell">
-			<header class="head">
+			<div class="head">
 				<h2 id="docs" class="head__title">Documentation</h2>
-			</header>
+			</div>
 			<ul class="guides">
 				{
 					guides.map((g) => (

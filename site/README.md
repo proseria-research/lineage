@@ -114,6 +114,25 @@ Or connect the repository to Cloudflare Workers Builds with:
 - **Build command:** `pnpm build`
 - **Output directory:** `dist`
 
+## Markdown for agents
+
+Each page has a Markdown copy at `<path>/index.md`, written at build by
+`astro-md-content-negotiation` (options in `astro.config.mjs`; `patches/` fixes its code
+blocks). Agents that send `Accept: text/markdown` get it at the page's own URL through one
+Cloudflare URL Rewrite Rule on the zone (Rules → Transform Rules → Rewrite URL; Free plan):
+
+| Field | Value |
+| --- | --- |
+| Expression | `any(http.request.headers["accept"][*] contains "text/markdown") and ends_with(http.request.uri.path, "/")` |
+| Path (dynamic) | `concat(http.request.uri.path, "index.md")` |
+
+Paths without a trailing slash redirect to one first (`auto-trailing-slash`). `public/_headers`
+sets `Content-Type: text/markdown` and `Vary: Accept`. Check after deploying:
+
+```bash
+curl -sI -H 'Accept: text/markdown' https://lineage.proseria.ca/
+```
+
 ## Before the first production deploy
 
 - Set `site` in `astro.config.mjs` to the real domain. It drives canonical URLs, Open Graph

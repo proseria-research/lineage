@@ -1,0 +1,8 @@
+# Markdown copies of each page (index.md, written at build), served to `Accept: text/markdown`
+# by a Cloudflare URL Rewrite Rule. See README.md, "Markdown for agents".
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+
+# HTML and Markdown share each page URL, so caches must key on Accept.
+/*
+  Vary: Accept

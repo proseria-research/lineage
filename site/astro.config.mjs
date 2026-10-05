@@ -2,11 +2,27 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import rehypeEndpoints from './src/lib/rehype-endpoints.mjs';
+import markdownExport from 'astro-md-content-negotiation';
 
 // Used for canonical URLs, Open Graph tags, and the sitemap.
 const site = 'https://lineage.proseria.ca';
 
 const repo = 'https://github.com/proseria-research/lineage';
+
+// Left out of the Markdown copies: page chrome, copy buttons, and the home page's interactive
+// demos (their prose stays). Diagrams are SVG, which the plugin already drops.
+const notForAgents = [
+	'[aria-hidden="true"]',
+	'.sr-only',
+	'.sl-anchor-link',
+	'.copy',
+	'button[data-copy]',
+	'[role="tablist"]',
+	'figure.demo',
+	'figure.compare',
+	'figure.layers',
+	'.attention',
+].join(',');
 
 export default defineConfig({
 	site,
@@ -66,6 +82,13 @@ export default defineConfig({
 				{ label: 'Operate', items: [{ autogenerate: { directory: 'operate' } }] },
 				{ label: 'Clients', items: [{ autogenerate: { directory: 'clients' } }] },
 			],
+		}),
+		// An `index.md` beside every page, served for `Accept: text/markdown` (public/_headers).
+		markdownExport({
+			exclude: ['404.html'],
+			removeElements: [(node) => node.matches(notForAgents)],
+			// The plugin's link rule outranks removeElements, so heading anchors survive as a bare `#id`.
+			transform: (md) => md.replace(/^#[\w-]+\n\n/gm, ''),
 		}),
 	],
 });

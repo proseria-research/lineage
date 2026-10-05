@@ -1,0 +1,17 @@
+diff --git a/dist/index.js b/dist/index.js
+index d8bf194e3592adaeff6cc8f6f8bf220fb2c493cd..0deba4f8bf4150a7f01ed4047fc669e5f60da763 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -34,8 +34,10 @@ async function createConverter(remove, keep) {
+     filter: (node) => node.nodeName === "PRE" && node.querySelector("code") !== null,
+     replacement: (_content, node) => {
+       const code = node.querySelector("code");
+-      const lang = code?.getAttribute("class")?.replace(/^language-/, "")?.split(" ")[0] ?? "";
+-      const text = code?.textContent ?? "";
++      const lang = node.getAttribute("data-language") ?? code?.getAttribute("class")?.replace(/^language-/, "")?.split(" ")[0] ?? "";
++      // Highlighters (e.g. Expressive Code) render one element per line with no newlines between.
++      const lines = code ? Array.from(code.querySelectorAll(".ec-line, .line")) : [];
++      const text = lines.length ? lines.map((l) => l.textContent).join("\n") : code?.textContent ?? "";
+       return `
+ \`\`\`${lang}
+ ${text.replace(/\n$/, "")}

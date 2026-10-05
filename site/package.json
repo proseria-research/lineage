@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "astro-md-content-negotiation": "^0.1.5",
     "typescript": "^5.9.3",
     "wrangler": "^4.118.0"
   }

@@ -2,3 +2,6 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+
+patchedDependencies:
+  astro-md-content-negotiation@0.1.5: patches/astro-md-content-negotiation@0.1.5.patch
